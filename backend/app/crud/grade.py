@@ -28,9 +28,19 @@ def get_grades(
     assessment_id: Optional[UUID] = None,
     class_id: Optional[UUID] = None,
     student_ids: Optional[set[UUID]] = None,
+    scope_class_ids: Optional[list] = None,
 ) -> tuple[list[Grade], int]:
-    """Get grades with pagination and filters, including a parent-owned set."""
+    """Get grades with pagination and filters, including a parent-owned set.
+
+    ``scope_class_ids`` (périmètre par cycle, lot B2c-1) : None = pas de restriction ;
+    sinon seulement les notes des élèves inscrits dans ces classes (liste vide = aucune).
+    La note suit l'élève, quelle que soit la classe de son évaluation. Appliqué avant
+    le comptage : ``total`` exact."""
     query = db.query(Grade).filter(Grade.tenant_id == tenant_id)
+
+    if scope_class_ids is not None:
+        from app.core.cycle_scope import student_scope_clause
+        query = query.filter(student_scope_clause(Grade.student_id, scope_class_ids, tenant_id=tenant_id))
 
     if student_ids is not None:
         if not student_ids:

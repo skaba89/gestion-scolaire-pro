@@ -57,7 +57,7 @@ def ctx():
     def database():
         with factory() as db:
             yield db
-    user = {"id": uid, "tenant_id": tid, "roles": ["STUDENT"]}
+    user = {"id": uid, "tenant_id": tid, "roles": ["STUDENT"], "_cycle_ids": None}
     old_overrides = app.dependency_overrides.copy()
     app.dependency_overrides[get_db] = database
     app.dependency_overrides[get_current_user] = lambda: user

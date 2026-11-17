@@ -21,7 +21,7 @@ def _list(monkeypatch, *, allowed, page=1, page_size=2, student_id=None):
     monkeypatch.setattr(grades.crud_grade, "get_grades", fake_get_grades)
     result = grades.list_grades(
         request=object(), db=db,
-        current_user={"id": "parent", "roles": ["PARENT"]},
+        current_user={"id": "parent", "roles": ["PARENT"], "_cycle_ids": None},
         page=page, page_size=page_size, student_id=student_id,
     )
     return result, calls

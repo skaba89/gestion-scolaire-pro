@@ -124,6 +124,7 @@ def _make_attendance(tenant_id: str, student_id: str, *, classroom_id: str = Non
 
 
 def _as(user: dict):
+    user = {**user, "_cycle_ids": None}  # compte non restreint (périmètre par cycle)
     app.dependency_overrides[get_current_user] = lambda: user
     return client
 

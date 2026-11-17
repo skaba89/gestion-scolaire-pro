@@ -24,6 +24,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.core.cycle_scope import require_student_in_scope
 from app.core.database import get_db
 from app.core.security import require_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
@@ -294,6 +295,8 @@ def get_student_transcript(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="Contexte établissement requis")
+    # Périmètre par cycle (B2c-1) : le relevé d'un élève du périmètre couvre toutes ses classes.
+    require_student_in_scope(db, tenant_id, current_user, student_id)
     return build_transcript_data(
         db=db,
         current_user=current_user,

@@ -28,6 +28,7 @@ from app.models.parent_student import ParentStudent  # noqa: E402
 
 
 def _as(user: dict) -> dict:
+    user = {**user, "_cycle_ids": None}  # compte non restreint (périmètre par cycle)
     app.dependency_overrides[get_current_user] = lambda: user
     token = create_access_token({"sub": user["id"], "tenant_id": user.get("tenant_id"), "roles": user.get("roles", [])})
     return {"Authorization": f"Bearer {token}"}

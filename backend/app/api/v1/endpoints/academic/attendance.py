@@ -9,6 +9,10 @@ from datetime import date
 
 logger = logging.getLogger(__name__)
 
+from app.core.cycle_scope import (
+    is_cycle_restricted, require_classes_in_scope, require_students_in_scope,
+    scoped_class_ids, student_scope_sql,
+)
 from app.core.database import get_db
 from app.core.idempotency import get_idempotent_response_or_lock, store_idempotent_response
 from app.core.security import get_current_user, require_permission
@@ -72,6 +76,33 @@ def _allowed_student_ids_for_caller(db: Session, *, current_user: dict, tenant_i
         ), {"tid": tenant_id, "uid": user_id}).fetchall()
         allowed_ids.update(str(r[0]) for r in rows)
     return allowed_ids
+
+
+def _require_attendance_write_in_scope(db: Session, *, tenant_id: str, current_user: dict,
+                                       student_ids, classroom_ids) -> None:
+    """Périmètre par cycle (B2c-1), AVANT toute écriture : l'élève ET la classe doivent être dans
+    le périmètre, sinon 404 sans effet. Une présence sans classe n'appartient à aucun cycle :
+    un compte restreint ne peut ni la créer ni la modifier. Tout ou rien pour un lot."""
+    if not is_cycle_restricted(current_user):
+        return
+    require_students_in_scope(db, tenant_id, current_user, set(student_ids))
+    require_classes_in_scope(db, tenant_id, current_user, set(classroom_ids))
+
+
+def _require_existing_attendance_in_scope(db: Session, *, tenant_id: str, current_user: dict,
+                                          attendance_id: UUID) -> None:
+    """Idem pour une présence existante (PATCH/DELETE) : son élève et sa classe actuels."""
+    if not is_cycle_restricted(current_user):
+        return
+    row = db.execute(text(
+        "SELECT student_id, classroom_id FROM attendance WHERE id = :id AND tenant_id = :tenant_id"
+    ), {"id": str(attendance_id), "tenant_id": tenant_id}).mappings().first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Attendance record not found")
+    _require_attendance_write_in_scope(
+        db, tenant_id=tenant_id, current_user=current_user,
+        student_ids=[row["student_id"]], classroom_ids=[row["classroom_id"]],
+    )
 
 
 def _teacher_may_create(db: Session, *, current_user: dict, tenant_id: str, classroom_id: Optional[str]) -> bool:
@@ -164,6 +195,14 @@ def get_attendance(
         elif not allowed_ids:
             return {"items": [], "total": 0, "limit": limit, "offset": offset}
 
+    scope_binds = []
+    scope_sql = None
+    if is_cycle_restricted(current_user):
+        # Périmètre par cycle (B2c-1) : la présence suit l'élève ; filtre avant LIMIT/OFFSET.
+        scope_sql, scope_binds = student_scope_sql(
+            "a.student_id", scoped_class_ids(db, tenant_id, current_user), tenant_id=tenant_id, tag="att",
+        )
+
     query_str = """
         SELECT a.*,
                st.first_name || ' ' || st.last_name AS student_name,
@@ -177,6 +216,8 @@ def get_attendance(
         WHERE a.tenant_id = :tenant_id
     """
     params: dict = {"tenant_id": tenant_id}
+    if scope_sql is not None:
+        query_str += f" AND {scope_sql}"
 
     if student_id:
         query_str += " AND a.student_id = :student_id"
@@ -206,7 +247,7 @@ def get_attendance(
     params["limit"] = limit
     params["offset"] = offset
 
-    rows = db.execute(text(query_str), params).mappings().all()
+    rows = db.execute(text(query_str).bindparams(*scope_binds), params).mappings().all()
 
     return {
         "items": [
@@ -268,6 +309,14 @@ def get_attendance_stats(
         WHERE tenant_id = :tenant_id
     """
     params: dict = {"tenant_id": tenant_id}
+    scope_binds = []
+    if is_cycle_restricted(current_user):
+        # Périmètre par cycle (B2c-1) : les compteurs ne couvrent que les élèves du périmètre.
+        scope_sql, scope_binds = student_scope_sql(
+            "attendance.student_id", scoped_class_ids(db, tenant_id, current_user),
+            tenant_id=tenant_id, tag="att",
+        )
+        query_str += f" AND {scope_sql}"
 
     if student_id:
         query_str += " AND student_id = :student_id"
@@ -285,7 +334,7 @@ def get_attendance_stats(
         query_str += " AND date <= :date_to"
         params["date_to"] = date_to
 
-    r = db.execute(text(query_str), params).mappings().first()
+    r = db.execute(text(query_str).bindparams(*scope_binds), params).mappings().first()
     total = r["total"] or 0
     present = r["present"] or 0
 
@@ -312,6 +361,10 @@ def create_attendance(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
+    _require_attendance_write_in_scope(
+        db, tenant_id=tenant_id, current_user=current_user,
+        student_ids=[record.student_id], classroom_ids=[record.classroom_id],
+    )
     _validate_attendance_fks(
         db, tenant_id=tenant_id, student_id=record.student_id,
         subject_id=record.subject_id, classroom_id=record.classroom_id,
@@ -396,6 +449,13 @@ def create_attendance_bulk(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
+    # Périmètre par cycle (B2c-1) : tout le lot est vérifié avant la moindre écriture ;
+    # un seul élève ou une seule classe hors périmètre refuse l'ensemble (404, aucun effet).
+    _require_attendance_write_in_scope(
+        db, tenant_id=tenant_id, current_user=current_user,
+        student_ids=[record.student_id for record in payload.records],
+        classroom_ids=[record.classroom_id for record in payload.records],
+    )
     # BUSINESS-RULE FIX (institutional-readiness audit, 2026-09): same
     # duplicate-attendance gap as the single-record endpoint above, applied
     # per record so one already-marked student in the batch doesn't get a
@@ -479,6 +539,9 @@ def update_attendance(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
+    _require_existing_attendance_in_scope(
+        db, tenant_id=tenant_id, current_user=current_user, attendance_id=attendance_id,
+    )
 
     idem_key = request.headers.get("x-idempotency-key")
     endpoint = f"/attendance/{attendance_id}/"
@@ -539,6 +602,9 @@ def delete_attendance(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
+    _require_existing_attendance_in_scope(
+        db, tenant_id=tenant_id, current_user=current_user, attendance_id=attendance_id,
+    )
 
     existing = db.execute(text(
         "SELECT classroom_id FROM attendance WHERE id = :id AND tenant_id = :tenant_id"

@@ -9,6 +9,10 @@ from sqlalchemy import text
 from uuid import UUID
 from datetime import datetime, date
 
+from app.core.cycle_scope import (
+    class_scope_sql, is_cycle_restricted, require_classes_in_scope, require_homework_in_scope,
+    require_student_in_scope, require_submission_in_scope, scoped_class_ids, student_scope_sql,
+)
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
@@ -136,6 +140,15 @@ def list_homework(
         where.append("h.due_date <= :due_date_to")
         params["due_date_to"] = due_date_to
 
+    scope_binds = []
+    if is_cycle_restricted(current_user):
+        # Périmètre par cycle (B2c-1) : seuls les devoirs des classes du compte (un devoir sans
+        # classe n'y est jamais) ; filtre avant comptage et pagination (totaux exacts).
+        scope_sql, scope_binds = class_scope_sql(
+            "h.classroom_id", scoped_class_ids(db, tenant_id, current_user), tag="hw",
+        )
+        where.append(scope_sql)
+
     where_sql = " AND ".join(where)
 
     items_sql = text(f"""
@@ -147,10 +160,10 @@ def list_homework(
         WHERE {where_sql}
         ORDER BY h.due_date ASC NULLS LAST, h.created_at DESC
         LIMIT :limit OFFSET :offset
-    """)
+    """).bindparams(*scope_binds)
     rows = db.execute(items_sql, params).mappings().all()
 
-    count_sql = text(f"SELECT COUNT(*) FROM homework h WHERE {where_sql}")
+    count_sql = text(f"SELECT COUNT(*) FROM homework h WHERE {where_sql}").bindparams(*scope_binds)
     total = db.execute(count_sql, {k: v for k, v in params.items() if k not in ("limit", "offset")}).scalar() or 0
 
     items = []
@@ -183,6 +196,7 @@ def get_homework(
 ):
     """Get a single homework with its submissions."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    require_homework_in_scope(db, tenant_id, current_user, homework_id)
     row = db.execute(text("""
         SELECT h.*, h.classroom_id AS class_id, (h.status = 'PUBLISHED') AS is_published,
                s.name as subject_name, p.first_name as teacher_first, p.last_name as teacher_last
@@ -234,12 +248,21 @@ def get_homework(
         submission_filter = " AND student_id = ANY(:allowed_ids)"
         submission_params["allowed_ids"] = list(allowed_ids)
 
+    scope_binds = []
+    if is_cycle_restricted(current_user):
+        # Périmètre par cycle (B2c-1) : les rendus des seuls élèves du périmètre.
+        scope_sql, scope_binds = student_scope_sql(
+            "homework_submissions.student_id", scoped_class_ids(db, tenant_id, current_user),
+            tenant_id=tenant_id, tag="sub",
+        )
+        submission_filter += f" AND {scope_sql}"
+
     # Fetch submissions
     submissions = db.execute(text(f"""
         SELECT * FROM homework_submissions
         WHERE homework_id = :homework_id AND tenant_id = :tenant_id{submission_filter}
         ORDER BY submitted_at DESC
-    """), submission_params).mappings().all()
+    """).bindparams(*scope_binds), submission_params).mappings().all()
 
     result["submissions"] = []
     for sub in submissions:
@@ -273,6 +296,7 @@ def get_student_submissions(
     homework:write rule (that helper checks who may act ON BEHALF OF a
     student, which is exactly who may also read that student's records)."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    require_student_in_scope(db, tenant_id, current_user, student_id)
     if not _can_submit_for_student(db, current_user=current_user, student_id=student_id, tenant_id=tenant_id):
         raise HTTPException(status_code=403, detail="Vous n'avez pas accès aux soumissions de cet élève")
     where = ["hs.tenant_id = :tenant_id", "hs.student_id = :student_id"]
@@ -313,6 +337,9 @@ def create_homework(
     """Create new homework."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
+    # Périmètre par cycle (B2c-1) : la classe est obligatoire et doit être dans le périmètre.
+    if is_cycle_restricted(current_user):
+        require_classes_in_scope(db, tenant_id, current_user, [body.class_id])
     _validate_homework_fks(db, tenant_id=tenant_id, class_id=body.class_id, subject_id=body.subject_id)
 
     try:
@@ -359,6 +386,11 @@ def update_homework(
     """Update homework."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
+    # Périmètre par cycle (B2c-1) : le devoir actuel ET la classe de destination (y compris un
+    # retrait de classe, qui sortirait le devoir du périmètre).
+    require_homework_in_scope(db, tenant_id, current_user, homework_id)
+    if "class_id" in body.model_fields_set and is_cycle_restricted(current_user):
+        require_classes_in_scope(db, tenant_id, current_user, [body.class_id])
 
     # SECURITY: Whitelist allowed column names in dynamic UPDATE to prevent SQL injection.
     # Keys come from Pydantic model but we enforce a whitelist as defense in depth.
@@ -412,6 +444,7 @@ def delete_homework(
     """Delete homework."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
+    require_homework_in_scope(db, tenant_id, current_user, homework_id)
 
     result = db.execute(text("""
         DELETE FROM homework WHERE id = :id AND tenant_id = :tenant_id
@@ -474,6 +507,9 @@ def submit_homework(
     to" rule already applied to create_job_application() in alumni.py.
     """
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    # Périmètre par cycle (B2c-1) : le devoir (par sa classe) ET l'élève, avant toute écriture.
+    require_homework_in_scope(db, tenant_id, current_user, homework_id)
+    require_student_in_scope(db, tenant_id, current_user, body.student_id)
     if not _can_submit_for_student(db, current_user=current_user, student_id=body.student_id, tenant_id=tenant_id):
         raise HTTPException(status_code=403, detail="Vous ne pouvez pas soumettre un devoir pour cet élève")
     _validate_submission_targets(db, tenant_id=tenant_id, homework_id=homework_id,
@@ -519,6 +555,9 @@ def update_student_submission_content(
 ):
     """Modifie uniquement le contenu d'une remise autorisée et non notée."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    # Périmètre par cycle (B2c-1) : le devoir, puis l'élève de la remise (404, aucun effet).
+    require_homework_in_scope(db, tenant_id, current_user, homework_id)
+    require_submission_in_scope(db, tenant_id, current_user, submission_id)
     params = {"hid": str(homework_id), "id": str(submission_id), "tid": tenant_id}
     try:
         submission = db.execute(text("""
@@ -567,6 +606,7 @@ def grade_submission(
     """Grade a homework submission."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
+    require_submission_in_scope(db, tenant_id, current_user, submission_id)
 
     result = db.execute(text("""
         UPDATE homework_submissions

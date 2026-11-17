@@ -2,7 +2,7 @@
 
 JWT réel, lecture réelle des rôles et des affectations ; seule la révocation
 Redis est contrôlée. Les routes de données restent refusées aux comptes
-restreints jusqu'aux lots B2b à B2e.
+restreints jusqu'aux lots B2c-2 à B2e.
 """
 from datetime import date
 from unittest.mock import AsyncMock
@@ -33,7 +33,7 @@ from app.models import (  # noqa: E402
 )
 from app.models.student import Gender  # noqa: E402
 
-DENIED = "/api/v1/attendance/"       # route de données refusée jusqu'au lot B2c
+DENIED = "/api/v1/school-life/attendance/"       # route de données refusée jusqu'au lot B2c-2 (vie scolaire)
 INDEPENDENT = "/api/v1/users/me/"   # route de coquille
 STRUCTURE = "/api/v1/levels/"       # lecture de structure, INDEPENDENT
 
@@ -112,6 +112,12 @@ def _get(school, who, url, **extra_headers):
     return client.get(url, headers=school["headers"](who, **extra_headers))
 
 
+def _error_of(response):
+    """Code d'erreur d'une réponse (une liste vide, réponse d'une route de données, n'en a pas)."""
+    body = response.json()
+    return body.get("error") if isinstance(body, dict) else None
+
+
 def _assert_denied(response):
     assert response.status_code == 403, response.text
     body = response.json()
@@ -180,12 +186,12 @@ def test_restrictable_account_without_assignment_is_unchanged(school):
 def test_teacher_without_assignment_is_unchanged(school):
     response = _get(school, "teacher", INDEPENDENT)
     assert response.status_code == 200
-    assert _get(school, "teacher", DENIED).json().get("error") != "CYCLE_SCOPE_DENIED"
+    assert _error_of(_get(school, "teacher", DENIED)) != "CYCLE_SCOPE_DENIED"
 
 
 def test_admin_with_residual_assignment_is_never_restricted(school):
     response = _get(school, "admin_residual", DENIED)
-    assert response.json().get("error") != "CYCLE_SCOPE_DENIED"
+    assert _error_of(response) != "CYCLE_SCOPE_DENIED"
     assert response.status_code == 200, response.text
 
 
@@ -195,13 +201,13 @@ def test_residual_assignment_on_teacher_still_restricts_q5(school):
 
 
 def test_assignment_of_another_tenant_never_restricts(school):
-    assert _get(school, "foreign_assigned", DENIED).json().get("error") != "CYCLE_SCOPE_DENIED"
+    assert _error_of(_get(school, "foreign_assigned", DENIED)) != "CYCLE_SCOPE_DENIED"
 
 
 def test_unauthorized_role_still_gets_the_rbac_403(school):
     response = _get(school, "teacher", "/api/v1/hr/employees/")
     assert response.status_code == 403
-    assert response.json().get("error") != "CYCLE_SCOPE_DENIED"
+    assert _error_of(response) != "CYCLE_SCOPE_DENIED"
     assert "Permission refusée" in response.json()["message"]
 
 
@@ -366,7 +372,7 @@ def test_require_helpers_are_noop_for_unrestricted_and_404_out_of_scope(school, 
 
 DATA_ROUTES = [
     "/api/v1/payments/invoices/", "/api/v1/payments/fees/", "/api/v1/students/dashboard/", "/api/v1/invoices/",
-    "/api/v1/attendance/", "/api/v1/notifications/settings/", "/api/v1/teachers/", "/api/v1/grades/",
+    "/api/v1/school-life/attendance/", "/api/v1/notifications/settings/", "/api/v1/teachers/", "/api/v1/school-life/grades/",
     "/api/v1/parents/children/", "/api/v1/parents/dashboard/",
 ]
 
@@ -377,7 +383,7 @@ def test_data_routes_are_denied_to_a_restricted_account(school, url):
 
 
 @pytest.mark.parametrize("who,url", [
-    ("director_teacher", "/api/v1/grades/"),
+    ("director_teacher", "/api/v1/school-life/grades/"),
     ("director_teacher", "/api/v1/teachers/"),
     ("secretary_parent", "/api/v1/parents/children/"),
     ("secretary_parent", "/api/v1/parents/dashboard/"),
@@ -405,7 +411,7 @@ async def test_super_admin_with_tenant_header_and_residual_assignment_is_never_r
     assert user["_cycle_ids"] is None
     # Et par HTTP : jamais CYCLE_SCOPE_DENIED (un éventuel 400 vient de la résolution de tenant).
     response = _get(school, "superadmin", DENIED, **{"X-Tenant-ID": str(school["tenant"])})
-    assert response.json().get("error") != "CYCLE_SCOPE_DENIED"
+    assert _error_of(response) != "CYCLE_SCOPE_DENIED"
 
 
 def test_tenant_header_never_widens_a_restricted_account(school):

@@ -58,6 +58,11 @@ def test_default_is_deny():
 SCOPE_HELPERS = (
     "scoped_class_ids", "is_cycle_restricted", "require_student_in_scope", "require_class_in_scope",
     "require_enrollment_in_scope", "student_scope_clause", "class_scope_clause", "allowed_class_ids",
+    # Lot B2c-1 : briques par lot, par objet, fragments SQL et enveloppes locales aux handlers.
+    "require_students_in_scope", "require_classes_in_scope", "require_assessments_in_scope",
+    "require_assessment_in_scope", "require_homework_in_scope", "require_submission_in_scope",
+    "student_scope_sql", "class_scope_sql", "_require_grade_write_in_scope",
+    "_require_attendance_write_in_scope", "_require_existing_attendance_in_scope", "_class_sessions_scope",
 )
 
 
@@ -72,7 +77,7 @@ def test_every_filtered_route_handler_calls_a_scope_helper():
             for method in context.methods:
                 handlers[(method, context.path_format)] = context.original_route.endpoint
     filtered = sorted(key for key, policy in ROUTE_POLICIES.items() if policy is Policy.FILTERED)
-    assert len(filtered) >= 20
+    assert len(filtered) >= 60
     missing = [
         key for key in filtered
         if not any(helper in inspect.getsource(handlers[key]) for helper in SCOPE_HELPERS)

@@ -1219,3 +1219,24 @@ ce fichier — pas d'un document de 2025 non révisé.
   parent et ancien élève exclus, 403 s'il était le seul demandé). Les effectifs
   de `/infrastructure/enrollments/counts/` étaient toujours vides (`status =
   'active'` au lieu de `ACTIVE`). Non déployé.
+- **2026-11-17 — personnel par cycle, lot B2c-1 (évaluations, notes, présences,
+  devoirs, relevés). Non déployé.** Un compte restreint par cycle accède à ces
+  données, **filtrées côté serveur** : notes, présences, rendus, relevés et
+  moyennes suivent l'élève (l'historique d'un élève du périmètre reste visible,
+  même passé dans une classe d'un autre cycle) ; évaluations, devoirs, séances
+  suivent la classe. Écriture : élève et classe/évaluation vérifiés avant toute
+  écriture ; un lot (`/grades/bulk`, `/attendance/bulk/`) est refusé en entier
+  (404) dès qu'un élément est hors périmètre. 36 routes (canoniques et alias)
+  passées en `FILTERED`, `PUT /presence/` en `INDEPENDENT`, écritures de
+  `/exam-sessions/` toujours refusées ; la vie scolaire (`/school-life/...` :
+  bulletins, certificats, incidents) reste refusée jusqu'à B2c-2. Aucun
+  changement pour les comptes non restreints, admins, enseignants, parents.
+  Aucune migration ni permission. Détail : `docs/PERMISSIONS_MATRIX.md` (lot
+  B2c-1). Tests : `test_cycle_scope_schooling.py`. Constats hors lot, non
+  corrigés : `GET /grades/history/` est masquée par `GET /grades/{grade_id}/`
+  (422) ; `POST /grades/bulk` insère une colonne `comment` inexistante
+  (`grades.comments`) et échoue (400) ; l'alias `GET /grade-history/` n'applique
+  pas le filtrage élève/parent de la route canonique ; `grade_history` n'a pas de
+  colonne `student_id` (le filtre `student_id` de ces deux routes échoue) ;
+  `/class-sessions/` (table absente) et `/student-check-ins/` (colonnes
+  inexistantes) répondent toujours `[]`.

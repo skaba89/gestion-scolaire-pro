@@ -23,8 +23,9 @@ from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
 from app.core.parent_scope import parent_student_filter
 from app.core.cycle_scope import (
-    is_cycle_restricted, require_class_in_scope, require_enrollment_in_scope,
-    require_student_in_scope, scoped_class_ids, student_scope_clause,
+    class_scope_sql, is_cycle_restricted, require_class_in_scope, require_enrollment_in_scope,
+    require_student_in_scope, require_submission_in_scope, scoped_class_ids, student_scope_clause,
+    student_scope_sql,
 )
 from app.core.tenant_resolution import resolve_current_tenant_id
 
@@ -434,6 +435,15 @@ def delete_invoice_alias(
 class_sessions_router = APIRouter()
 
 
+def _class_sessions_scope(db: Session, tenant_id: str, current_user: dict):
+    """Périmètre par cycle (B2c-1) : fragment SQL « séance d'une classe du compte » et ses
+    paramètres liés ; vide pour un compte non restreint."""
+    if not is_cycle_restricted(current_user):
+        return "", []
+    sql, binds = class_scope_sql("cs.class_id", scoped_class_ids(db, tenant_id, current_user), tag="cs")
+    return f" AND {sql}", binds
+
+
 @class_sessions_router.get("/")
 def list_class_sessions(
     request: Request,
@@ -444,6 +454,7 @@ def list_class_sessions(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return []
+    scope_sql, scope_binds = _class_sessions_scope(db, tenant_id, current_user)
     try:
         rows = db.execute(text("""
             SELECT cs.*,
@@ -457,9 +468,9 @@ def list_class_sessions(
             LEFT JOIN rooms r ON r.id = cs.room_id
             LEFT JOIN users u ON u.id = cs.teacher_id
             LEFT JOIN classrooms c ON c.id = cs.class_id
-            WHERE cs.tenant_id = :tenant_id
+            WHERE cs.tenant_id = :tenant_id""" + scope_sql + """
             ORDER BY cs.start_time DESC
-        """), {"tenant_id": tenant_id}).fetchall()
+        """).bindparams(*scope_binds), {"tenant_id": tenant_id}).fetchall()
         return [
             {
                 **dict(r._mapping),
@@ -485,6 +496,7 @@ def list_active_class_sessions(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         return []
+    scope_sql, scope_binds = _class_sessions_scope(db, tenant_id, current_user)
     try:
         rows = db.execute(text("""
             SELECT cs.*,
@@ -498,11 +510,11 @@ def list_active_class_sessions(
             LEFT JOIN rooms r ON r.id = cs.room_id
             LEFT JOIN users u ON u.id = cs.teacher_id
             LEFT JOIN classrooms c ON c.id = cs.class_id
-            WHERE cs.tenant_id = :tenant_id
+            WHERE cs.tenant_id = :tenant_id""" + scope_sql + """
               AND cs.status = 'ACTIVE'
               AND cs.end_time >= NOW()
             ORDER BY cs.start_time ASC
-        """), {"tenant_id": tenant_id}).fetchall()
+        """).bindparams(*scope_binds), {"tenant_id": tenant_id}).fetchall()
         return [
             {
                 **dict(r._mapping),
@@ -1894,6 +1906,13 @@ def list_homework_submissions(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     where = ["hs.tenant_id = :tenant_id"]
     params: dict = {"tenant_id": tenant_id}
+    scope_binds = []
+    if is_cycle_restricted(current_user):
+        # Périmètre par cycle (B2c-1) : les rendus des seuls élèves du périmètre, avant LIMIT.
+        scope_sql, scope_binds = student_scope_sql(
+            "hs.student_id", scoped_class_ids(db, tenant_id, current_user), tenant_id=tenant_id, tag="hws",
+        )
+        where.append(scope_sql)
 
     if homework_id:
         where.append("hs.homework_id = :homework_id")
@@ -1912,7 +1931,7 @@ def list_homework_submissions(
         WHERE {' AND '.join(where)}
         ORDER BY hs.submitted_at DESC
         LIMIT 200
-    """), params).mappings().all()
+    """).bindparams(*scope_binds), params).mappings().all()
 
     return [
         {
@@ -1948,6 +1967,8 @@ def update_homework_submission(
     (school_life.py's AssessmentBase.max_score = 20.0).
     """
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    # Périmètre par cycle (B2c-1) : élève et devoir de la remise, avant toute écriture.
+    require_submission_in_scope(db, tenant_id, current_user, submission_id)
 
     grade = body.get("grade")
     if grade is not None and not (0 <= float(grade) <= 20):
@@ -2004,6 +2025,13 @@ def list_grade_history_alias(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     where = ["gh.tenant_id = :tenant_id"]
     params: dict = {"tenant_id": tenant_id}
+    scope_binds = []
+    if is_cycle_restricted(current_user):
+        # Périmètre par cycle (B2c-1) : l'historique suit l'élève ; filtre par la note.
+        scope_sql, scope_binds = student_scope_sql(
+            "g.student_id", scoped_class_ids(db, tenant_id, current_user), tenant_id=tenant_id, tag="gh",
+        )
+        where.append(f"gh.grade_id IN (SELECT g.id FROM grades g WHERE g.tenant_id = :tenant_id AND {scope_sql})")
 
     if grade_id:
         where.append("gh.grade_id = :grade_id")
@@ -2027,7 +2055,7 @@ def list_grade_history_alias(
         WHERE {' AND '.join(where)}
         ORDER BY gh.{order_col} {order_dir}
         LIMIT 200
-    """), params).mappings().all()
+    """).bindparams(*scope_binds), params).mappings().all()
 
     return [
         {
@@ -2503,6 +2531,14 @@ def list_student_check_ins(
         where.append("ci.classroom_id = :classroom_id")
         params["classroom_id"] = classroom_id
 
+    scope_binds = []
+    if is_cycle_restricted(current_user):
+        # Périmètre par cycle (B2c-1) : les pointages des seuls élèves du périmètre.
+        scope_sql, scope_binds = student_scope_sql(
+            "ci.student_id", scoped_class_ids(db, tenant_id, current_user), tenant_id=tenant_id, tag="chk",
+        )
+        where.append(scope_sql)
+
     try:
         rows = db.execute(text(f"""
             SELECT ci.id, ci.student_id, ci.classroom_id, ci.check_in_time,
@@ -2513,7 +2549,7 @@ def list_student_check_ins(
             WHERE {' AND '.join(where)}
             ORDER BY ci.check_in_time DESC
             LIMIT 200
-        """), params).mappings().all()
+        """).bindparams(*scope_binds), params).mappings().all()
         return [dict(r) for r in rows]
     except Exception:
         return []

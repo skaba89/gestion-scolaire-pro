@@ -36,7 +36,7 @@ def _clear_overrides():
 
 
 def _as(tenant_id: str, user_id: str) -> dict:
-    user = {"id": user_id, "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id}
+    user = {"id": user_id, "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id, "_cycle_ids": None}
     app.dependency_overrides[get_current_user] = lambda: user
     return HEADERS
 
