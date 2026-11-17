@@ -336,7 +336,7 @@ def read_enrollment_counts(
     rows = db.execute(text("""
         SELECT class_id, COUNT(*) as count 
         FROM enrollments 
-        WHERE tenant_id = :tenant_id AND class_id = ANY(:class_ids) AND status = 'active'
+        WHERE tenant_id = :tenant_id AND class_id = ANY(:class_ids) AND LOWER(status) = 'active'
         GROUP BY class_id
     """), {"tenant_id": tenant_id, "class_ids": class_ids}).fetchall()
     return {str(r.class_id): r.count for r in rows}

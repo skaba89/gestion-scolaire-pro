@@ -1211,3 +1211,11 @@ ce fichier — pas d'un document de 2025 non révisé.
   voient les valeurs. **Déployé en production le 2026-11-16 (`efff465`,
   migrations jusqu'à `20261116_0001`)** : changer les secrets réellement
   configurés reste recommandé, ils ont pu être lus avant ce déploiement.
+- **2026-11-17 — recherche d'élèves et effectifs par classe (SEARCH-STUDENTS-01,
+  COUNTS-STATUS-01).** La recherche globale d'élèves échouait (colonne
+  `student_number` inexistante, remplacée par `registration_number`) et son
+  échec faisait aussi échouer les types suivants sous PostgreSQL (un SAVEPOINT
+  par type désormais). Le type « élèves » est réservé au personnel (élève,
+  parent et ancien élève exclus, 403 s'il était le seul demandé). Les effectifs
+  de `/infrastructure/enrollments/counts/` étaient toujours vides (`status =
+  'active'` au lieu de `ACTIVE`). Non déployé.

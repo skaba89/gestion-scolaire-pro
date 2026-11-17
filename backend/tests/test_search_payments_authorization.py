@@ -80,10 +80,12 @@ class TestPaymentsSearchRestricted:
         tenant_id = _make_tenant_with_payment()
         student = {"id": str(uuid.uuid4()), "roles": ["STUDENT"], "tenant_id": tenant_id, "_cycle_ids": None}
         resp = _as(student).get(
-            URL, params={"q": "test", "types": "students,payments"}, headers=HEADERS,
+            # "subjects" et non "students" : depuis SEARCH-STUDENTS-01, un élève ne
+            # peut plus chercher parmi les élèves (les deux types seraient retirés).
+            URL, params={"q": "test", "types": "subjects,payments"}, headers=HEADERS,
         )
         assert resp.status_code == 200, resp.text
-        assert "payments" not in resp.json()["types_searched"]
+        assert resp.json()["types_searched"] == ["subjects"]
 
     # global_search()'s raw SQL casts id::text — Postgres-only syntax, so a
     # non-privileged role's request never even reaches it (blocked earlier
