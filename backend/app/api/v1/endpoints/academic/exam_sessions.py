@@ -7,6 +7,7 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.cycle_scope import class_scope_clause, scoped_class_ids
 from app.core.database import get_db
 from app.core.security import require_permission
 from app.core.tenant_refs import ensure_refs_in_tenant
@@ -56,9 +57,16 @@ def list_exam_sessions(
     if session_type:
         query = query.filter(ExamSession.session_type == session_type)
     sessions = query.order_by(ExamSession.semester_id, ExamSession.sequence, ExamSession.starts_on).all()
-    counts = dict(db.query(Assessment.exam_session_id, func.count(Assessment.id)).filter(
+    counts_query = db.query(Assessment.exam_session_id, func.count(Assessment.id)).filter(
         Assessment.tenant_id == tid, Assessment.exam_session_id.is_not(None),
-    ).group_by(Assessment.exam_session_id).all())
+    )
+    scope_class_ids = scoped_class_ids(db, tid, user)
+    if scope_class_ids is not None:
+        # Périmètre par cycle (B2c-1) : les sessions sont de la structure (semestre), visibles
+        # en lecture ; le nombre d'évaluations ne compte que celles des classes du compte
+        # (jamais un effectif d'établissement). Écritures : refusées (DENY, décision Q4).
+        counts_query = counts_query.filter(class_scope_clause(Assessment.class_id, scope_class_ids))
+    counts = dict(counts_query.group_by(Assessment.exam_session_id).all())
     return [_payload(db, item, counts.get(item.id, 0)) for item in sessions]
 
 

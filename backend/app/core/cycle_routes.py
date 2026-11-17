@@ -127,6 +127,29 @@ ROUTE_POLICIES: dict[tuple[str, str], Policy] = {
     **_routes(Policy.FILTERED, "POST DELETE", "/student-parents/"),
     **_routes(Policy.FILTERED, "POST", "/student-subjects/"),
     **_routes(Policy.FILTERED, "DELETE", "/student-subjects/{subject_id}/"),
+    # --- Lot B2c-1 : évaluations, notes, présences, devoirs, relevés ---------
+    # Donnée d'une classe (évaluation, devoir, séance) : la classe doit être dans le périmètre.
+    # Donnée d'un élève (note, présence, rendu, relevé, moyenne, historique) : l'élève doit y
+    # être (l'historique suit l'élève). Écritures : élève ET classe vérifiés (404) avant toute
+    # écriture, lot refusé en entier si un seul élément est hors périmètre.
+    **_routes(Policy.FILTERED, "GET POST", "/assessments/", "/attendance/", "/grades/", "/homework/"),
+    **_routes(Policy.FILTERED, "GET PUT DELETE", "/assessments/{id}/", "/grades/{grade_id}/", "/homework/{homework_id}/"),
+    **_routes(Policy.FILTERED, "POST", "/attendance/bulk/", "/grades/bulk", "/homework/{homework_id}/submit/",
+              "/homework/submissions/{submission_id}/grade/"),
+    **_routes(Policy.FILTERED, "GET", "/attendance/stats/", "/grades/history/", "/grade-history/",
+              "/grades/student/{student_id}/average/", "/transcripts/{student_id}/",
+              "/homework/submissions/{student_id}/", "/homework-submissions/", "/student-check-ins/",
+              "/class-sessions/", "/class-sessions/active/"),
+    **_routes(Policy.FILTERED, "PATCH DELETE", "/attendance/{attendance_id}/"),
+    **_routes(Policy.FILTERED, "PUT", "/homework/{homework_id}/submissions/{submission_id}/",
+              "/homework-submissions/{submission_id}"),
+    # Sessions d'examen LMD : rattachées à un semestre (structure), pas à une classe. Lecture
+    # filtrée (le nombre d'évaluations ne compte que les classes du compte) ; création et
+    # modification restent DENY (Q4 : écritures de structure réservées aux comptes non restreints).
+    **_routes(Policy.FILTERED, "GET", "/exam-sessions/"),
+    # Présence en ligne : le compte ne peut écrire que la sienne (un autre utilisateur exige
+    # TENANT_ADMIN/SUPER_ADMIN, jamais restreints) ; aucune donnée d'élève ni de classe.
+    **_routes(Policy.INDEPENDENT, "PUT", "/presence/"),
 }
 
 # Familles refusées d'office (préfixes). Toute route qui n'est pas dans

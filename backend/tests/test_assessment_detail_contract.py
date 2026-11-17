@@ -30,7 +30,7 @@ def clear_auth():
 
 
 def _admin(tenant_id):
-    return {"id": str(uuid.uuid4()), "tenant_id": tenant_id, "roles": ["TENANT_ADMIN"]}
+    return {"id": str(uuid.uuid4()), "tenant_id": tenant_id, "roles": ["TENANT_ADMIN"], "_cycle_ids": None}
 
 
 def test_detail_returns_assessment_and_class_id():
@@ -79,12 +79,12 @@ def test_detail_requires_settings_read():
     assert created.status_code == 200, created.text
     assessment_id = created.json()["id"]
 
-    student = {"id": str(uuid.uuid4()), "tenant_id": school, "roles": ["STUDENT"]}
+    student = {"id": str(uuid.uuid4()), "tenant_id": school, "roles": ["STUDENT"], "_cycle_ids": None}
     allowed = client.get(f"{BASE}/{assessment_id}/", headers=_as(student))
     assert allowed.status_code == 200, allowed.text
 
     # A user without settings:read must be refused.
-    no_permissions = {"id": str(uuid.uuid4()), "tenant_id": school, "roles": []}
+    no_permissions = {"id": str(uuid.uuid4()), "tenant_id": school, "roles": [], "_cycle_ids": None}
     denied = client.get(f"{BASE}/{assessment_id}/", headers=_as(no_permissions))
     assert denied.status_code == 403, denied.text
 

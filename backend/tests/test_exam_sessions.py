@@ -32,7 +32,7 @@ def _context(name="Université Sessions"):
         db.add(Semester(id=semester_id, tenant_id=tenant_id, academic_year_id=year_id,
                         name="Semestre 1", number=1, start_date=date(2026, 9, 1), end_date=date(2027, 1, 31)))
         db.commit()
-    user = {"id": user_id, "tenant_id": tenant_id, "roles": ["TENANT_ADMIN"]}
+    user = {"id": user_id, "tenant_id": tenant_id, "roles": ["TENANT_ADMIN"], "_cycle_ids": None}
     app.dependency_overrides[get_current_user] = lambda: user
     token = create_access_token({"sub": user_id, "tenant_id": tenant_id, "roles": user["roles"]})
     return tenant_id, semester_id, user, {"Authorization": f"Bearer {token}"}

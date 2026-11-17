@@ -22,7 +22,7 @@ def _grade():
 
 
 def _actor(role="TEACHER"):
-    return {"id": str(uuid4()), "roles": [role]}
+    return {"id": str(uuid4()), "roles": [role], "_cycle_ids": None}
 
 
 def test_teacher_update_checks_existing_grade_before_write():

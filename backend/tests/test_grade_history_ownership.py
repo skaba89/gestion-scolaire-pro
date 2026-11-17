@@ -19,7 +19,7 @@ def db(monkeypatch):
 
 def _run(db, **kwargs):
     return grades.list_grade_history(
-        request=object(), db=db, current_user={"id": "viewer", "roles": ["PARENT"]},
+        request=object(), db=db, current_user={"id": "viewer", "roles": ["PARENT"], "_cycle_ids": None},
         **kwargs,
     )
 
@@ -53,7 +53,7 @@ def test_grade_id_filter_is_still_scoped_to_owned_students(db, monkeypatch):
 def test_student_history_is_restricted_to_own_student_id(db, monkeypatch):
     monkeypatch.setattr(grades, "_allowed_student_ids_for_caller", lambda *_args, **_kwargs: {"own-student"})
     grades.list_grade_history(
-        request=object(), db=db, current_user={"id": "student-user", "roles": ["STUDENT"]},
+        request=object(), db=db, current_user={"id": "student-user", "roles": ["STUDENT"], "_cycle_ids": None},
     )
     statement, params = db.execute.call_args.args
     assert "g.student_id IN (:allowed_sid_0)" in str(statement)
@@ -63,7 +63,7 @@ def test_student_history_is_restricted_to_own_student_id(db, monkeypatch):
 def test_staff_with_unrestricted_read_retains_tenant_scoped_history(db, monkeypatch):
     monkeypatch.setattr(grades, "_allowed_student_ids_for_caller", lambda *_args, **_kwargs: None)
     grades.list_grade_history(
-        request=object(), db=db, current_user={"id": "admin", "roles": ["TENANT_ADMIN"]},
+        request=object(), db=db, current_user={"id": "admin", "roles": ["TENANT_ADMIN"], "_cycle_ids": None},
     )
     statement, params = db.execute.call_args.args
     assert "gh.tenant_id = :tenant_id" in str(statement)

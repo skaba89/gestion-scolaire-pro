@@ -1156,3 +1156,68 @@ affectation de matières), écritures `programs` / `rooms` (Q4).
 Comptes non restreints, TENANT_ADMIN, TEACHER (règle `teacher_scope` inchangée)
 et PARENT (`parent_scope` inchangé) : comportement identique à avant. Tests :
 `backend/tests/test_cycle_scope_students.py`.
+
+### Lot B2c-1 (2026-11-17) : évaluations, notes, présences, devoirs, relevés
+
+Aucune permission ajoutée (`ROLE_PERMISSIONS` inchangé), aucune migration.
+Deux règles, appliquées par le handler (objet hors périmètre ou inexistant ou
+d'un autre établissement = **404** identique, jamais 403) :
+
+- **donnée d'un élève** (note, présence, rendu de devoir, relevé, moyenne,
+  historique de notes) : visible et modifiable seulement si l'**élève** est dans
+  le périmètre (même règle que B2b : inscription ACTIVE de l'année courante dans
+  un cycle du compte). **L'historique suit l'élève** : un élève du périmètre
+  montre toutes ses notes, présences et rendus, y compris passés dans une classe
+  d'un autre cycle ;
+- **donnée d'une classe** (évaluation, devoir, séance) : visible et modifiable
+  seulement si la **classe** est dans le périmètre. Une évaluation, un devoir
+  ou une présence **sans classe** n'appartient à aucun cycle : réservé aux
+  comptes non restreints.
+
+**Écriture** : l'élève ET l'évaluation / la classe sont vérifiés **avant** toute
+écriture. Une note ou une présence qui existe déjà dans une classe d'un autre
+cycle (élève du périmètre passé d'un cycle à l'autre) reste lisible mais n'est
+pas modifiable par ce compte. Un déplacement (changer l'élève, l'évaluation ou
+la classe d'une donnée) exige que la source ET la destination soient dans le
+périmètre. **Lots** (`POST /grades/bulk`, `POST /attendance/bulk/`) : chaque
+élément est vérifié ; **un seul élément hors périmètre refuse tout le lot
+(404), aucune écriture partielle.**
+
+Routes `FILTERED` (canoniques et alias) :
+
+| Famille | Routes | Règle |
+|---|---|---|
+| Évaluations | `GET\|POST /assessments/`, `GET\|PUT\|DELETE /assessments/{id}/` | classe |
+| Notes | `GET\|POST /grades/`, `GET\|PUT\|DELETE /grades/{id}/`, `POST /grades/bulk`, `GET /grades/student/{id}/average/` | élève (+ évaluation en écriture) |
+| Historique de notes | `GET /grades/history/`, `GET /grade-history/` | élève (via la note) |
+| Présences | `GET\|POST /attendance/`, `POST /attendance/bulk/`, `GET /attendance/stats/`, `PATCH\|DELETE /attendance/{id}/` | élève (+ classe en écriture) ; les compteurs ne couvrent que les élèves du périmètre |
+| Devoirs | `GET\|POST /homework/`, `GET\|PUT\|DELETE /homework/{id}/` | classe |
+| Rendus | `GET /homework/submissions/{student_id}/`, `POST /homework/{id}/submit/`, `PUT /homework/{id}/submissions/{sid}/`, `POST /homework/submissions/{sid}/grade/`, `GET /homework-submissions/`, `PUT /homework-submissions/{sid}` | élève ; en écriture devoir ET élève |
+| Relevés | `GET /transcripts/{student_id}/` | élève (toutes classes) |
+| Sessions d'examen | `GET /exam-sessions/` | structure (semestre) : lecture ; le nombre d'évaluations ne compte que les classes du compte |
+| Séances, pointages | `GET /class-sessions/`, `/class-sessions/active/`, `GET /student-check-ins/` | classe / élève |
+
+`INDEPENDENT` : `PUT /presence/` (présence en ligne : le compte ne peut écrire
+que la sienne, un autre utilisateur exige TENANT_ADMIN/SUPER_ADMIN, jamais
+restreints). **Restent `DENY`** : `POST /exam-sessions/` et
+`PATCH /exam-sessions/{id}/` (écritures de structure, décision Q4) ; **toute la
+vie scolaire** (`/school-life/...` : bulletins, certificats, incidents,
+doublons `/school-life/grades|assessments|attendance/`) jusqu'au lot B2c-2 ;
+finances (B2d) ; agrégats d'établissement et tableaux de bord (B2e).
+
+Limites connues : un compte restreint ne peut pas saisir une donnée sans classe
+(évaluation, devoir, présence) ; `GET /attendance/` garde son `total` historique
+(nombre de lignes renvoyées) ; `/class-sessions/` et `/student-check-ins/` sont
+filtrés mais leurs requêtes n'aboutissent pas aujourd'hui (table
+`class_sessions` absente de toute migration, colonnes de `student_check_ins`
+inexistantes : réponse `[]`). Comptes non restreints, TENANT_ADMIN, TEACHER
+(`teacher_scope`) et PARENT (`parent_scope`) : comportement identique à avant.
+**Limites d'écran jusqu'à B2c-2** : la fiche élève
+(`src/pages/admin/StudentDetail.tsx` via `src/queries/admin.ts`) lit
+`/school-life/grades/` et `/school-life/attendance/`, encore DENY : elle affiche
+« aucune note / présence » pour un compte restreint ; `LiveAttendance`,
+`Badges`, `QrScanPage` et `ReportCards` répondent 403. Un identifiant mal formé
+ou un `null` explicite visant une destination (élève, évaluation, classe) est
+refusé en 404 sans écriture ; un objet inexistant et un objet hors périmètre
+renvoient exactement le même message 404.
+Tests : `backend/tests/test_cycle_scope_schooling.py`.

@@ -6,6 +6,10 @@ from typing import List, Optional
 from pydantic import BaseModel
 from uuid import UUID
 
+from app.core.cycle_scope import (
+    class_scope_sql, is_cycle_restricted, require_assessment_in_scope, require_classes_in_scope,
+    scoped_class_ids,
+)
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission, user_has_permission
 from app.core.teacher_scope import teacher_teaches_class
@@ -147,6 +151,14 @@ def get_assessments(
         WHERE a.tenant_id = :tenant_id
     """
     params = {"tenant_id": tenant_id}
+    scope_binds = []
+    if is_cycle_restricted(current_user):
+        # Périmètre par cycle (B2c-1) : seules les évaluations des classes du compte ;
+        # une évaluation sans classe n'est visible que des comptes non restreints.
+        scope_sql, scope_binds = class_scope_sql(
+            "a.class_id", scoped_class_ids(db, tenant_id, current_user), tag="asm",
+        )
+        query_str += f" AND {scope_sql}"
 
     if subjectId:
         query_str += " AND a.subject_id = :subject_id"
@@ -163,7 +175,7 @@ def get_assessments(
     query_str += " ORDER BY a.date DESC"
 
     try:
-        results = db.execute(text(query_str), params).mappings().all()
+        results = db.execute(text(query_str).bindparams(*scope_binds), params).mappings().all()
     except Exception:
         logger.exception("Error fetching assessments")
         raise HTTPException(status_code=500, detail="Unable to load assessments")
@@ -208,6 +220,7 @@ def get_assessment_detail(
     Unknown identifiers and identifiers from another tenant both return 404.
     """
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    require_assessment_in_scope(db, tenant_id, current_user, id)
     row = db.execute(text("""
         SELECT a.id, a.tenant_id, a.subject_id, a.term_id, a.academic_year_id,
                a.class_id, a.exam_session_id, a.name, a.assessment_type, a.date, a.max_score,
@@ -253,6 +266,8 @@ def create_assessment(
         raise HTTPException(status_code=400, detail="Tenant ID required")
     _require_assessment_write(db, tenant_id=tenant_id, user=current_user,
                               targets=[(assessment.class_id, assessment.subject_id)])
+    # Périmètre par cycle (B2c-1) : la classe est obligatoire et doit être dans le périmètre.
+    require_classes_in_scope(db, tenant_id, current_user, [assessment.class_id])
     if assessment.exam_session_id and not user_has_permission(current_user, "settings:write"):
         raise HTTPException(status_code=403, detail="Le rattachement à une session est réservé à l'administration")
     _validate_assessment_fks(db, tenant_id=tenant_id, subject_id=assessment.subject_id,
@@ -346,6 +361,7 @@ def delete_assessment(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
+    require_assessment_in_scope(db, tenant_id, current_user, id)
     current = _existing_assessment(db, tenant_id=tenant_id, assessment_id=id)
     if current["exam_session_id"]:
         raise HTTPException(status_code=409, detail="Une évaluation rattachée à une session ne peut pas être supprimée")
@@ -402,6 +418,10 @@ def update_assessment(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
+    # Périmètre par cycle (B2c-1) : l'évaluation actuelle ET la classe de destination.
+    require_assessment_in_scope(db, tenant_id, current_user, id)
+    if assessment.class_id is not None:
+        require_classes_in_scope(db, tenant_id, current_user, [assessment.class_id])
     current = _existing_assessment(db, tenant_id=tenant_id, assessment_id=id)
     if current["exam_session_status"] == "CLOSED":
         raise HTTPException(status_code=409, detail="L'historique d'une session clôturée est immuable")

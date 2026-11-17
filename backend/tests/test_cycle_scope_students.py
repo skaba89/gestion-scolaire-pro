@@ -703,14 +703,20 @@ FILTERED_ROUTE_TESTS = {
 
 
 def test_every_filtered_route_has_a_behavioural_test():
+    import test_cycle_scope_schooling as schooling
     from app.core.cycle_routes import ROUTE_POLICIES, Policy
 
     filtered = {key for key, policy in ROUTE_POLICIES.items() if policy is Policy.FILTERED}
     declared = {(method, f"{API}{path}") for method, path in FILTERED_ROUTE_TESTS}
+    # Lot B2c-1 (scolarité) : ses routes et leurs tests vivent dans test_cycle_scope_schooling.
+    declared |= {(method, f"{API}{path}") for method, path in schooling.SCHOOLING_ROUTE_TESTS}
     assert filtered == declared, (
         f"Routes FILTERED sans test comportemental : {sorted(filtered - declared)} ; "
         f"entrées orphelines : {sorted(declared - filtered)}"
     )
     for name in set(FILTERED_ROUTE_TESTS.values()):
         candidate = globals().get(name)
+        assert callable(candidate) and name.startswith("test_"), f"test introuvable : {name}"
+    for name in set(schooling.SCHOOLING_ROUTE_TESTS.values()):
+        candidate = getattr(schooling, name, None)
         assert callable(candidate) and name.startswith("test_"), f"test introuvable : {name}"

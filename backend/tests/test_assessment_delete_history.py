@@ -32,7 +32,7 @@ def school_db(monkeypatch):
 
 
 def remove(db, assessment):
-    return assessments.delete_assessment(None, UUID(assessment), db, {"roles": ["TENANT_ADMIN"]})
+    return assessments.delete_assessment(None, UUID(assessment), db, {"roles": ["TENANT_ADMIN"], "_cycle_ids": None})
 
 
 def test_graded_assessment_cannot_be_deleted(school_db):

@@ -133,7 +133,7 @@ class TestEnrollmentsAndAssessments:
         assert resp.status_code == 403
 
     def test_scheduled_only_teacher_creates_an_assessment_for_the_scheduled_subject(self, school):
-        user = {"id": school["scheduled"], "tenant_id": school["tenant_id"], "roles": ["TEACHER"]}
+        user = {"id": school["scheduled"], "tenant_id": school["tenant_id"], "roles": ["TEACHER"], "_cycle_ids": None}
         app.dependency_overrides[get_current_user] = lambda: user
         resp = client.post("/api/v1/assessments/", json={
             "subject_id": school["subject"], "class_id": school["mine"], "name": "Contrôle",

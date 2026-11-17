@@ -10,6 +10,10 @@ import math
 
 logger = logging.getLogger(__name__)
 
+from app.core.cycle_scope import (
+    is_cycle_restricted, require_assessments_in_scope, require_student_in_scope,
+    require_students_in_scope, scoped_class_ids, student_scope_sql,
+)
 from app.core.database import get_db
 from app.core.idempotency import get_idempotent_response_or_lock, store_idempotent_response
 from app.core.security import get_current_user, require_permission
@@ -102,6 +106,25 @@ def _require_teacher_grade_write_scope(
         class_id=str(row["class_id"]), subject_id=str(row["subject_id"]) if row["subject_id"] else None,
     ):
         raise HTTPException(status_code=403, detail="Classe, matière ou élève non autorisé pour cet enseignant")
+
+
+def _require_grade_write_in_scope(
+    db: Session, *, tenant_id: str, current_user: dict, student_ids, assessment_ids,
+    not_found: Optional[str] = None,
+) -> None:
+    """Périmètre par cycle (B2c-1), AVANT toute écriture : l'élève ET l'évaluation (donc sa
+    classe) doivent être dans le périmètre, sinon 404 sans effet. Une note sans évaluation
+    n'a pas de classe : un compte restreint ne peut pas l'écrire. Tout ou rien pour un lot."""
+    if not is_cycle_restricted(current_user):
+        return
+    try:
+        require_students_in_scope(db, tenant_id, current_user, set(student_ids))
+        require_assessments_in_scope(db, tenant_id, current_user, set(assessment_ids))
+    except HTTPException:
+        if not_found is None:
+            raise
+        # Même message qu'une note inexistante : aucun oracle d'existence.
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=not_found) from None
 
 
 def _allowed_student_ids_for_caller(db: Session, *, current_user: dict, tenant_id: str) -> Optional[set]:
@@ -201,6 +224,7 @@ def list_grades(
         tenant_id=tenant_id,
         skip=skip,
         limit=page_size,
+        scope_class_ids=scoped_class_ids(db, tenant_id, current_user),
         student_id=student_id,
         subject=subject,
         academic_year=academic_year,
@@ -237,6 +261,8 @@ def get_student_average(
     allowed_ids = _allowed_student_ids_for_caller(db, current_user=current_user, tenant_id=tenant_id)
     if allowed_ids is not None and str(student_id) not in allowed_ids:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
+    # Périmètre par cycle (B2c-1) : la moyenne d'un élève du périmètre couvre tout son historique.
+    require_student_in_scope(db, tenant_id, current_user, student_id)
     return crud_grade.get_student_average(
         db=db,
         student_id=student_id,
@@ -264,6 +290,16 @@ def list_grade_history(
     # A grades:read grant alone is not tenant-wide authorization: students
     # can only inspect their own revisions; parents only their children's.
     # Apply this on the SQL query itself, including when filtering by grade_id.
+    scope_binds = []
+    if is_cycle_restricted(current_user):
+        # Périmètre par cycle (B2c-1) : l'historique suit l'élève (toute classe d'origine).
+        # Filtre par la note (grade_history n'a pas de colonne élève).
+        scope_sql, scope_binds = student_scope_sql(
+            "g.student_id", scoped_class_ids(db, tenant_id, current_user),
+            tenant_id=tenant_id, tag="gh",
+        )
+        where.append(f"gh.grade_id IN (SELECT g.id FROM grades g WHERE g.tenant_id = :tenant_id AND {scope_sql})")
+
     allowed_ids = _allowed_student_ids_for_caller(
         db, current_user=current_user, tenant_id=tenant_id,
     )
@@ -317,7 +353,7 @@ def list_grade_history(
         WHERE {' AND '.join(where)}
         ORDER BY {safe_col} {safe_dir}
         LIMIT 200
-    """), params).mappings().all()
+    """).bindparams(*scope_binds), params).mappings().all()
 
     return [
         {
@@ -353,6 +389,11 @@ def get_grade(
     allowed_ids = _allowed_student_ids_for_caller(db, current_user=current_user, tenant_id=tenant_id)
     if allowed_ids is not None and str(grade.student_id) not in allowed_ids:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Grade not found")
+    # Périmètre par cycle (B2c-1) : la note suit l'élève, quelle que soit la classe d'origine.
+    try:
+        require_student_in_scope(db, tenant_id, current_user, grade.student_id)
+    except HTTPException:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Grade not found") from None
     return grade
 
 
@@ -371,6 +412,10 @@ def create_grade(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tenant ID required")
+    _require_grade_write_in_scope(
+        db, tenant_id=tenant_id, current_user=current_user,
+        student_ids=[grade.student_id], assessment_ids=[grade.assessment_id],
+    )
     _validate_grade_fks(
         db, tenant_id=tenant_id, student_id=grade.student_id,
         subject_id=grade.subject_id, assessment_id=grade.assessment_id,
@@ -421,6 +466,16 @@ def update_grade(
     current_grade = crud_grade.get_grade(db, grade_id, tenant_id)
     if not current_grade:
         raise HTTPException(status_code=404, detail="Grade not found")
+    # Périmètre par cycle (B2c-1) : état actuel ET état final de la note.
+    _require_grade_write_in_scope(
+        db, tenant_id=tenant_id, current_user=current_user,
+        # Une valeur explicitement ``null`` (champ présent) compte comme destination : refusée.
+        student_ids=[current_grade.student_id] + (
+            [grade_update.student_id] if "student_id" in grade_update.model_fields_set else []),
+        assessment_ids=[current_grade.assessment_id] + (
+            [grade_update.assessment_id] if "assessment_id" in grade_update.model_fields_set else []),
+        not_found="Grade not found",
+    )
     _ensure_assessment_session_writable(
         db, tenant_id=tenant_id, assessment_id=current_grade.assessment_id,
     )
@@ -475,6 +530,11 @@ def delete_grade(
     current_grade = crud_grade.get_grade(db, grade_id, tenant_id)
     if not current_grade:
         raise HTTPException(status_code=404, detail="Grade not found")
+    _require_grade_write_in_scope(
+        db, tenant_id=tenant_id, current_user=current_user,
+        student_ids=[current_grade.student_id], assessment_ids=[current_grade.assessment_id],
+        not_found="Grade not found",
+    )
     _ensure_assessment_session_writable(
         db, tenant_id=tenant_id, assessment_id=current_grade.assessment_id,
     )
@@ -538,6 +598,13 @@ def create_bulk_grades(
     # of e.g. 85 passed this check yet produced a >400% grade once stored
     # against that real max_score, corrupting averages/transcripts.
     BULK_GRADE_DEFAULT_MAX_SCORE = 20.0
+    # Périmètre par cycle (B2c-1) : CHAQUE élève et CHAQUE évaluation du lot sont vérifiés
+    # avant toute écriture ; un seul élément hors périmètre refuse tout le lot (404).
+    _require_grade_write_in_scope(
+        db, tenant_id=tenant_id, current_user=current_user,
+        student_ids=[item.student_id for item in body.grades],
+        assessment_ids=[item.assessment_id for item in body.grades],
+    )
     for i, item in enumerate(body.grades):
         if item.score is not None and (item.score < 0 or item.score > BULK_GRADE_DEFAULT_MAX_SCORE):
             raise HTTPException(
