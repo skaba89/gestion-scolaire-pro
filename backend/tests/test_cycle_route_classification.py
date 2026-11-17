@@ -66,6 +66,14 @@ SCOPE_HELPERS = (
 )
 
 
+# Alias qui délèguent entièrement à une route canonique FILTERED : c'est le code
+# de la route canonique qui doit appeler une brique de périmètre.
+DELEGATING_ALIASES = {
+    # GRADE-HISTORY-LEAK-01 (#568) : l'alias délègue à list_grade_history.
+    ("GET", "/api/v1/grade-history/"): ("GET", "/api/v1/grades/history/"),
+}
+
+
 def test_every_filtered_route_handler_calls_a_scope_helper():
     """Heuristique : une route FILTERED dont le code n'appelle aucune brique de
     périmètre est un trou (la garde l'a laissée passer sans filtrage)."""
@@ -78,9 +86,15 @@ def test_every_filtered_route_handler_calls_a_scope_helper():
                 handlers[(method, context.path_format)] = context.original_route.endpoint
     filtered = sorted(key for key, policy in ROUTE_POLICIES.items() if policy is Policy.FILTERED)
     assert len(filtered) >= 60
+    for alias, canonical in DELEGATING_ALIASES.items():
+        assert ROUTE_POLICIES.get(canonical) is Policy.FILTERED, canonical
+        assert handlers[canonical].__name__ in inspect.getsource(handlers[alias]), alias
     missing = [
         key for key in filtered
-        if not any(helper in inspect.getsource(handlers[key]) for helper in SCOPE_HELPERS)
+        if not any(
+            helper in inspect.getsource(handlers[DELEGATING_ALIASES.get(key, key)])
+            for helper in SCOPE_HELPERS
+        )
     ]
     assert not missing, f"Routes FILTERED sans appel à une brique de périmètre : {missing}"
 
