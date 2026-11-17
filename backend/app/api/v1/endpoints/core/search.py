@@ -37,13 +37,21 @@ limiter = Limiter(key_func=get_client_ip)
 
 # ─── Searchable resource types ────────────────────────────────────────────────
 
+# Rôles autorisés à chercher parmi les élèves de l'établissement (SEARCH-STUDENTS-01).
+STUDENT_SEARCH_ROLES = frozenset({
+    "SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "DEPARTMENT_HEAD",
+    "SECRETARY", "STAFF", "ACCOUNTANT", "TEACHER",
+})
+
 RESOURCE_CONFIGS = {
     "students": {
         "table": "students",
         "label": "Élève",
-        "fields": ["first_name", "last_name", "student_number", "email"],
+        # SEARCH-STUDENTS-01 : la colonne s'appelle registration_number
+        # (student_number n'existe pas : la recherche d'élèves échouait).
+        "fields": ["first_name", "last_name", "registration_number", "email"],
         "display": "first_name || ' ' || last_name",
-        "subtitle": "student_number",
+        "subtitle": "registration_number",
         "icon": "GraduationCap",
         "route_template": "/{tenant}/admin/students/{id}",
     },
@@ -253,33 +261,45 @@ def global_search(
         if not resource_types:
             raise HTTPException(status_code=403, detail="Accès refusé à ce type de ressource")
 
+    # SEARCH-STUDENTS-01 : la recherche d'élèves couvre tout l'établissement ;
+    # elle est réservée au personnel. Élève, parent ou ancien élève n'y ont
+    # pas accès (même mécanique que les paiements : type retiré, 403 s'il
+    # était le seul demandé). Les enseignants voient déjà /students/.
+    if "students" in resource_types and not (roles & STUDENT_SEARCH_ROLES):
+        resource_types = [t for t in resource_types if t != "students"]
+        if not resource_types:
+            raise HTTPException(status_code=403, detail="Accès refusé à ce type de ressource")
+
     results = {}
     total_count = 0
 
     for resource_type in resource_types:
         config = RESOURCE_CONFIGS[resource_type]
         try:
-            if resource_type == "students" and scope_class_ids is not None:
-                items = _search_scoped_students(db, tenant_id, clean_query, limit, scope_class_ids)
-            else:
-                sql, params = _build_search_query(
-                    resource_type, config, clean_query, tenant_id, limit
-                )
-                rows = db.execute(text(sql), params).mappings().fetchall()
-                items = [dict(row) for row in rows]
+            # Un SAVEPOINT par type : l'échec d'un type (journalisé ci-dessous)
+            # n'interrompt pas la transaction, ni donc les types suivants.
+            with db.begin_nested():
+                if resource_type == "students" and scope_class_ids is not None:
+                    items = _search_scoped_students(db, tenant_id, clean_query, limit, scope_class_ids)
+                else:
+                    sql, params = _build_search_query(
+                        resource_type, config, clean_query, tenant_id, limit
+                    )
+                    rows = db.execute(text(sql), params).mappings().fetchall()
+                    items = [dict(row) for row in rows]
 
-            # Convert datetime objects to strings
-            for item in items:
-                if item.get("created_at"):
-                    item["created_at"] = str(item["created_at"])
+                # Convert datetime objects to strings
+                for item in items:
+                    if item.get("created_at"):
+                        item["created_at"] = str(item["created_at"])
 
-            results[resource_type] = {
-                "label": config["label"],
-                "icon": config.get("icon", "Search"),
-                "items": items,
-                "count": len(items),
-            }
-            total_count += len(items)
+                results[resource_type] = {
+                    "label": config["label"],
+                    "icon": config.get("icon", "Search"),
+                    "items": items,
+                    "count": len(items),
+                }
+                total_count += len(items)
         except Exception as exc:
             logger.error("Search failed for %s: %s", resource_type, exc)
             results[resource_type] = {
