@@ -246,6 +246,89 @@ def get_student_average(
     )
 
 
+# /history/ déclarée avant /{grade_id}/ : sinon « history » est capturé comme identifiant (422).
+@router.get("/history/")
+def list_grade_history(
+    request: Request,
+    grade_id: Optional[str] = None,
+    student_id: Optional[str] = None,
+    ordering: str = "-created_at",
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("grades:read")),
+):
+    """Return the audit trail of grade changes. GET /grades/history/"""
+    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    where = ["gh.tenant_id = :tenant_id"]
+    params: dict = {"tenant_id": tenant_id}
+
+    # A grades:read grant alone is not tenant-wide authorization: students
+    # can only inspect their own revisions; parents only their children's.
+    # Apply this on the SQL query itself, including when filtering by grade_id.
+    allowed_ids = _allowed_student_ids_for_caller(
+        db, current_user=current_user, tenant_id=tenant_id,
+    )
+    if allowed_ids is not None:
+        if not allowed_ids:
+            return []
+        if student_id is not None and str(student_id) not in allowed_ids:
+            return []
+        placeholders = []
+        for index, allowed_id in enumerate(sorted(allowed_ids)):
+            key = f"allowed_sid_{index}"
+            params[key] = allowed_id
+            placeholders.append(f":{key}")
+        # GRADE-HISTORY-LEAK-01 : grade_history n'a pas de colonne student_id ;
+        # l'élève se lit sur la note (grades.student_id), même établissement.
+        where.append(
+            "EXISTS (SELECT 1 FROM grades g WHERE g.id = gh.grade_id AND g.tenant_id = gh.tenant_id "
+            f"AND g.student_id IN ({', '.join(placeholders)}))"
+        )
+
+    if grade_id:
+        where.append("gh.grade_id = :grade_id")
+        params["grade_id"] = grade_id
+    if student_id:
+        where.append(
+            "EXISTS (SELECT 1 FROM grades g2 WHERE g2.id = gh.grade_id AND g2.tenant_id = gh.tenant_id "
+            "AND g2.student_id = :student_id)"
+        )
+        params["student_id"] = student_id
+
+    # Whitelist stricte — jamais d'interpolation directe de paramètres utilisateur
+    _ALLOWED_ORDER_COLS = {
+        "created_at": "gh.created_at",
+        "old_score": "gh.old_score",
+        "new_score": "gh.new_score",
+    }
+    _ALLOWED_ORDER_DIRS = {"ASC": "ASC", "DESC": "DESC"}
+
+    raw_col = ordering.lstrip("-") if ordering else "created_at"
+    raw_dir = "ASC" if (ordering and not ordering.startswith("-")) else "DESC"
+
+    safe_col = _ALLOWED_ORDER_COLS.get(raw_col, "gh.created_at")
+    safe_dir = _ALLOWED_ORDER_DIRS.get(raw_dir, "DESC")
+
+    rows = db.execute(text(f"""
+        SELECT gh.id, gh.grade_id, gh.old_score, gh.new_score,
+               gh.old_comment, gh.new_comment, gh.change_reason, gh.created_at,
+               u.first_name, u.last_name, u.id as user_id
+        FROM grade_history gh
+        LEFT JOIN users u ON u.id = gh.user_id
+        WHERE {' AND '.join(where)}
+        ORDER BY {safe_col} {safe_dir}
+        LIMIT 200
+    """), params).mappings().all()
+
+    return [
+        {
+            **dict(r),
+            "user": {"id": str(r["user_id"]), "first_name": r["first_name"], "last_name": r["last_name"]}
+            if r["user_id"] else None,
+        }
+        for r in rows
+    ]
+
+
 @router.get("/{grade_id}/", response_model=Grade)
 def get_grade(
     request: Request,
@@ -513,75 +596,3 @@ def create_bulk_grades(
 
 # ─── GET /grade-history ────────────────────────────────────────────────────────
 
-@router.get("/history/")
-def list_grade_history(
-    request: Request,
-    grade_id: Optional[str] = None,
-    student_id: Optional[str] = None,
-    ordering: str = "-created_at",
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission("grades:read")),
-):
-    """Return the audit trail of grade changes. GET /grades/history/"""
-    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
-    where = ["gh.tenant_id = :tenant_id"]
-    params: dict = {"tenant_id": tenant_id}
-
-    # A grades:read grant alone is not tenant-wide authorization: students
-    # can only inspect their own revisions; parents only their children's.
-    # Apply this on the SQL query itself, including when filtering by grade_id.
-    allowed_ids = _allowed_student_ids_for_caller(
-        db, current_user=current_user, tenant_id=tenant_id,
-    )
-    if allowed_ids is not None:
-        if not allowed_ids:
-            return []
-        if student_id is not None and str(student_id) not in allowed_ids:
-            return []
-        placeholders = []
-        for index, allowed_id in enumerate(sorted(allowed_ids)):
-            key = f"allowed_sid_{index}"
-            params[key] = allowed_id
-            placeholders.append(f":{key}")
-        where.append(f"gh.student_id IN ({', '.join(placeholders)})")
-
-    if grade_id:
-        where.append("gh.grade_id = :grade_id")
-        params["grade_id"] = grade_id
-    if student_id:
-        where.append("gh.student_id = :student_id")
-        params["student_id"] = student_id
-
-    # Whitelist stricte — jamais d'interpolation directe de paramètres utilisateur
-    _ALLOWED_ORDER_COLS = {
-        "created_at": "gh.created_at",
-        "old_score": "gh.old_score",
-        "new_score": "gh.new_score",
-    }
-    _ALLOWED_ORDER_DIRS = {"ASC": "ASC", "DESC": "DESC"}
-
-    raw_col = ordering.lstrip("-") if ordering else "created_at"
-    raw_dir = "ASC" if (ordering and not ordering.startswith("-")) else "DESC"
-
-    safe_col = _ALLOWED_ORDER_COLS.get(raw_col, "gh.created_at")
-    safe_dir = _ALLOWED_ORDER_DIRS.get(raw_dir, "DESC")
-
-    rows = db.execute(text(f"""
-        SELECT gh.id, gh.grade_id, gh.old_score, gh.new_score,
-               gh.old_comment, gh.new_comment, gh.change_reason, gh.created_at,
-               u.first_name, u.last_name, u.id as user_id
-        FROM grade_history gh
-        LEFT JOIN users u ON u.id = gh.user_id
-        WHERE {' AND '.join(where)}
-        ORDER BY {safe_col} {safe_dir}
-        LIMIT 200
-    """), params).mappings().all()
-
-    return [
-        {
-            **dict(r),
-            "user": {"id": str(r["user_id"]), "first_name": r["first_name"], "last_name": r["last_name"]}
-            if r["user_id"] else None,
-        }
-        for r in rows
-    ]
