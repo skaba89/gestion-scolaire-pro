@@ -43,7 +43,9 @@ def test_grade_id_filter_is_still_scoped_to_owned_students(db, monkeypatch):
     query = str(statement)
     assert "gh.tenant_id = :tenant_id" in query
     assert "gh.grade_id = :grade_id" in query
-    assert "gh.student_id IN (:allowed_sid_0, :allowed_sid_1)" in query
+    # grade_history n'a pas de student_id : l'élève se lit sur la note (GRADE-HISTORY-LEAK-01).
+    assert "g.student_id IN (:allowed_sid_0, :allowed_sid_1)" in query
+    assert "g.id = gh.grade_id" in query
     assert set([params["allowed_sid_0"], params["allowed_sid_1"]]) == {"child-1", "child-2"}
     assert params["grade_id"] == "foreign-grade"
 
@@ -54,7 +56,7 @@ def test_student_history_is_restricted_to_own_student_id(db, monkeypatch):
         request=object(), db=db, current_user={"id": "student-user", "roles": ["STUDENT"]},
     )
     statement, params = db.execute.call_args.args
-    assert "gh.student_id IN (:allowed_sid_0)" in str(statement)
+    assert "g.student_id IN (:allowed_sid_0)" in str(statement)
     assert params["allowed_sid_0"] == "own-student"
 
 
@@ -65,5 +67,5 @@ def test_staff_with_unrestricted_read_retains_tenant_scoped_history(db, monkeypa
     )
     statement, params = db.execute.call_args.args
     assert "gh.tenant_id = :tenant_id" in str(statement)
-    assert "gh.student_id IN" not in str(statement)
+    assert "student_id IN" not in str(statement)
     assert params["tenant_id"] == "tenant-1"
