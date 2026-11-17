@@ -181,6 +181,10 @@ def require_student_in_scope(db: Session, tenant_id, user: dict, student_id) -> 
         return
     from app.models.student import Student
 
+    parsed = _uuid_set([student_id])
+    if parsed is None:  # identifiant illisible : jamais dans le périmètre (404, pas 500)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Élève introuvable")
+    student_id = next(iter(parsed))
     class_ids = allowed_class_ids(db, tenant_id, cycles)
     found = db.execute(
         select(Student.id).where(
@@ -200,6 +204,10 @@ def require_class_in_scope(db: Session, tenant_id, user: dict, class_id) -> None
         return
     from app.models.classroom import Classroom
 
+    parsed = _uuid_set([class_id])
+    if parsed is None:  # identifiant illisible : jamais dans le périmètre (404, pas 500)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Classe introuvable")
+    class_id = next(iter(parsed))
     class_ids = allowed_class_ids(db, tenant_id, cycles)
     found = db.execute(
         select(Classroom.id).where(

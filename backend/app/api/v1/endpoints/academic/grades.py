@@ -110,14 +110,21 @@ def _require_teacher_grade_write_scope(
 
 def _require_grade_write_in_scope(
     db: Session, *, tenant_id: str, current_user: dict, student_ids, assessment_ids,
+    not_found: Optional[str] = None,
 ) -> None:
     """Périmètre par cycle (B2c-1), AVANT toute écriture : l'élève ET l'évaluation (donc sa
     classe) doivent être dans le périmètre, sinon 404 sans effet. Une note sans évaluation
     n'a pas de classe : un compte restreint ne peut pas l'écrire. Tout ou rien pour un lot."""
     if not is_cycle_restricted(current_user):
         return
-    require_students_in_scope(db, tenant_id, current_user, set(student_ids))
-    require_assessments_in_scope(db, tenant_id, current_user, set(assessment_ids))
+    try:
+        require_students_in_scope(db, tenant_id, current_user, set(student_ids))
+        require_assessments_in_scope(db, tenant_id, current_user, set(assessment_ids))
+    except HTTPException:
+        if not_found is None:
+            raise
+        # Même message qu'une note inexistante : aucun oracle d'existence.
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=not_found) from None
 
 
 def _allowed_student_ids_for_caller(db: Session, *, current_user: dict, tenant_id: str) -> Optional[set]:
@@ -290,7 +297,10 @@ def get_grade(
     if allowed_ids is not None and str(grade.student_id) not in allowed_ids:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Grade not found")
     # Périmètre par cycle (B2c-1) : la note suit l'élève, quelle que soit la classe d'origine.
-    require_student_in_scope(db, tenant_id, current_user, grade.student_id)
+    try:
+        require_student_in_scope(db, tenant_id, current_user, grade.student_id)
+    except HTTPException:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Grade not found") from None
     return grade
 
 
@@ -366,8 +376,12 @@ def update_grade(
     # Périmètre par cycle (B2c-1) : état actuel ET état final de la note.
     _require_grade_write_in_scope(
         db, tenant_id=tenant_id, current_user=current_user,
-        student_ids=[current_grade.student_id, grade_update.student_id or current_grade.student_id],
-        assessment_ids=[current_grade.assessment_id, grade_update.assessment_id or current_grade.assessment_id],
+        # Une valeur explicitement ``null`` (champ présent) compte comme destination : refusée.
+        student_ids=[current_grade.student_id] + (
+            [grade_update.student_id] if "student_id" in grade_update.model_fields_set else []),
+        assessment_ids=[current_grade.assessment_id] + (
+            [grade_update.assessment_id] if "assessment_id" in grade_update.model_fields_set else []),
+        not_found="Grade not found",
     )
     _ensure_assessment_session_writable(
         db, tenant_id=tenant_id, assessment_id=current_grade.assessment_id,
@@ -426,6 +440,7 @@ def delete_grade(
     _require_grade_write_in_scope(
         db, tenant_id=tenant_id, current_user=current_user,
         student_ids=[current_grade.student_id], assessment_ids=[current_grade.assessment_id],
+        not_found="Grade not found",
     )
     _ensure_assessment_session_writable(
         db, tenant_id=tenant_id, assessment_id=current_grade.assessment_id,

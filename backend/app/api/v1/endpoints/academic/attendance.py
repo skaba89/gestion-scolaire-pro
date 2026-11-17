@@ -99,10 +99,14 @@ def _require_existing_attendance_in_scope(db: Session, *, tenant_id: str, curren
     ), {"id": str(attendance_id), "tenant_id": tenant_id}).mappings().first()
     if not row:
         raise HTTPException(status_code=404, detail="Attendance record not found")
-    _require_attendance_write_in_scope(
-        db, tenant_id=tenant_id, current_user=current_user,
-        student_ids=[row["student_id"]], classroom_ids=[row["classroom_id"]],
-    )
+    try:
+        _require_attendance_write_in_scope(
+            db, tenant_id=tenant_id, current_user=current_user,
+            student_ids=[row["student_id"]], classroom_ids=[row["classroom_id"]],
+        )
+    except HTTPException:
+        # Même message qu'une présence inexistante : aucun oracle d'existence.
+        raise HTTPException(status_code=404, detail="Attendance record not found") from None
 
 
 def _teacher_may_create(db: Session, *, current_user: dict, tenant_id: str, classroom_id: Optional[str]) -> bool:

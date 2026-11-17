@@ -1212,4 +1212,12 @@ filtrés mais leurs requêtes n'aboutissent pas aujourd'hui (table
 `class_sessions` absente de toute migration, colonnes de `student_check_ins`
 inexistantes : réponse `[]`). Comptes non restreints, TENANT_ADMIN, TEACHER
 (`teacher_scope`) et PARENT (`parent_scope`) : comportement identique à avant.
+**Limites d'écran jusqu'à B2c-2** : la fiche élève
+(`src/pages/admin/StudentDetail.tsx` via `src/queries/admin.ts`) lit
+`/school-life/grades/` et `/school-life/attendance/`, encore DENY : elle affiche
+« aucune note / présence » pour un compte restreint ; `LiveAttendance`,
+`Badges`, `QrScanPage` et `ReportCards` répondent 403. Un identifiant mal formé
+ou un `null` explicite visant une destination (élève, évaluation, classe) est
+refusé en 404 sans écriture ; un objet inexistant et un objet hors périmètre
+renvoient exactement le même message 404.
 Tests : `backend/tests/test_cycle_scope_schooling.py`.

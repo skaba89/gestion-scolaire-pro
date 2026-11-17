@@ -27,6 +27,7 @@ from conftest import get_test_client
 client = get_test_client()
 
 from sqlalchemy import bindparam, event, select, text  # noqa: E402
+from sqlalchemy import inspect as sa_inspect  # noqa: E402
 
 from app.core import cycle_scope  # noqa: E402
 from app.core.cycle_routes import Policy, policy_for  # noqa: E402
@@ -784,8 +785,9 @@ def test_class_sessions_are_limited_to_classes_of_the_cycle(school, schooling, p
     (la route avale l'erreur et renvoie [] quand elle est absente)."""
     t = school["tenant"]
     keys = {name: uuid4() for name in ("cs_cp", "cs_6e", "cs_nocls")}
+    if sa_inspect(engine).has_table("class_sessions"):
+        pytest.skip("la table class_sessions existe déjà : on ne la modifie ni ne la supprime")
     with SessionLocal() as db:
-        db.execute(text("DROP TABLE IF EXISTS class_sessions"))
         db.execute(text("""CREATE TABLE class_sessions (
             id uuid PRIMARY KEY, tenant_id uuid NOT NULL, class_id uuid, subject_id uuid, room_id uuid,
             teacher_id uuid, status text, start_time timestamptz, end_time timestamptz)"""))
@@ -800,9 +802,9 @@ def test_class_sessions_are_limited_to_classes_of_the_cycle(school, schooling, p
         everything = {str(v) for v in keys.values()}
         for who in ("secretary_free", "admin_residual", "teacher"):
             assert ids(call(school, who, "GET", path)) == everything, who
-    finally:
+    finally:  # créée par ce test (le test est ignoré si elle existait) : supprimée par lui
         with SessionLocal() as db:
-            db.execute(text("DROP TABLE IF EXISTS class_sessions"))
+            db.execute(text("DROP TABLE class_sessions"))
             db.commit()
 
 
@@ -835,6 +837,115 @@ def test_presence_stays_available_to_a_restricted_account_for_themselves_only(sc
     assert ok.status_code == 200, ok.text
     other = call(school, "director", "PUT", "/presence/", json={"user_id": str(school["people"]["teacher"]), "is_online": True})
     assert other.status_code == 403 and other.json().get("error") != "CYCLE_SCOPE_DENIED"
+
+
+# --- Corrections après relecture : null explicite, oracle d'existence, identifiants mal formés ---------
+
+def _error_body(response):
+    body = response.json()
+    body.pop("request_id", None)
+    return body
+
+
+def test_explicit_null_destination_on_grade_update_is_refused_without_effect(school, schooling):
+    for patch in ({"assessment_id": None}, {"student_id": None}):
+        response = call(school, "director", "PUT", f"/grades/{schooling['g_cp']}/", json=patch)
+        assert response.status_code == 404, patch
+        row = get_grade(schooling["g_cp"])
+        assert row.assessment_id == schooling["a_cp"] and row.student_id == schooling["s_cp"] and row.score == 15.0
+    # Les autres PUT/PATCH ignorent ``null`` (aucune écriture) ou le refusent déjà.
+    assert call(school, "director", "PUT", f"/grades/{schooling['g_cp']}/", json={"score": 16.0}).status_code == 200
+
+
+@needs_postgres
+def test_explicit_null_class_on_homework_update_is_refused_without_effect(school, schooling):
+    response = call(school, "director_teacher", "PUT", f"/homework/{schooling['hw_cp']}/", json={"class_id": None})
+    assert response.status_code == 404
+    assert raw_value("SELECT classroom_id FROM homework WHERE id = CAST(:i AS uuid)", i=schooling["hw_cp"]) is not None
+
+
+@needs_postgres
+def test_assessment_update_with_null_class_changes_nothing(school, schooling):
+    """``class_id: null`` est ignoré par le handler (champ non écrit) : la classe reste celle du périmètre."""
+    response = call(school, "director", "PUT", f"/assessments/{schooling['a_cp_empty']}/",
+                    json={"class_id": None, "name": "Renommée"})
+    assert response.status_code == 200
+    assert get_assessment(schooling["a_cp_empty"]).class_id == schooling["cls_cp"]
+
+
+def test_grade_404_has_no_existence_oracle(school, schooling):
+    unknown = uuid4()
+    for method, kwargs in (("GET", {}), ("PUT", {"json": {"score": 1.0}}), ("DELETE", {})):
+        missing = call(school, "director", method, f"/grades/{unknown}/", **kwargs)
+        hidden = call(school, "director", method, f"/grades/{schooling['g_6e']}/", **kwargs)
+        assert missing.status_code == hidden.status_code == 404, method
+        assert _error_body(missing) == _error_body(hidden), method
+
+
+@needs_postgres
+def test_attendance_404_has_no_existence_oracle(school, schooling):
+    unknown = uuid4()
+    for method, kwargs in (("PATCH", {"json": {"status": "LATE"}}), ("DELETE", {})):
+        missing = call(school, "secretary", method, f"/attendance/{unknown}/", **kwargs)
+        hidden = call(school, "secretary", method, f"/attendance/{schooling['att_6e']}/", **kwargs)
+        assert missing.status_code == hidden.status_code == 404, method
+        assert _error_body(missing) == _error_body(hidden), method
+
+
+def test_other_scoped_404s_are_uniform_for_unknown_and_hidden_objects(school, schooling):
+    pairs = [("GET", f"/assessments/{{}}/", "a_6e"), ("GET", "/grades/student/{}/average/", "s_6e")]
+    for method, template, name in pairs:
+        if "assessments" in template and IS_SQLITE:
+            continue
+        missing = call(school, "director", method, template.format(uuid4()))
+        hidden = call(school, "director", method, template.format(schooling[name]))
+        assert missing.status_code == hidden.status_code == 404, template
+        assert _error_body(missing) == _error_body(hidden), template
+
+
+def test_malformed_identifiers_are_404_never_500(school, schooling):
+    assert call(school, "director_teacher", "GET", "/homework/submissions/abc/").status_code == 404
+    assert call(school, "secretary", "GET", "/transcripts/abc/", params={"academic_year_id": str(schooling["year"])}
+                ).status_code in (404, 422)
+    t = school["tenant"]
+    restricted = {"_cycle_ids": [str(school["cycles"]["primaire"])]}
+    with SessionLocal() as db:
+        for fn in (cycle_scope.require_student_in_scope, cycle_scope.require_class_in_scope):
+            for bad in ("abc", "", None):
+                with pytest.raises(Exception) as caught:
+                    fn(db, t, restricted, bad)
+                assert getattr(caught.value, "status_code", None) == 404, (fn.__name__, bad)
+
+
+@needs_postgres
+def test_malformed_student_id_in_homework_submit_is_404(school, schooling):
+    response = call(school, "director_teacher", "POST", f"/homework/{schooling['hw_cp2']}/submit/",
+                    json={"homework_id": str(schooling["hw_cp2"]), "student_id": "abc", "content": "x"})
+    assert response.status_code == 404
+
+
+# --- Non-régression des vrais flux PARENT, STUDENT et SUPER_ADMIN ----------------------------------
+
+@needs_postgres
+def test_parent_and_student_flows_on_attendance_and_homework_are_unchanged(school, schooling):
+    parent = call(school, "parent", "GET", "/attendance/")
+    assert ids(parent) == {str(schooling[n]) for n in ("att_cp", "att_cp_old", "att_6e", "att_none")}
+    assert ids(call(school, "student", "GET", "/attendance/")) == set()  # aucune fiche élève liée à ce compte
+    everything = {str(schooling[n]) for n in ("hw_cp", "hw_cp2", "hw_6e", "hw_nocls")}
+    assert ids(call(school, "parent", "GET", "/homework/")) == everything
+    assert ids(call(school, "student", "GET", "/homework/")) == everything
+
+
+def test_super_admin_with_tenant_header_is_never_filtered_on_grades(school, schooling):
+    from app.core import security
+
+    token = security.create_access_token(
+        {"sub": str(school["people"]["superadmin"]), "tenant_id": None, "roles": ["SUPER_ADMIN"]})
+    headers = {"Authorization": f"Bearer {token}", "X-Tenant-ID": str(school["tenant"])}
+    response = client.get("/api/v1/grades/", headers=headers)
+    assert ids(response) == {str(schooling[n]) for n in ("g_cp", "g_cp_old", "g_6e", "g_none")}
+    assert response.json()["total"] == 4
+    assert client.get(f"/api/v1/grades/{schooling['g_6e']}/", headers=headers).status_code == 200
 
 
 # --- Garde-fou : chaque route FILTERED du lot a son test comportemental ---------------------------

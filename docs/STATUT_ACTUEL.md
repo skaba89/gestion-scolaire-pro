@@ -1232,11 +1232,13 @@ ce fichier — pas d'un document de 2025 non révisé.
   bulletins, certificats, incidents) reste refusée jusqu'à B2c-2. Aucun
   changement pour les comptes non restreints, admins, enseignants, parents.
   Aucune migration ni permission. Détail : `docs/PERMISSIONS_MATRIX.md` (lot
-  B2c-1). Tests : `test_cycle_scope_schooling.py`. Constats hors lot, non
-  corrigés : `GET /grades/history/` est masquée par `GET /grades/{grade_id}/`
-  (422) ; `POST /grades/bulk` insère une colonne `comment` inexistante
-  (`grades.comments`) et échoue (400) ; l'alias `GET /grade-history/` n'applique
-  pas le filtrage élève/parent de la route canonique ; `grade_history` n'a pas de
-  colonne `student_id` (le filtre `student_id` de ces deux routes échoue) ;
-  `/class-sessions/` (table absente) et `/student-check-ins/` (colonnes
-  inexistantes) répondent toujours `[]`.
+  B2c-1). Tests : `test_cycle_scope_schooling.py`. Constats hors lot : l'alias `GET /grade-history/` sans filtre élève/parent et
+  `GET /grades/history/` masquée par `GET /grades/{grade_id}/` sont **corrigés par
+  #568** ; `grade_history` n'a pas de colonne `student_id` ; `POST /grades/bulk`
+  insère une colonne `comment` inexistante (`grades.comments`) et échoue (400) ;
+  `/class-sessions/` (table absente de toute migration) répond toujours `[]` ;
+  `/student-check-ins/` lit des colonnes inexistantes, n'a que `get_current_user`
+  (parent non filtré) et avale l'erreur par `except Exception` (réponse `[]`).
+  Écrans encore affectés pour un compte restreint jusqu'à B2c-2 : fiche élève
+  (`StudentDetail`, notes/présences lues via `/school-life/*`, vides) ;
+  `LiveAttendance`, `Badges`, `QrScanPage`, `ReportCards` (403).
