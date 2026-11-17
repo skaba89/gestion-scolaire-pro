@@ -194,6 +194,7 @@ def _make_submission(tenant_id: str, homework_id: str, student_id: str, *, conte
 
 
 def _as(user: dict):
+    user.setdefault("_cycle_ids", None)  # compte non restreint (périmètre par cycle)
     app.dependency_overrides[get_current_user] = lambda: user
     return client
 

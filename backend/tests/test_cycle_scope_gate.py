@@ -33,7 +33,7 @@ from app.models import (  # noqa: E402
 )
 from app.models.student import Gender  # noqa: E402
 
-DENIED = "/api/v1/students/"        # route de données, non classée INDEPENDENT
+DENIED = "/api/v1/attendance/"       # route de données refusée jusqu'au lot B2c
 INDEPENDENT = "/api/v1/users/me/"   # route de coquille
 STRUCTURE = "/api/v1/levels/"       # lecture de structure, INDEPENDENT
 
@@ -50,6 +50,7 @@ PEOPLE = {
     "foreign_assigned": ["SECRETARY"],
     "secretary_parent": ["SECRETARY", "PARENT"],
     "superadmin": ["SUPER_ADMIN"],
+    "accountant": ["ACCOUNTANT"],
 }
 
 
@@ -87,6 +88,7 @@ def school(monkeypatch):
         assign("teacher_residual", "primaire")
         assign("director_teacher", "primaire")
         assign("secretary_parent", "primaire")
+        assign("accountant", "primaire")
         assign("superadmin", "primaire")  # affectation résiduelle : ne doit jamais s'appliquer
         # Affectation enregistrée sous un autre établissement : ne doit jamais s'appliquer ici.
         assign("foreign_assigned", "foreign", owner=other)
@@ -363,8 +365,8 @@ def test_require_helpers_are_noop_for_unrestricted_and_404_out_of_scope(school, 
 # --- Routes de données refusées, en-têtes, HEAD, modules, WebSocket -----------
 
 DATA_ROUTES = [
-    "/api/v1/payments/invoices/", "/api/v1/payments/fees/", f"/api/v1/students/{uuid4()}/", "/api/v1/invoices/", "/api/v1/enrollments/",
-    "/api/v1/classrooms/", "/api/v1/notifications/settings/", "/api/v1/teachers/", "/api/v1/grades/",
+    "/api/v1/payments/invoices/", "/api/v1/payments/fees/", "/api/v1/students/dashboard/", "/api/v1/invoices/",
+    "/api/v1/attendance/", "/api/v1/notifications/settings/", "/api/v1/teachers/", "/api/v1/grades/",
     "/api/v1/parents/children/", "/api/v1/parents/dashboard/",
 ]
 

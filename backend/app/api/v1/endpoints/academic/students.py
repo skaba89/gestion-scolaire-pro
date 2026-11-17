@@ -12,6 +12,7 @@ import math
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
+from app.core.cycle_scope import class_scope_clause, require_student_in_scope, scoped_class_ids
 from app.crud import student as crud_student
 from app.schemas.student import Student, StudentCreate, StudentUpdate, StudentList
 from app.models.student import StudentStatus
@@ -60,6 +61,9 @@ def list_students(
     if student_ids is not None and not student_ids:
         return StudentList(items=[], total=0, page=page, page_size=page_size, pages=1)
 
+    # Périmètre par cycle (lot B2b) : None = compte non restreint.
+    scope_class_ids = scoped_class_ids(db, tenant_id, current_user)
+
     skip = (page - 1) * page_size
     students, total = crud_student.get_students(
         db=db,
@@ -71,6 +75,7 @@ def list_students(
         level=level,
         class_name=class_name,
         student_ids=student_ids,
+        scope_class_ids=scope_class_ids,
     )
 
     pages = math.ceil(total / page_size) if total > 0 else 1
@@ -437,6 +442,8 @@ def get_student_enrollment(
                 detail="Permission denied",
             )
         tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+        # Périmètre par cycle (lot B2b) : 404 si l'élève est hors périmètre.
+        require_student_in_scope(db, tenant_id, current_user, student_id)
         student = db.query(StudentModel).filter(
             StudentModel.id == student_id,
             StudentModel.tenant_id == tenant_id,
@@ -446,7 +453,8 @@ def get_student_enrollment(
         ):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
 
-        row = db.query(EnrollmentModel, Classroom, Level, AcademicYear).join(
+        scope_class_ids = scoped_class_ids(db, tenant_id, current_user)
+        query = db.query(EnrollmentModel, Classroom, Level, AcademicYear).join(
             Classroom,
             and_(
                 Classroom.id == EnrollmentModel.class_id,
@@ -466,7 +474,11 @@ def get_student_enrollment(
             EnrollmentModel.tenant_id == tenant_id,
             EnrollmentModel.student_id == student_id,
             func.upper(EnrollmentModel.status) == enrollment_status.upper(),
-        ).order_by(
+        )
+        if scope_class_ids is not None:
+            # Une inscription passée dans une classe d'un autre cycle n'est pas visible.
+            query = query.filter(class_scope_clause(EnrollmentModel.class_id, scope_class_ids))
+        row = query.order_by(
             AcademicYear.is_current.desc(),
             AcademicYear.start_date.desc(),
             EnrollmentModel.enrollment_date.desc(),
@@ -528,6 +540,7 @@ def get_student(
     allowed_ids = _parent_child_ids(db, current_user=current_user, tenant_id=str(tenant_id))
     if allowed_ids is not None and str(student_id) not in allowed_ids:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
+    require_student_in_scope(db, tenant_id, current_user, student_id)
     student = crud_student.get_student(db, student_id, tenant_id)
     if not student:
         raise HTTPException(
@@ -590,6 +603,8 @@ def update_student(
     Permissions: students:write
     """
     tenant_id = resolve_current_tenant_id(request, current_user, db)
+    # Périmètre par cycle (lot B2b) : vérifié avant toute lecture ou écriture.
+    require_student_in_scope(db, tenant_id, current_user, student_id)
     if student_update.card_uid:
         # A card's UID is a hardware identifier — globally unique, so this
         # check isn't tenant-scoped. Without it, re-issuing a lost card
@@ -625,6 +640,7 @@ def delete_student(
     Permissions: students:write
     """
     tenant_id = resolve_current_tenant_id(request, current_user, db)
+    require_student_in_scope(db, tenant_id, current_user, student_id)
     try:
         success = crud_student.delete_student(db, student_id, tenant_id)
     except crud_student.StudentHasProtectedHistory:

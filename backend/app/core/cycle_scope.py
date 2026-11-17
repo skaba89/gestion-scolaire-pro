@@ -13,7 +13,8 @@ Modèle validé le 2026-11-16 (opt-in) :
 Ce module calcule le périmètre et fournit les briques de filtrage. Le refus
 par défaut des routes non classées est appliqué par ``get_current_user``
 (lot B2a, registre ``cycle_routes``) ; le filtrage des routes de données
-vient avec les lots B2b à B2e. Tant que ces lots ne sont pas livrés,
+vient avec les lots B2b à B2e (B2b livré : élèves, classes, inscriptions).
+Tant que ces lots ne sont pas livrés,
 ``cycle_policy_available`` reste ``False``.
 """
 from __future__ import annotations
@@ -22,8 +23,8 @@ import logging
 from typing import Iterable, Optional
 
 from fastapi import HTTPException, status
-from sqlalchemy import and_, exists, false, not_, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy import and_, exists, false, func, not_, or_, select
+from sqlalchemy.orm import Session, aliased
 
 logger = logging.getLogger(__name__)
 
@@ -125,12 +126,15 @@ def student_scope_clause(column, class_ids: Iterable, *, tenant_id):
         AcademicYear.tenant_id == tenant_id, AcademicYear.is_current.is_(True)
     )
     has_current_year = exists(current_years)
+    # Alias : si ``column`` appartient déjà à ``Enrollment`` (listes d'inscriptions), la
+    # sous-requête ne doit pas être corrélée à la ligne externe (même table).
+    enrolled = aliased(Enrollment)
     return exists().where(
-        Enrollment.tenant_id == tenant_id,
-        Enrollment.student_id == column,
-        Enrollment.class_id.in_(class_ids),
-        Enrollment.status == "ACTIVE",
-        or_(Enrollment.academic_year_id.in_(current_years), not_(has_current_year)),
+        enrolled.tenant_id == tenant_id,
+        enrolled.student_id == column,
+        enrolled.class_id.in_(class_ids),
+        func.upper(enrolled.status) == "ACTIVE",
+        or_(enrolled.academic_year_id.in_(current_years), not_(has_current_year)),
     )
 
 
@@ -150,6 +154,21 @@ def _cycles_of(user: dict):
         logger.error("Périmètre par cycle indisponible : clé _cycle_ids absente du contexte utilisateur")
         raise RuntimeError("_cycle_ids absent du contexte utilisateur : périmètre par cycle non résolu")
     return user["_cycle_ids"]
+
+
+def is_cycle_restricted(user: dict) -> bool:
+    """Le compte est-il limité à des cycles ? (échec fermé si la clé est absente)"""
+    return _cycles_of(user) is not None
+
+
+def scoped_class_ids(db: Session, tenant_id, user: dict) -> Optional[list]:
+    """``None`` = compte non restreint (aucun filtre) ; sinon la liste, éventuellement
+    vide, des classes du périmètre, à passer aux paramètres ``scope_class_ids`` du
+    CRUD ou aux briques ``*_scope_clause``."""
+    cycles = _cycles_of(user)
+    if cycles is None:
+        return None
+    return allowed_class_ids(db, tenant_id, cycles)
 
 
 def require_student_in_scope(db: Session, tenant_id, user: dict, student_id) -> None:
@@ -189,3 +208,26 @@ def require_class_in_scope(db: Session, tenant_id, user: dict, class_id) -> None
     ).first()
     if found is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Classe introuvable")
+
+
+def require_enrollment_in_scope(db: Session, tenant_id, user: dict, enrollment_id) -> None:
+    """404 si l'inscription est hors périmètre ; sans effet pour un compte non
+    restreint. Il faut les DEUX conditions : sa classe est dans le périmètre ET
+    son élève y est (inscription ACTIVE de l'année courante dans un cycle du compte) :
+    une inscription résiduelle d'un élève ailleurs n'est pas modifiable."""
+    cycles = _cycles_of(user)
+    if cycles is None:
+        return
+    from app.models.enrollment import Enrollment
+
+    class_ids = allowed_class_ids(db, tenant_id, cycles)
+    found = db.execute(
+        select(Enrollment.id).where(
+            Enrollment.id == enrollment_id,
+            Enrollment.tenant_id == tenant_id,
+            class_scope_clause(Enrollment.class_id, class_ids),
+            student_scope_clause(Enrollment.student_id, class_ids, tenant_id=tenant_id),
+        )
+    ).first()
+    if found is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Inscription introuvable")

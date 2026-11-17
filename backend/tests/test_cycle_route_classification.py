@@ -49,16 +49,56 @@ def test_no_registry_entry_is_orphan():
     assert not orphans, f"Entrées du registre sans route correspondante : {orphans}"
 
 
-def test_default_is_deny_and_b2a_has_no_filtered_route():
+def test_default_is_deny():
     assert policy_for("GET", "/api/v1/une-route-inconnue/") is Policy.DENY
     assert policy_for("GET", None) is Policy.DENY
-    assert Policy.FILTERED not in set(ROUTE_POLICIES.values())
+
+
+# Briques de ``cycle_scope`` dont l'appel prouve qu'un handler FILTERED applique le périmètre.
+SCOPE_HELPERS = (
+    "scoped_class_ids", "is_cycle_restricted", "require_student_in_scope", "require_class_in_scope",
+    "require_enrollment_in_scope", "student_scope_clause", "class_scope_clause", "allowed_class_ids",
+)
+
+
+def test_every_filtered_route_handler_calls_a_scope_helper():
+    """Heuristique : une route FILTERED dont le code n'appelle aucune brique de
+    périmètre est un trou (la garde l'a laissée passer sans filtrage)."""
+    import inspect
+
+    handlers = {}
+    for context in iter_route_contexts(app.routes):
+        if isinstance(context.original_route, APIRoute):
+            for method in context.methods:
+                handlers[(method, context.path_format)] = context.original_route.endpoint
+    filtered = sorted(key for key, policy in ROUTE_POLICIES.items() if policy is Policy.FILTERED)
+    assert len(filtered) >= 20
+    missing = [
+        key for key in filtered
+        if not any(helper in inspect.getsource(handlers[key]) for helper in SCOPE_HELPERS)
+    ]
+    assert not missing, f"Routes FILTERED sans appel à une brique de périmètre : {missing}"
+
+
+def test_b2b_routes_kept_deny():
+    for method, path in (
+        ("POST", "/api/v1/students/"), ("GET", "/api/v1/students/dashboard/"),
+        ("POST", "/api/v1/classrooms/"), ("POST", "/api/v1/infrastructure/classrooms/"),
+        ("PUT", "/api/v1/infrastructure/classrooms/{class_id}/"),
+        ("DELETE", "/api/v1/infrastructure/classrooms/{class_id}/"),
+        ("POST", "/api/v1/infrastructure/classrooms/{class_id}/subjects/{subject_id}/"),
+        ("DELETE", "/api/v1/infrastructure/classrooms/{class_id}/subjects/{subject_id}/"),
+        ("POST", "/api/v1/infrastructure/programs/"), ("POST", "/api/v1/infrastructure/rooms/"),
+    ):
+        assert policy_for(method, path) is Policy.DENY, (method, path)
 
 
 def test_exact_entries_do_not_leak_to_other_methods_or_paths():
     assert policy_for("GET", "/api/v1/levels/") is Policy.INDEPENDENT
     assert policy_for("POST", "/api/v1/levels/") is Policy.DENY
-    assert policy_for("GET", "/api/v1/students/") is Policy.DENY
+    assert policy_for("GET", "/api/v1/students/") is Policy.FILTERED
+    assert policy_for("POST", "/api/v1/students/") is Policy.DENY
+    assert policy_for("GET", "/api/v1/students/{student_id}/grades/") is Policy.DENY
     assert policy_for("GET", "/api/v1/users/") is Policy.DENY
 
 

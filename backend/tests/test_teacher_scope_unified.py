@@ -34,7 +34,7 @@ def _clear_overrides():
 
 
 def _as(user_id: str, tenant_id: str, roles=("TEACHER",)):
-    user = {"id": user_id, "tenant_id": tenant_id, "roles": list(roles)}
+    user = {"id": user_id, "tenant_id": tenant_id, "roles": list(roles), "_cycle_ids": None}
     app.dependency_overrides[get_current_user] = lambda: user
     return client
 

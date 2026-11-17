@@ -66,19 +66,19 @@ def _clear_overrides():
 class TestPaymentsSearchRestricted:
     def test_student_search_excludes_payments(self):
         tenant_id = _make_tenant_with_payment()
-        student = {"id": str(uuid.uuid4()), "roles": ["STUDENT"], "tenant_id": tenant_id}
+        student = {"id": str(uuid.uuid4()), "roles": ["STUDENT"], "tenant_id": tenant_id, "_cycle_ids": None}
         resp = _as(student).get(URL, params={"q": "PAY-CONFIDENTIAL", "types": "payments"}, headers=HEADERS)
         assert resp.status_code == 403
 
     def test_parent_search_excludes_payments_despite_holding_payments_read(self):
         tenant_id = _make_tenant_with_payment()
-        parent = {"id": str(uuid.uuid4()), "roles": ["PARENT"], "tenant_id": tenant_id}
+        parent = {"id": str(uuid.uuid4()), "roles": ["PARENT"], "tenant_id": tenant_id, "_cycle_ids": None}
         resp = _as(parent).get(URL, params={"q": "PAY-CONFIDENTIAL", "types": "payments"}, headers=HEADERS)
         assert resp.status_code == 403
 
     def test_mixed_types_silently_drops_payments_for_unprivileged_role(self):
         tenant_id = _make_tenant_with_payment()
-        student = {"id": str(uuid.uuid4()), "roles": ["STUDENT"], "tenant_id": tenant_id}
+        student = {"id": str(uuid.uuid4()), "roles": ["STUDENT"], "tenant_id": tenant_id, "_cycle_ids": None}
         resp = _as(student).get(
             URL, params={"q": "test", "types": "students,payments"}, headers=HEADERS,
         )
@@ -96,7 +96,7 @@ class TestPaymentsSearchRestricted:
     )
     def test_tenant_admin_can_search_payments(self):
         tenant_id = _make_tenant_with_payment()
-        admin = {"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id}
+        admin = {"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id, "_cycle_ids": None}
         resp = _as(admin).get(URL, params={"q": "PAY-CONFIDENTIAL", "types": "payments"}, headers=HEADERS)
         assert resp.status_code == 200, resp.text
         assert resp.json()["results"]["payments"]["count"] == 1
@@ -108,7 +108,7 @@ class TestPaymentsSearchRestricted:
     )
     def test_accountant_can_search_payments(self):
         tenant_id = _make_tenant_with_payment()
-        accountant = {"id": str(uuid.uuid4()), "roles": ["ACCOUNTANT"], "tenant_id": tenant_id}
+        accountant = {"id": str(uuid.uuid4()), "roles": ["ACCOUNTANT"], "tenant_id": tenant_id, "_cycle_ids": None}
         resp = _as(accountant).get(URL, params={"q": "PAY-CONFIDENTIAL", "types": "payments"}, headers=HEADERS)
         assert resp.status_code == 200, resp.text
         assert resp.json()["results"]["payments"]["count"] == 1

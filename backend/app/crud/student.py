@@ -40,15 +40,23 @@ def get_students(
     level: Optional[str] = None,
     class_name: Optional[str] = None,
     student_ids: Optional[list] = None,
+    scope_class_ids: Optional[list] = None,
 ) -> tuple[list[Student], int]:
     """Get students with pagination and filters.
 
     student_ids (institutional-readiness audit, 2026-09): ownership scoping
     for PARENT — restricts the result set to the caller's own children.
-    None means no restriction (every other caller)."""
+    None means no restriction (every other caller).
+
+    scope_class_ids (périmètre par cycle, lot B2b) : restreint aux élèves
+    inscrits dans ces classes (liste éventuellement vide = aucun élève) ;
+    None = pas de restriction. Appliqué avant le comptage : ``total`` exact."""
     query = db.query(Student).filter(Student.tenant_id == tenant_id)
     if student_ids is not None:
         query = query.filter(Student.id.in_(student_ids))
+    if scope_class_ids is not None:
+        from app.core.cycle_scope import student_scope_clause
+        query = query.filter(student_scope_clause(Student.id, scope_class_ids, tenant_id=tenant_id))
 
     # Apply filters
     if search:
