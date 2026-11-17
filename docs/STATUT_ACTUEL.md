@@ -1242,3 +1242,14 @@ ce fichier — pas d'un document de 2025 non révisé.
   Écrans encore affectés pour un compte restreint jusqu'à B2c-2 : fiche élève
   (`StudentDetail`, notes/présences lues via `/school-life/*`, vides) ;
   `LiveAttendance`, `Badges`, `QrScanPage`, `ReportCards` (403).
+- **2026-11-17 — fuites de l'historique des notes et des remises de devoirs
+  corrigées (GRADE-HISTORY-LEAK-01, HOMEWORK-SUBMISSIONS-LEAK-01).**
+  `GET /grade-history/` et `GET /homework-submissions/` ne filtraient que par
+  établissement : un élève, un parent (et pour les notes un ancien élève)
+  lisaient l'historique des notes ou les remises (contenu, note,
+  appréciation) de tout l'établissement. L'alias de l'historique délègue à
+  `/grades/history/`, qui filtre désormais par la note (`grades.student_id`,
+  `grade_history` n'ayant pas de colonne élève) et n'est plus masquée par
+  `/grades/{grade_id}/`. Les remises suivent la même règle que les notes.
+  Présent en production jusqu'au déploiement. Autres défauts relevés, non
+  corrigés : voir SCHOOLING-ALIASES-01 dans le registre des risques.

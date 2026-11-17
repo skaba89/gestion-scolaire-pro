@@ -1914,6 +1914,22 @@ def list_homework_submissions(
         )
         where.append(scope_sql)
 
+    # HOMEWORK-SUBMISSIONS-LEAK-01 : homework:read est détenu par STUDENT et
+    # PARENT ; sans ce filtre, un élève lisait le contenu, la note et
+    # l'appréciation des remises de tout l'établissement. Même règle que les
+    # notes : élève = ses remises, parent = celles de ses enfants.
+    from app.api.v1.endpoints.academic.grades import _allowed_student_ids_for_caller
+    allowed_ids = _allowed_student_ids_for_caller(db, current_user=current_user, tenant_id=tenant_id)
+    if allowed_ids is not None:
+        if not allowed_ids or (student_id is not None and str(student_id) not in allowed_ids):
+            return []
+        placeholders = []
+        for index, allowed_id in enumerate(sorted(allowed_ids)):
+            key = f"allowed_sid_{index}"
+            params[key] = allowed_id
+            placeholders.append(f":{key}")
+        where.append(f"hs.student_id IN ({', '.join(placeholders)})")
+
     if homework_id:
         where.append("hs.homework_id = :homework_id")
         params["homework_id"] = homework_id
@@ -1925,9 +1941,9 @@ def list_homework_submissions(
         SELECT hs.id, hs.homework_id, hs.student_id, hs.content,
                hs.grade, hs.feedback, hs.graded_at, hs.graded_by,
                hs.submitted_at,
-               u.first_name, u.last_name
+               st.first_name, st.last_name
         FROM homework_submissions hs
-        LEFT JOIN users u ON u.id = hs.student_id
+        LEFT JOIN students st ON st.id = hs.student_id AND st.tenant_id = hs.tenant_id
         WHERE {' AND '.join(where)}
         ORDER BY hs.submitted_at DESC
         LIMIT 200
@@ -2021,53 +2037,17 @@ def list_grade_history_alias(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("grades:read")),
 ):
-    """GET /grade-history?grade_id=X"""
-    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
-    where = ["gh.tenant_id = :tenant_id"]
-    params: dict = {"tenant_id": tenant_id}
-    scope_binds = []
-    if is_cycle_restricted(current_user):
-        # Périmètre par cycle (B2c-1) : l'historique suit l'élève ; filtre par la note.
-        scope_sql, scope_binds = student_scope_sql(
-            "g.student_id", scoped_class_ids(db, tenant_id, current_user), tenant_id=tenant_id, tag="gh",
-        )
-        where.append(f"gh.grade_id IN (SELECT g.id FROM grades g WHERE g.tenant_id = :tenant_id AND {scope_sql})")
+    """GET /grade-history?grade_id=X — délègue à GET /grades/history/.
 
-    if grade_id:
-        where.append("gh.grade_id = :grade_id")
-        params["grade_id"] = grade_id
-    if student_id:
-        where.append("gh.student_id = :student_id")
-        params["student_id"] = student_id
-
-    order_col = "created_at"
-    order_dir = "DESC"
-    if ordering and ordering.lstrip("-") in ("created_at", "old_score", "new_score"):
-        order_col = ordering.lstrip("-")
-        order_dir = "ASC" if not ordering.startswith("-") else "DESC"
-
-    rows = db.execute(text(f"""
-        SELECT gh.id, gh.grade_id, gh.old_score, gh.new_score,
-               gh.old_comment, gh.new_comment, gh.change_reason, gh.created_at,
-               u.first_name, u.last_name, u.id as user_id
-        FROM grade_history gh
-        LEFT JOIN users u ON u.id = gh.user_id
-        WHERE {' AND '.join(where)}
-        ORDER BY gh.{order_col} {order_dir}
-        LIMIT 200
-    """).bindparams(*scope_binds), params).mappings().all()
-
-    return [
-        {
-            **{k: v for k, v in dict(r).items() if k not in ("first_name", "last_name")},
-            "user": {
-                "id": str(r["user_id"]),
-                "first_name": r["first_name"],
-                "last_name": r["last_name"],
-            } if r["user_id"] else None,
-        }
-        for r in rows
-    ]
+    GRADE-HISTORY-LEAK-01 : l'alias ne filtrait que par établissement ; un
+    élève, un parent ou un ancien élève (grades:read) lisait les 200 dernières
+    modifications de notes de tout l'établissement. La route canonique applique
+    le périmètre élève/parent."""
+    from app.api.v1.endpoints.academic.grades import list_grade_history
+    return list_grade_history(
+        request=request, grade_id=grade_id, student_id=student_id, ordering=ordering,
+        db=db, current_user=current_user,
+    )
 
 
 # ─── Shared Notes (/shared-notes/, /shared-note-likes/, /shared-note-comments/) ─
