@@ -1267,3 +1267,8 @@ ce fichier — pas d'un document de 2025 non révisé.
   élèves de ses classes (et de ses propres séances). Présent en production
   jusqu'au déploiement. Reste à confirmer côté métier : `POST
   /school-life/check-ins/` ouvert à l'élève et au parent (CHECKINS-SELF-01).
+  Interface : l'entrée de menu « Gamification » exige désormais
+  `school_life:read` (ajoutée à `src/lib/permissions.ts` pour les rôles qui la
+  détiennent déjà côté serveur : SUPER_ADMIN, TENANT_ADMIN, DIRECTOR,
+  DEPARTMENT_HEAD, SECRETARY, STAFF, TEACHER). Le comptable ne la voit plus ;
+  il recevait 403 sur l'écran depuis le correctif des statistiques.
