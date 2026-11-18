@@ -395,8 +395,13 @@ def test_check_in_list_follows_the_student(school, life):
     assert ids(call(school, "secretary", "GET", "/school-life/check-ins/")) == sid(life, "ci_cp")
     hidden = call(school, "secretary", "GET", "/school-life/check-ins/", params={"student_ids": str(life["s_6e"])})
     assert ids(hidden) == set()
-    for who in ("secretary_free", "admin_residual", "teacher"):
+    for who in ("secretary_free", "admin_residual"):
         assert ids(call(school, who, "GET", "/school-life/check-ins/")) == sid(life, "ci_cp", "ci_6e"), who
+    # CHECKINS-TEACHER-SCOPE-01 (#570) : un enseignant ne voit que les élèves de
+    # ses classes (et ses propres séances) ; celui du jeu de test n'en a aucune.
+    # Lit teacher_assignments, table PostgreSQL uniquement.
+    if not IS_SQLITE:
+        assert ids(call(school, "teacher", "GET", "/school-life/check-ins/")) == set()
 
 
 @needs_postgres
