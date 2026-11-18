@@ -28,6 +28,7 @@ from app.core.cycle_scope import (
     student_scope_sql,
 )
 from app.core.tenant_resolution import resolve_current_tenant_id
+from app.core.tenant_refs import ensure_refs_in_tenant
 
 
 # ─── 3. Enrollments at root (/enrollments/) ───────────────────────────────────
@@ -2546,33 +2547,36 @@ def list_student_badges(
     student_id: Optional[str] = None,
     classroom_id: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    # Était get_current_user : tout élève, parent, ancien élève ou enseignant
+    # listait les badges de tout l'établissement (ou d'un student_id
+    # arbitraire). Aligné sur la route jumelle GET /school-life/badges/
+    # (students:write, 2026-11-04) ; le front n'appelle pas cette route.
+    current_user: dict = Depends(require_permission("students:write")),
 ):
     """GET /student-badges/"""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     where = ["b.tenant_id = :tid"]
     params: dict = {"tid": tenant_id}
 
-    if student_id:
-        where.append("b.student_id = :student_id")
-        params["student_id"] = student_id
-    if classroom_id:
-        where.append("b.classroom_id = :classroom_id")
-        params["classroom_id"] = classroom_id
+    # Identifiants mal formés : 422 explicite plutôt qu'une erreur de base.
+    for name, value in (("student_id", student_id), ("classroom_id", classroom_id)):
+        if value:
+            try:
+                params[name] = str(uuid.UUID(str(value)))
+            except ValueError:
+                raise HTTPException(status_code=422, detail=f"{name} : identifiant invalide")
+            where.append(f"b.{name} = :{name}")
 
-    try:
-        rows = db.execute(text(f"""
-            SELECT b.id, b.student_id, b.badge_type, b.badge_name,
-                   b.description, b.icon, b.status, b.awarded_at,
-                   b.classroom_id, b.tenant_id
-            FROM student_badges b
-            WHERE {' AND '.join(where)}
-            ORDER BY b.awarded_at DESC
-            LIMIT 500
-        """), params).mappings().all()
-        return [dict(r) for r in rows]
-    except Exception:
-        return []
+    rows = db.execute(text(f"""
+        SELECT b.id, b.student_id, b.badge_type, b.badge_name,
+               b.description, b.icon, b.status, b.awarded_at,
+               b.classroom_id, b.tenant_id
+        FROM student_badges b
+        WHERE {' AND '.join(where)}
+        ORDER BY b.awarded_at DESC
+        LIMIT 500
+    """), params).mappings().all()
+    return [dict(r) for r in rows]
 
 
 @student_badges_router.post("/", status_code=201)
@@ -2603,6 +2607,8 @@ def create_student_badge(
             ), {"sid": student_id, "tid": tenant_id}).first()
             if not student:
                 raise HTTPException(status_code=404, detail=f"Élève introuvable dans cet établissement : {student_id}")
+            # Anti-IDOR : la classe reçue doit appartenir à l'établissement.
+            ensure_refs_in_tenant(db, tenant_id, ("classes", item.get("classroom_id")))
             row = db.execute(text("""
                 INSERT INTO student_badges
                 (tenant_id, student_id, badge_type, badge_name, description, icon, status, classroom_id)
@@ -2626,7 +2632,9 @@ def create_student_badge(
         raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+        # Ne jamais renvoyer l'erreur de base au client : journal serveur seulement.
+        logger.error("Error creating student badge: %s", e, exc_info=True)
+        raise HTTPException(status_code=400, detail="Impossible d'enregistrer le badge.")
 
 
 @student_badges_router.delete("/{badge_id}/", status_code=204)
@@ -2638,8 +2646,15 @@ def delete_student_badge(
 ):
     """DELETE /student-badges/{id}/"""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
-    db.execute(text("DELETE FROM student_badges WHERE id = :id AND tenant_id = :tid"),
-               {"id": badge_id, "tid": tenant_id})
+    try:
+        badge_uuid = str(uuid.UUID(str(badge_id)))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Badge introuvable")
+    result = db.execute(text("DELETE FROM student_badges WHERE id = :id AND tenant_id = :tid"),
+                        {"id": badge_uuid, "tid": tenant_id})
+    if result.rowcount == 0:
+        db.rollback()
+        raise HTTPException(status_code=404, detail="Badge introuvable")
     db.commit()
 
 

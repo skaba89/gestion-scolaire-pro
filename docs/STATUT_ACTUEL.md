@@ -1253,3 +1253,17 @@ ce fichier — pas d'un document de 2025 non révisé.
   `/grades/{grade_id}/`. Les remises suivent la même règle que les notes.
   Présent en production jusqu'au déploiement. Autres défauts relevés, non
   corrigés : voir SCHOOLING-ALIASES-01 dans le registre des risques.
+- **2026-11-18 — accès de la vie scolaire resserrés (BADGES-ACCESS-01,
+  SCHOOL-LIFE-ACCESS-01, CHECKINS-TEACHER-SCOPE-01).** `GET /student-badges/`
+  n'exigeait qu'un compte connecté : élève, parent, ancien élève ou enseignant
+  listaient les badges de tout l'établissement ; elle exige désormais
+  `students:write` (comme `/school-life/badges/`, le front ne l'appelle pas) et
+  n'avale plus les erreurs. `POST` vérifie `classroom_id` dans l'établissement
+  et ne renvoie plus l'erreur de base ; `DELETE` répond 404 (badge inexistant,
+  autre établissement ou identifiant mal formé) au lieu de 204.
+  `GET /school-life/assessments/` exige `settings:read` (comme `/assessments/`),
+  `GET /school-life/gamification/stats/` exige `school_life:read`, et
+  `GET /school-life/check-ins/` ne montre à un enseignant que les pointages des
+  élèves de ses classes (et de ses propres séances). Présent en production
+  jusqu'au déploiement. Reste à confirmer côté métier : `POST
+  /school-life/check-ins/` ouvert à l'élève et au parent (CHECKINS-SELF-01).
