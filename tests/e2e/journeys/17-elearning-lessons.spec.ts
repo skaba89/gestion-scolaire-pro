@@ -46,8 +46,15 @@ test.describe('E-learning : leçons publiées lues et terminées par un élève'
     await expect(page.getByText(`Lisez deux fois l'énoncé (${run}).`)).toBeVisible();
     await expect(page.getByRole('link', { name: /Ouvrir la ressource/ })).toHaveAttribute('href', 'https://exemple.org/enonce');
     await expect(page.getByText('Brouillon caché')).toHaveCount(0);
+    // Attendre la confirmation du serveur avant de relire le compteur. Le texte
+    // « Terminée » est cherché à l'identique : sans `exact`, il correspondait déjà
+    // au bouton « Marquer comme terminée » et l'attente ne servait à rien.
+    const completed = page.waitForResponse(response =>
+      /\/me\/elearning\/lessons\/[^/]+\/complete\/$/.test(new URL(response.url()).pathname)
+      && response.request().method() === 'POST');
     await page.getByRole('button', { name: 'Marquer comme terminée' }).click();
-    await expect(page.getByText('Terminée').first()).toBeVisible();
+    expect((await completed).ok()).toBe(true);
+    await expect(page.getByText('Terminée', { exact: true }).first()).toBeVisible();
 
     const mine = await (await student.get('/me/elearning/courses/')).json() as
       { id: string; lesson_count: number; completed_count: number }[];
