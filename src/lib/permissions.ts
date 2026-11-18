@@ -94,6 +94,8 @@ export type Permission =
   | "teachers:manage"
   | "teacher_assignments:manage"
   | "teacher_progress:read"
+  // Vie scolaire (miroir de backend ROLE_PERMISSIONS)
+  | "school_life:read"
 
   // Departments
   | "departments:read"
@@ -154,6 +156,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     "rooms:read", "rooms:manage",
     "dashboard:admin",
     "guides:read", "ai:read", "ai:audit",
+    "school_life:read",
   ],
 
   TENANT_ADMIN: [
@@ -178,6 +181,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     "rooms:read", "rooms:manage",
     "dashboard:admin",
     "guides:read", "ai:read", "ai:audit",
+    "school_life:read",
   ],
 
   DIRECTOR: [
@@ -202,6 +206,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     "rooms:read", "rooms:manage",
     "dashboard:admin",
     "guides:read", "ai:read", "ai:audit",
+    "school_life:read",
   ],
 
   DEPARTMENT_HEAD: [
@@ -220,6 +225,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     "messages:read", "messages:send", "messages:send_group",
     "dashboard:department",
     "guides:read",
+    "school_life:read",
   ],
 
   TEACHER: [
@@ -234,6 +240,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     "rooms:read",
     "dashboard:teacher",
     "guides:read",
+    "school_life:read",
   ],
 
   STUDENT: [
@@ -295,6 +302,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     "certificates:read", "certificates:generate",
     "dashboard:admin",
     "guides:read",
+    "school_life:read",
   ],
 
   SECRETARY: [
@@ -312,6 +320,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     "rooms:read",
     "dashboard:admin",
     "guides:read",
+    "school_life:read",
   ],
 };
 

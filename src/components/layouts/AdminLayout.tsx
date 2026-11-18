@@ -269,7 +269,7 @@ export const AdminLayout = () => {
       items: [
         { href: getTenantUrl("/admin/elearning"), label: t("nav.elearning"), icon: Monitor, permission: "homework:read" },
         { href: getTenantUrl("/admin/library"), label: t("nav.library"), icon: Library, permission: "homework:read" }, // Loose permission mapping
-        { href: getTenantUrl("/admin/gamification"), label: t("nav.gamification"), icon: Award, permission: "students:read" },
+        { href: getTenantUrl("/admin/gamification"), label: t("nav.gamification"), icon: Award, permission: "school_life:read" },
       ],
     },
     {
