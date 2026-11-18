@@ -49,9 +49,22 @@ NON_BLOCKING_SEVERITIES = {"low", "moderate", "info"}
 # Each entry MUST carry a written reason and a `review_by` (YYYY-MM-DD) after
 # which it stops applying and the advisory blocks CI again.
 ALLOWLIST: dict[str, dict] = {
-    # Vide depuis le 2026-10-25 : zod (GHSA-mrhx) et vite (GHSA-587h,
-    # GHSA-fx2h) corrigés par montée de version ; braces (GHSA-vfj7) retiré
-    # par GitHub le 2026-10-23 (advisory withdrawn).
+    # Historique : zod (GHSA-mrhx) et vite (GHSA-587h, GHSA-fx2h) corrigés par
+    # montée de version le 2026-10-25 ; braces (GHSA-vfj7) retiré par GitHub
+    # le 2026-10-23 (advisory withdrawn).
+    "GHSA-fc5q-39xc-vjpf": {
+        "package": "picomatch",
+        "reason": (
+            "ReDoS via des extglobs répétés à une seule branche. Aucune version "
+            "corrigée publiée (toutes <= 4.0.7). picomatch n'arrive que par des "
+            "devDependencies d'outillage (vite, vitest, tailwindcss/chokidar, "
+            "rollup-plugin-visualizer) et ne fait pas partie de l'application "
+            "servie ; les motifs qu'il reçoit viennent de la configuration du "
+            "dépôt, jamais d'une saisie utilisateur."
+        ),
+        "review_by": "2026-12-18",
+        "tracking": "monter de version et retirer cette entrée dès qu'un correctif est publié",
+    },
 }
 
 
