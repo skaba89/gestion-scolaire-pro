@@ -97,7 +97,7 @@ class TestDeleteInvoiceWithPaymentHistory:
     @_needs_postgres
     def test_invoice_with_completed_payment_cannot_be_deleted(self):
         ctx = _build_invoice(with_payment=True)
-        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"]})
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"], "_cycle_ids": None})
 
         resp = client.delete(f"/api/v1/payments/invoices/{ctx['invoice_id']}/", headers=headers)
 
@@ -111,7 +111,7 @@ class TestDeleteInvoiceWithPaymentHistory:
         deleted — the audit trail (who paid what, later reversed) must
         stay intact, same guarantee as never hard-deleting a Payment row."""
         ctx = _build_invoice(with_payment=True, payment_status=PaymentStatus.REVERSED)
-        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"]})
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"], "_cycle_ids": None})
 
         resp = client.delete(f"/api/v1/payments/invoices/{ctx['invoice_id']}/", headers=headers)
 
@@ -120,7 +120,7 @@ class TestDeleteInvoiceWithPaymentHistory:
     @_needs_postgres
     def test_draft_invoice_without_payments_can_be_deleted(self):
         ctx = _build_invoice(with_payment=False)
-        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"]})
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"], "_cycle_ids": None})
 
         resp = client.delete(f"/api/v1/payments/invoices/{ctx['invoice_id']}/", headers=headers)
 
@@ -137,7 +137,7 @@ class TestDeleteInvoiceWithPaymentHistory:
                 type="primary", country="GN", is_active=True, settings={},
             ))
             db.commit()
-        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id})
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id, "_cycle_ids": None})
 
         resp = client.delete(f"/api/v1/payments/invoices/{uuid.uuid4()}/", headers=headers)
 

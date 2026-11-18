@@ -91,7 +91,7 @@ def _build_invoice(*, total_amount: float, paid_amount: float, status: InvoiceSt
 class TestUpdateInvoiceAliasRecalculatesStatus:
     def test_reducing_total_below_paid_amount_flips_status_to_paid(self):
         ctx = _build_invoice(total_amount=100000.0, paid_amount=60000.0, status=InvoiceStatus.PARTIAL)
-        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"]})
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"], "_cycle_ids": None})
 
         resp = client.put(f"/api/v1/invoices/{ctx['invoice_id']}/", json={
             "student_id": ctx["student_id"], "invoice_number": "INV-DISCOUNT",
@@ -105,7 +105,7 @@ class TestUpdateInvoiceAliasRecalculatesStatus:
 
     def test_raising_total_above_paid_amount_flips_status_back_to_partial(self):
         ctx = _build_invoice(total_amount=50000.0, paid_amount=50000.0, status=InvoiceStatus.PAID)
-        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"]})
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"], "_cycle_ids": None})
 
         resp = client.put(f"/api/v1/invoices/{ctx['invoice_id']}/", json={
             "student_id": ctx["student_id"], "invoice_number": "INV-CORRECTED",
@@ -142,7 +142,7 @@ class TestUpdateInvoiceAliasValidatesStudentTenant:
                 status=StudentStatus.ACTIVE,
             ))
             db.commit()
-        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"]})
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"], "_cycle_ids": None})
 
         resp = client.put(f"/api/v1/invoices/{ctx['invoice_id']}/", json={
             "student_id": foreign_student_id, "invoice_number": "INV-HIJACKED",
@@ -158,7 +158,7 @@ class TestUpdateInvoiceAliasValidatesStudentTenant:
 class TestDeleteInvoiceAliasBlocksOnPaymentHistory:
     def test_invoice_with_payment_cannot_be_deleted(self):
         ctx = _build_invoice(total_amount=100000.0, paid_amount=100000.0, status=InvoiceStatus.PAID, with_payment=True)
-        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"]})
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"], "_cycle_ids": None})
 
         resp = client.delete(f"/api/v1/invoices/{ctx['invoice_id']}/", headers=headers)
 
@@ -168,7 +168,7 @@ class TestDeleteInvoiceAliasBlocksOnPaymentHistory:
 
     def test_draft_invoice_without_payments_can_be_deleted(self):
         ctx = _build_invoice(total_amount=100000.0, paid_amount=0.0, status=InvoiceStatus.DRAFT)
-        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"]})
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"], "_cycle_ids": None})
 
         resp = client.delete(f"/api/v1/invoices/{ctx['invoice_id']}/", headers=headers)
 

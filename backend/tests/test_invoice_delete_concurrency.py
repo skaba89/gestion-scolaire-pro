@@ -37,7 +37,7 @@ def school():
                        issue_date=date(2026, 11, 1), due_date=date(2026, 12, 1),
                        subtotal=100000, total_amount=100000, paid_amount=0, status=InvoiceStatus.DRAFT))
         db.commit()
-    actor = {"id": str(uuid4()), "tenant_id": str(tenant), "roles": ["TENANT_ADMIN"]}
+    actor = {"id": str(uuid4()), "tenant_id": str(tenant), "roles": ["TENANT_ADMIN"], "_cycle_ids": None}
     app.dependency_overrides[get_current_user] = lambda: actor
     yield dict(tenant=tenant, other=other, student=student, invoice=invoice, actor=actor)
     app.dependency_overrides.pop(get_current_user, None)

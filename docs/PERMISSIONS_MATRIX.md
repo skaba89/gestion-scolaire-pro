@@ -948,7 +948,6 @@ que si l'API l'autorise (403 → message explicite, pas de liste vide). Tests :
 `backend/tests/test_server_sessions.py` (403 rôle, 404 cross-tenant, 404 sur
 la session d'un autre compte).
 
-
 ## Réinscription par un parent connecté (2026-11-03)
 
 | Route | Permission | Rôles | Contrôles |
@@ -1338,3 +1337,52 @@ rejeu est cloisonné par le tenant résolu depuis le jeton **et** l’identifian
 l’appareil. La clé du client ne choisit donc ni l’établissement, ni la salle, ni
 la séance. Preuves : `src/pages/public/kioskQueue.test.ts` et les cas de rejeu /
 appareils distincts de `backend/tests/test_kiosk.py`.
+
+### Lot B2d (2026-11-18, repris sur `1aeb97f` le 2026-11-23) : finances
+
+Aucune permission ajoutée (`ROLE_PERMISSIONS` inchangé), aucune migration. Règle
+unique : **une donnée financière est visible ssi son élève est dans le périmètre**
+du compte (inscription ACTIVE de l'année courante dans une classe d'un de ses
+cycles). Tout identifiant reçu ou résolu (facture → élève, paiement → élève, et
+facture pour l'annuler, échéancier → facture → élève) est vérifié **avant** toute
+écriture, tout envoi et toute mise en file ; objet inexistant, d'un autre
+établissement ou hors périmètre = **404 identique** ; totaux, export et
+indicateurs sont calculés **après** filtrage. 45 routes, jusque-là refusées
+(`403 CYCLE_SCOPE_DENIED`) : **27 `FILTERED`, 3 `INDEPENDENT`, 12 `DENY`**, plus
+3 routes publiques hors registre (voir plus bas).
+
+| Famille | Routes | Règle |
+|---|---|---|
+| Factures | `GET\|POST /payments/invoices/` et `/invoices/` ; `PUT\|DELETE .../{invoice_id}/` (les deux URL) | liste filtrée avant `LIMIT` et comptage ; création : élève dans le périmètre ; `PUT` : élève **actuel ET final** (une facture ne sort pas du périmètre ; `student_id` nul = 422 du schéma, sans effet) ; `DELETE` : la condition de périmètre est **dans la requête `FOR UPDATE`** de #554 (aucune fenêtre entre contrôle et verrou), l'alias délègue à la même fonction ; une facture hors périmètre répond 404 même si elle porte des paiements (jamais le 400 « paiements enregistrés ») |
+| Paiements (lecture) | `GET /payments/payments/`, `GET /payments/{payment_id}/receipt/`, `GET /payments/export/`, `GET /payments/overview/` | élève du paiement ; `export` : aucune ligne hors périmètre ; `overview` : factures et paiements comptés sur le seul périmètre |
+| Paiements (écriture) | `POST /payments/register/`, `POST /payments/{payment_id}/reverse/`, `POST /payments/intent/` | `register` : facture vérifiée avant l'encaissement **et** la même condition est reprise dans l'`UPDATE` atomique de la facture (verrou et idempotence de #554 intacts) ; `reverse` : paiement ET facture décrémentée dans le périmètre ; `intent` : vérifié avant tout appel à la passerelle et avant l'écriture du paiement `PENDING` (route du personnel, `payments:write` : le portail parent est `/parents/payments/create/`) |
+| Échéanciers | `GET\|POST\|DELETE /payment-schedules/`, `GET\|PUT\|DELETE .../{schedule_id}` | un échéancier n'est rattaché qu'à une **facture** (ni classe ni niveau) : il suit l'élève de sa facture ; `POST` en lot et `DELETE ?invoice_id=` : tout ou rien, avant la première écriture |
+| Envois | `POST /payments/send-invoice-email/`, `POST /payments/send-reminders/` | facture vérifiée avant toute trace d'audit, tâche ou notification ; relance avec liste explicite : **une seule facture hors périmètre ou inexistante = 404 pour toute la liste** (rien en file, aucune notification, aucune ligne d'audit) ; relance « tous les impayés » (liste absente ou vide) : **seuls les élèves du périmètre sont relancés** |
+| Indicateurs | `GET /analytics/financial-kpis/`, `revenue-trend/`, `revenue-by-category/`, `debt-aging/` | agrégats des seules factures des élèves du périmètre ; `outstandingByClass` ne ventile que les classes du périmètre ; le périmètre est résolu **hors** du `try` historique qui convertit les erreurs en zéros |
+
+`INDEPENDENT` (lecture seule, aucune donnée d'élève) : `GET /payments/fees/`
+(tarifs de l'établissement), `GET /payments/sequence/` (jeton aléatoire),
+`GET /billing/plans/` (catalogue d'offres de la plateforme).
+
+**Restent `DENY`** : `POST|PUT|DELETE /payments/fees/` (écritures de structure,
+décision Q4) ; `/billing/*` hors `subscription/` et `plans/` (souscription,
+annulation, demandes, confirmation, rejet, expiration : actions de TENANT_ADMIN
+ou SUPER_ADMIN, jamais restreints) ; `/parents/invoices/pdf/`,
+`/parents/payment-schedules/`, `/parents/payments/create/` (portail parent, lot
+B2e). `GET /parents/payments/return/` et les webhooks `/parents/payments/webhook/*`
+n'utilisent pas `get_current_user` (publics) : hors registre, inchangés.
+
+Briques ajoutées à `app/core/cycle_scope.py` : `student_scope_and`,
+`require_invoice(s)_in_scope`, `require_payment_in_scope`,
+`require_schedule_in_scope`. Comptes non restreints, administrateurs, ACCOUNTANT
+non restreint et PARENT (`parent_scope`) : comportement identique à avant (les
+tests existants qui surchargent `get_current_user` portent `"_cycle_ids": None`).
+
+Limites : un compte restreint ne voit ni ne crée de facture pour un élève sans
+inscription active dans son périmètre (nouvel inscrit non encore affecté à une
+classe) ; un paiement dont l'élève est dans le périmètre mais dont la facture
+est celle d'un autre élève (donnée incohérente) est lisible mais non annulable ;
+les écrans financiers de `StudentDetail` et du tableau de bord appellent d'autres
+routes (`/dashboard-kpis/`, `/parents/...`) restées `DENY` jusqu'au lot B2e.
+Défauts préexistants relevés, **non corrigés** : voir `docs/STATUT_ACTUEL.md`
+(2026-11-18, B2d). Tests : `backend/tests/test_cycle_scope_finance.py`.

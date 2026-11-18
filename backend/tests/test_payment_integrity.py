@@ -70,7 +70,7 @@ def _setup(total: float = 100000.0) -> tuple[str, str, dict]:
                        due_date=date.today() + timedelta(days=30), subtotal=total, total_amount=total,
                        paid_amount=0.0, currency="GNF", status=InvoiceStatus.PENDING))
         db.commit()
-    user = {"id": user_id, "roles": ["ACCOUNTANT"], "tenant_id": tenant_id}
+    user = {"id": user_id, "roles": ["ACCOUNTANT"], "tenant_id": tenant_id, "_cycle_ids": None}
     app.dependency_overrides[get_current_user] = lambda: user
     token = create_access_token({"sub": user_id, "tenant_id": tenant_id, "roles": ["ACCOUNTANT"]})
     return tenant_id, invoice_id, {"Authorization": f"Bearer {token}"}

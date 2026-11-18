@@ -63,7 +63,7 @@ def school():
         db.add(student)
         db.commit()
         tenant_id, student_id = str(tenant.id), str(student.id)
-    user = {"id": str(uuid.uuid4()), "tenant_id": tenant_id, "roles": ["TENANT_ADMIN"]}
+    user = {"id": str(uuid.uuid4()), "tenant_id": tenant_id, "roles": ["TENANT_ADMIN"], "_cycle_ids": None}
     app.dependency_overrides[get_current_user] = lambda: user
     token = create_access_token({"sub": user["id"], "tenant_id": tenant_id, "roles": user["roles"]})
     return {"headers": {"Authorization": f"Bearer {token}"}, "student_id": student_id}
@@ -144,7 +144,7 @@ class TestFeeNamesAreUnique:
             db.add(other)
             db.commit()
             other_id = str(other.id)
-        user = {"id": str(uuid.uuid4()), "tenant_id": other_id, "roles": ["TENANT_ADMIN"]}
+        user = {"id": str(uuid.uuid4()), "tenant_id": other_id, "roles": ["TENANT_ADMIN"], "_cycle_ids": None}
         app.dependency_overrides[get_current_user] = lambda: user
         token = create_access_token({"sub": user["id"], "tenant_id": other_id, "roles": user["roles"]})
 

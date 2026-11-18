@@ -73,7 +73,7 @@ _headers: dict = {}
 
 
 def _as(tenant_id: str, role: str = "ACCOUNTANT") -> None:
-    user = {"id": str(uuid.uuid4()), "roles": [role], "tenant_id": tenant_id}
+    user = {"id": str(uuid.uuid4()), "roles": [role], "tenant_id": tenant_id, "_cycle_ids": None}
     app.dependency_overrides[get_current_user] = lambda: user
     token = create_access_token({"sub": user["id"], "tenant_id": tenant_id, "roles": [role]})
     _headers.clear()

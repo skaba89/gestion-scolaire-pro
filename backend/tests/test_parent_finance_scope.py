@@ -59,7 +59,7 @@ def school():
 
 
 def _parent(school, key="parent"):
-    return _as({"id": school[key], "roles": ["PARENT"], "tenant_id": school["tenant_id"]})
+    return _as({"id": school[key], "roles": ["PARENT"], "tenant_id": school["tenant_id"], "_cycle_ids": None})
 
 
 def _ids(resp):
@@ -93,12 +93,12 @@ class TestLists:
         assert _ids(_parent(school, "childless_parent").get(url, headers=HEADERS)) == set()
 
     def test_accountant_still_sees_every_family(self, school, url, kind):
-        accountant = _as({"id": str(uuid.uuid4()), "roles": ["ACCOUNTANT"], "tenant_id": school["tenant_id"]})
+        accountant = _as({"id": str(uuid.uuid4()), "roles": ["ACCOUNTANT"], "tenant_id": school["tenant_id"], "_cycle_ids": None})
         ids = _ids(accountant.get(url, headers=HEADERS))
         assert {school[f"own_{kind}"], school[f"other_{kind}"]} <= ids
 
     def test_parent_who_is_also_staff_is_not_restricted(self, school, url, kind):
-        user = {"id": school["parent"], "roles": ["PARENT", "TENANT_ADMIN"], "tenant_id": school["tenant_id"]}
+        user = {"id": school["parent"], "roles": ["PARENT", "TENANT_ADMIN"], "tenant_id": school["tenant_id"], "_cycle_ids": None}
         ids = _ids(_as(user).get(url, headers=HEADERS))
         assert {school[f"own_{kind}"], school[f"other_{kind}"]} <= ids
 

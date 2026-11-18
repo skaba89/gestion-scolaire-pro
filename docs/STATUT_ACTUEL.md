@@ -1333,7 +1333,6 @@ compte connecté. Le test de parcours est
 `tests/e2e/journeys/21-teacher-homework-grading.spec.ts`.
 La validation en recette et le déploiement de ce lot restent à établir.
 
-
 ### 2026-11-21 — Modification des notes de vie scolaire
 
 Un directeur autorisé pouvait lire une note de 15/20, mais sa correction à
@@ -1402,3 +1401,35 @@ La règle métier de l’auto-pointage reste à valider.
   route métier de résolution avec conclusion et action prise. Tests rouges
   ajoutés avant le correctif dans `test_cycle_scope_school_life.py` et
   `Incidents.test.tsx`. Vérifié en DEV ; REC et PROD non déployées.
+
+- **2026-11-23 — personnel par cycle, lot B2d (finances), écrit le 2026-11-18 et repris sur `1aeb97f`. Non déployé.** 45
+  routes jusque-là refusées à un compte restreint : 27 `FILTERED` (factures
+  `/payments/invoices/` et `/invoices/`, paiements, reçu, annulation, intention
+  de paiement, export, aperçu, échéanciers, envoi de facture, relances,
+  indicateurs analytiques `financial-kpis`, `revenue-trend`, `revenue-by-category`,
+  `debt-aging`), 3 `INDEPENDENT` (`GET /payments/fees/`, `GET /payments/sequence/`,
+  `GET /billing/plans/`), 12 `DENY` (écritures des frais, abonnement `/billing/*`,
+  portail parent finances : lot B2e). Une donnée financière suit son élève ;
+  identifiants vérifiés avant toute écriture, envoi ou mise en file (relance en
+  lot refusée en entier : 404, rien envoyé) ; `DELETE` de facture : condition
+  de périmètre dans la requête `FOR UPDATE` de #554 ; `register` : condition
+  reprise dans l'`UPDATE` atomique. Agrégats calculés sur le seul périmètre.
+  Aucune migration ni permission ; comptes non restreints, admins, comptable
+  non restreint et parents inchangés. Détail : `docs/PERMISSIONS_MATRIX.md`
+  (lot B2d). Tests : `test_cycle_scope_finance.py` (+ `"_cycle_ids": None` dans les
+  tests existants qui surchargent `get_current_user`). Défauts préexistants
+  relevés, **non corrigés** (lecture du code, sauf mention) : `POST /payments/invoices/`
+  (`payments.py` ~l.780) et `POST /invoices/` (`aliases.py` ~l.336) n'exigent pas que
+  `student_id` appartienne à l'établissement pour un compte non restreint (la clé
+  étrangère l'accepte : un élève d'un autre établissement peut être facturé) ;
+  `POST /payments/send-invoice-email/` n'exige que `payments:read` (PARENT et
+  DIRECTOR inclus), accepte n'importe quelle facture de l'établissement et un
+  destinataire libre, sans vérifier l'appartenance de l'enfant : aucun courriel
+  n'est réellement envoyé (audit seul), mais la trace est trompeuse ; `PUT` des deux
+  URL de facture écrit `due_date = NULL` si elle est omise (colonne NOT NULL : 500) ;
+  `send-reminders` joint `parent_students` sans filtre d'établissement et avale
+  l'erreur d'insertion de la notification (`except Exception: pass`, peut
+  invalider la transaction PostgreSQL) ; les quatre indicateurs analytiques
+  renvoient des zéros sur toute erreur (`except Exception`) et
+  `outstandingByClass` compte une facture dans chaque classe où l'élève a
+  eu une inscription, quel qu'en soit le statut (double comptage).

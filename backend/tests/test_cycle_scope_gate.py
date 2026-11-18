@@ -51,6 +51,7 @@ PEOPLE = {
     "secretary_parent": ["SECRETARY", "PARENT"],
     "superadmin": ["SUPER_ADMIN"],
     "accountant": ["ACCOUNTANT"],
+    "accountant_free": ["ACCOUNTANT"],
 }
 
 
@@ -371,7 +372,7 @@ def test_require_helpers_are_noop_for_unrestricted_and_404_out_of_scope(school, 
 # --- Routes de données refusées, en-têtes, HEAD, modules, WebSocket -----------
 
 DATA_ROUTES = [
-    "/api/v1/payments/invoices/", "/api/v1/payments/fees/", "/api/v1/students/dashboard/", "/api/v1/invoices/",
+    "/api/v1/parents/payment-schedules/", "/api/v1/billing/requests/", "/api/v1/students/dashboard/", "/api/v1/hr/employees/",
     "/api/v1/school-life/gamification/stats/", "/api/v1/notifications/settings/", "/api/v1/teachers/", "/api/v1/school-events/",
     "/api/v1/parents/children/", "/api/v1/parents/dashboard/",
 ]

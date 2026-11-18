@@ -37,7 +37,7 @@ def _clear_overrides():
 
 
 def _as(tenant_id: str) -> dict:
-    user = {"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id}
+    user = {"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id, "_cycle_ids": None}
     app.dependency_overrides[get_current_user] = lambda: user
     return HEADERS
 
@@ -101,7 +101,7 @@ class TestCreateInvoiceAlias:
 
     def test_missing_tenant_context_is_rejected_not_500(self):
         student_id = str(uuid.uuid4())
-        user = {"id": str(uuid.uuid4()), "roles": ["SUPER_ADMIN"], "tenant_id": None}
+        user = {"id": str(uuid.uuid4()), "roles": ["SUPER_ADMIN"], "tenant_id": None, "_cycle_ids": None}
         app.dependency_overrides[get_current_user] = lambda: user
         resp = client.post(URL, json={"student_id": student_id, "total_amount": 1000.0}, headers=HEADERS)
         assert resp.status_code in (400, 403, 404)

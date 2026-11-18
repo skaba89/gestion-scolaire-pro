@@ -454,3 +454,112 @@ def class_scope_sql(column_sql: str, class_ids: Iterable, *, tag: str = "scc"):
     from app.models.base import GUID
 
     return f"{column_sql} IN :{tag}_cls", [bindparam(f"{tag}_cls", class_ids, type_=GUID(), expanding=True)]
+
+
+# ---------------------------------------------------------------------------
+# Lot B2d : finances (factures, paiements, échéanciers, indicateurs).
+# Une donnée financière suit son élève : visible ssi l'élève est dans le périmètre.
+# ---------------------------------------------------------------------------
+
+def student_scope_and(db: Session, tenant_id, user: dict, column_sql: str, *, tag: str = "fin"):
+    """``(" AND <fragment>", binds)`` pour un compte restreint, ``("", [])`` sinon, à greffer sur
+    une requête ``text()`` (``.bindparams(*binds)``). ``column_sql`` et ``tag`` sont des littéraux
+    du code appelant. Paramètres liés uniquement ; un compte restreint sans classe ne voit rien."""
+    if not is_cycle_restricted(user):
+        return "", []
+    sql, binds = student_scope_sql(column_sql, scoped_class_ids(db, tenant_id, user), tenant_id=tenant_id, tag=tag)
+    return f" AND {sql}", binds
+
+
+def require_invoices_in_scope(
+    db: Session, tenant_id, user: dict, invoice_ids: Iterable, *, detail: str = "Facture introuvable",
+) -> None:
+    """404 si UNE SEULE facture est inexistante, d'un autre établissement ou hors périmètre
+    (l'élève facturé doit y être) ; tout ou rien, avant toute écriture. Sans effet pour un
+    compte non restreint. ``detail`` : message du 404 de la route (aucun oracle d'existence)."""
+    cycles = _cycles_of(user)
+    if cycles is None:
+        return
+    values = list(invoice_ids)
+    if not values:
+        return
+    ids = _uuid_set(values)
+    if ids is None:
+        raise _not_found(detail)
+    from app.models.payment import Invoice
+
+    class_ids = allowed_class_ids(db, tenant_id, cycles)
+    found = db.execute(
+        select(Invoice.id).where(
+            Invoice.id.in_(ids),
+            Invoice.tenant_id == tenant_id,
+            student_scope_clause(Invoice.student_id, class_ids, tenant_id=tenant_id),
+        )
+    ).all()
+    if len(found) != len(ids):
+        raise _not_found(detail)
+
+
+def require_invoice_in_scope(db: Session, tenant_id, user: dict, invoice_id, *, detail: str = "Facture introuvable") -> None:
+    """404 si la facture est hors périmètre (par son élève) ; sans effet pour un compte non restreint."""
+    require_invoices_in_scope(db, tenant_id, user, [invoice_id], detail=detail)
+
+
+def require_payment_in_scope(
+    db: Session, tenant_id, user: dict, payment_id, *, detail: str = "Paiement introuvable",
+    with_invoice: bool = False,
+) -> None:
+    """404 si le paiement est inexistant, d'un autre établissement ou hors périmètre (son élève
+    doit y être ; avec ``with_invoice`` la facture soldée aussi, pour une écriture qui la modifie).
+    Sans effet pour un compte non restreint."""
+    cycles = _cycles_of(user)
+    if cycles is None:
+        return
+    ids = _uuid_set([payment_id])
+    if ids is None:
+        raise _not_found(detail)
+    from app.models.payment import Payment
+
+    row = db.execute(
+        select(Payment.student_id, Payment.invoice_id).where(
+            Payment.id.in_(ids), Payment.tenant_id == tenant_id,
+        )
+    ).first()
+    if row is None:
+        raise _not_found(detail)
+    try:
+        require_student_in_scope(db, tenant_id, user, row.student_id)
+        if with_invoice and row.invoice_id is not None:
+            require_invoice_in_scope(db, tenant_id, user, row.invoice_id)
+    except HTTPException:
+        raise _not_found(detail) from None
+
+
+@lru_cache(maxsize=1)
+def _schedule_table():
+    """``payment_schedules`` n'a pas de modèle ORM (créée par ``operational_tables``)."""
+    from app.models.base import GUID
+
+    return table(
+        "payment_schedules", column("id", GUID()), column("tenant_id", GUID()), column("invoice_id", GUID()),
+    )
+
+
+def require_schedule_in_scope(
+    db: Session, tenant_id, user: dict, schedule_id, *, detail: str = "Échéancier introuvable",
+) -> None:
+    """404 si l'échéancier est hors périmètre : il n'est rattaché qu'à une facture (pas à une
+    classe), il suit donc l'élève de sa facture. Sans effet pour un compte non restreint."""
+    cycles = _cycles_of(user)
+    if cycles is None:
+        return
+    ids = _uuid_set([schedule_id])
+    if ids is None:
+        raise _not_found(detail)
+    schedules = _schedule_table()
+    row = db.execute(
+        select(schedules.c.invoice_id).where(schedules.c.id.in_(ids), schedules.c.tenant_id == tenant_id)
+    ).first()
+    if row is None or row.invoice_id is None:
+        raise _not_found(detail)
+    require_invoice_in_scope(db, tenant_id, user, row.invoice_id, detail=detail)

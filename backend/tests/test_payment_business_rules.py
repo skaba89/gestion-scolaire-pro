@@ -53,7 +53,7 @@ def _as(user: dict) -> dict:
 
 
 def _admin_headers(tenant_id: str) -> dict:
-    return _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id})
+    return _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id, "_cycle_ids": None})
 
 
 def _make_tenant() -> str:

@@ -104,7 +104,7 @@ def finance_schools():
 
 def test_financial_overview_all_rows_and_strict_tenant_isolation(finance_schools):
     schools = finance_schools
-    actor = {"id": _uuid(), "roles": ["DIRECTOR"]}
+    actor = {"id": _uuid(), "roles": ["DIRECTOR"], "_cycle_ids": None}
     with SessionLocal() as db:
         for tenant, expected in (
             (schools["a"], {
@@ -136,7 +136,7 @@ def test_financial_overview_empty_school_returns_zeros_despite_other_school(fina
     try:
         with SessionLocal() as db, patch.object(api, "_get_tenant_id", return_value=tid):
             actual = api.finance_overview(
-                _request(), db=db, current_user={"id": _uuid(), "roles": ["DIRECTOR"]},
+                _request(), db=db, current_user={"id": _uuid(), "roles": ["DIRECTOR"], "_cycle_ids": None},
             )
         assert set(actual.values()) == {0}
     finally:
@@ -211,7 +211,7 @@ def test_real_pg_parent_sees_only_linked_child_within_same_school(finance_school
         ):
             parent_overview = api.finance_overview(
                 _request(), db=db,
-                current_user={"id": parent, "roles": ["PARENT"]},
+                current_user={"id": parent, "roles": ["PARENT"], "_cycle_ids": None},
             )
             # School A has an extra invoice/payment for another family,
             # but this parent sees only the previously seeded child A.
@@ -226,13 +226,13 @@ def test_real_pg_parent_sees_only_linked_child_within_same_school(finance_school
 
             with_no_links = api.finance_overview(
                 _request(), db=db,
-                current_user={"id": _uuid(), "roles": ["PARENT"]},
+                current_user={"id": _uuid(), "roles": ["PARENT"], "_cycle_ids": None},
             )
             assert set(with_no_links.values()) == {0}
 
             school_manager = api.finance_overview(
                 _request(), db=db,
-                current_user={"id": parent, "roles": ["DIRECTOR"]},
+                current_user={"id": parent, "roles": ["DIRECTOR"], "_cycle_ids": None},
             )
             assert school_manager == {
                 "total_invoices": 14,
@@ -283,12 +283,12 @@ def test_real_pg_parent_from_other_school_cannot_see_financial_totals(finance_sc
             with patch.object(api, "_get_tenant_id", return_value=s["a"]):
                 own = api.finance_overview(
                     _request(), db=db,
-                    current_user={"id": parent, "roles": ["PARENT"]},
+                    current_user={"id": parent, "roles": ["PARENT"], "_cycle_ids": None},
                 )
             with patch.object(api, "_get_tenant_id", return_value=s["b"]):
                 other = api.finance_overview(
                     _request(), db=db,
-                    current_user={"id": parent, "roles": ["PARENT"]},
+                    current_user={"id": parent, "roles": ["PARENT"], "_cycle_ids": None},
                 )
             assert own["total_invoices"] == 13
             assert set(other.values()) == {0}
@@ -354,7 +354,7 @@ def test_finance_overview_under_non_bypassrls_role_and_parent_scope(finance_scho
                     with patch.object(api, "_get_tenant_id", return_value=tenant):
                         result = api.finance_overview(
                             _request(), db=db,
-                            current_user={"id": parent, "roles": ["PARENT"]},
+                            current_user={"id": parent, "roles": ["PARENT"], "_cycle_ids": None},
                         )
                     assert result == expected
 
