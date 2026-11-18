@@ -739,6 +739,14 @@ def _manages_all_teachers(current_user: dict) -> bool:
     return user_has_permission(current_user, "settings:write")
 
 
+def _require_own_slot_in_scope(current_user: dict, teacher_id) -> None:
+    """Périmètre par cycle (B2c-2) : un compte restreint ne gère que SES créneaux
+    (``teacher_id`` == lui-même) ; pour un autre enseignant, 404 identique à un créneau
+    inexistant, avant toute écriture. Sans effet pour un compte non restreint."""
+    if is_cycle_restricted(current_user) and str(teacher_id) != str(current_user.get("id")):
+        raise HTTPException(status_code=404, detail="Créneau introuvable")
+
+
 def _slot_owner(current_user: dict, requested: Optional[UUID]) -> str:
     """Enseignant propriétaire d'un créneau à créer : soi-même, sauf pour
     l'administration qui peut créer pour un autre enseignant."""
@@ -888,6 +896,7 @@ def create_appointment_slot(
     créer au nom d'un autre enseignant."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     teacher_id = _slot_owner(current_user, obj_in.teacher_id)
+    _require_own_slot_in_scope(current_user, teacher_id)
     _check_teacher_in_tenant(db, tenant_id, teacher_id)
     slot_id = _insert_slot(db, tenant_id, teacher_id, obj_in)
     if slot_id is None:
@@ -915,6 +924,9 @@ def bulk_create_appointment_slots(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     created, skipped = [], 0
     checked: set[str] = set()
+    # Périmètre par cycle : tout le lot est vérifié avant la première insertion (tout ou rien).
+    for slot in body.slots:
+        _require_own_slot_in_scope(current_user, _slot_owner(current_user, slot.teacher_id))
     for slot in body.slots:
         teacher_id = _slot_owner(current_user, slot.teacher_id)
         if teacher_id not in checked:
@@ -969,6 +981,7 @@ def delete_appointment_slot(
     ).first()
     if not row:
         raise HTTPException(status_code=404, detail="Créneau introuvable")
+    _require_own_slot_in_scope(current_user, row[0])
     # Périmètre par cycle (B2c-2) : un créneau qui porte un rendez-vous (quel que soit son
     # statut) d'un élève hors périmètre répond comme un créneau inexistant : ni suppression,
     # ni message « rendez-vous en cours » qui révélerait ce rendez-vous.

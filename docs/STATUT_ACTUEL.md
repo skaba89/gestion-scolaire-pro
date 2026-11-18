@@ -1244,17 +1244,21 @@ ce fichier — pas d'un document de 2025 non révisé.
   `LiveAttendance`, `Badges`, `QrScanPage`, `ReportCards` (403).
 - **2026-11-17 — personnel par cycle, lot B2c-2 (vie scolaire, bulletins,
   incidents, alertes, badges, rendez-vous). Non déployé.** 65 routes jusque-là
-  refusées à un compte restreint : 49 `FILTERED` (jumelles
+  refusées à un compte restreint : 51 `FILTERED` (jumelles
   `/school-life/{assessments,grades,attendance}/`, pointages et séances,
   cartes/badges/élèves sans badge, bulletins et attestations, alertes précoces,
-  incidents, rendez-vous, inscriptions aux événements), 7 `INDEPENDENT`
-  (calendrier, ressources et réservations en lecture, créneaux), 9 `DENY`
+  incidents, rendez-vous, inscriptions aux événements, création et suppression
+  de ses propres créneaux de rendez-vous : 404 pour ceux d'un autre enseignant),
+  5 `INDEPENDENT` (calendrier, ressources, réservations et créneaux en
+  lecture), 9 `DENY`
   (écritures événements/ressources/réservations, `gamification/stats/`). Élève /
   classe / séance / incident vérifiés avant toute écriture et **avant la mise en
   file ARQ** (hors périmètre : 404, aucune tâche créée) ; `jobs/{id}` limité
   aux tâches créées par le compte (`payload.user_id`) ; incident visible
   seulement si tous ses élèves sont dans le périmètre. Aucune migration ni
-  permission ; comptes non restreints, admins, enseignants, parents inchangés.
+  permission ; comptes non restreints, admins, enseignants, parents inchangés
+  (un compte restreint cumulant PARENT ou TEACHER reste soumis au périmètre :
+  enfant hors cycle = 404, pas d'union).
   Détail : `docs/PERMISSIONS_MATRIX.md` (lot B2c-2). Tests :
   `test_cycle_scope_school_life.py`. Défauts préexistants relevés, **non
   corrigés** : `PUT /school-life/grades/{id}/` lit `obj_in.assessment_id` absent
@@ -1267,9 +1271,19 @@ ce fichier — pas d'un document de 2025 non révisé.
   d'appartenance (constat à la lecture du code, non testé) : un élève ou un
   parent semble pouvoir lister les badges de tout l'établissement (`student_id`,
   nom du badge) ; `DELETE /student-badges/{id}/` répond 204 même si le badge
-  n'existe pas. Écrans de B2c-1 (fiche élève, `LiveAttendance`, `Badges`,
-  `QrScanPage`, `ReportCards`) : les routes appelées sont désormais filtrées,
-  écrans non vérifiés un par un.
+  n'existe pas (ces routes, `GET /school-life/assessments/` (permission),
+  `gamification/stats` et `GET /school-life/check-ins/` (enseignant) sont traités
+  par une PR séparée) ; `POST /school-life/check-ins/` est ouvert à un élève ou un
+  parent (à confirmer côté métier). Écrans de B2c-1 (fiche élève, `LiveAttendance`,
+  `Badges`, `QrScanPage`, `ReportCards`) : routes principales filtrées, écrans non
+  vérifiés un par un ; appels encore refusés à un compte restreint : `StudentDetail`
+  (`GET /payments/invoices/`, `GET /parents/students/{id}/parents/`,
+  `DELETE /parents/link/{id}/`), `Gamification.tsx` (`gamification/stats`),
+  `SchoolCalendar` et `admin.ts` (création/suppression d'événement), `Bookings.tsx`
+  (réservations, y compris réserver une salle). `Incidents.tsx` n'envoie jamais
+  `student_ids` : création impossible pour un compte restreint, incidents sans
+  élève invisibles (compteurs partiels) ; inscriptions aux événements : compteurs
+  partiels.
 - **2026-11-17 — fuites de l'historique des notes et des remises de devoirs
   corrigées (GRADE-HISTORY-LEAK-01, HOMEWORK-SUBMISSIONS-LEAK-01).**
   `GET /grade-history/` et `GET /homework-submissions/` ne filtraient que par

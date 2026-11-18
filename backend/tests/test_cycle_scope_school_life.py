@@ -52,6 +52,7 @@ FILTERED = [
     ("GET", "/school-life/appointment-slots/appointments/"),
     ("PATCH", "/school-life/appointment-slots/appointments/{appointment_id}/"),
     ("DELETE", "/school-life/appointment-slots/{slot_id}/"),
+    ("POST", "/school-life/appointment-slots/"), ("POST", "/school-life/appointment-slots/bulk/"),
     ("GET", "/school-life/assessments/"), ("POST", "/school-life/assessments/"),
     ("PUT", "/school-life/assessments/{assessment_id}/"), ("DELETE", "/school-life/assessments/{assessment_id}/"),
     ("GET", "/school-life/attendance/"), ("POST", "/school-life/attendance/"),
@@ -76,8 +77,7 @@ FILTERED = [
     ("GET", "/student-badges/"), ("POST", "/student-badges/"), ("DELETE", "/student-badges/{badge_id}/"),
 ]
 INDEPENDENT = [
-    ("GET", "/school-life/appointment-slots/"), ("POST", "/school-life/appointment-slots/"),
-    ("POST", "/school-life/appointment-slots/bulk/"), ("GET", "/school-life/bookable-resources/"),
+    ("GET", "/school-life/appointment-slots/"), ("GET", "/school-life/bookable-resources/"),
     ("GET", "/school-life/bookings/"), ("GET", "/school-life/events/"), ("GET", "/school-life/events/export.ics"),
 ]
 DENIED = [
@@ -90,7 +90,7 @@ DENIED = [
 
 
 def test_the_65_routes_of_the_lot_are_classified_as_decided():
-    assert (len(FILTERED), len(INDEPENDENT), len(DENIED)) == (49, 7, 9)
+    assert (len(FILTERED), len(INDEPENDENT), len(DENIED)) == (51, 5, 9)
     for routes, expected in ((FILTERED, Policy.FILTERED), (INDEPENDENT, Policy.INDEPENDENT), (DENIED, Policy.DENY)):
         for method, path in routes:
             assert policy_for(method, f"/api/v1{path}") is expected, (method, path)
@@ -329,14 +329,15 @@ def test_school_life_grade_writes_need_student_and_assessment_in_scope_without_e
         assert call(school, "director", "DELETE", f"/school-life/grades/{schooling[name]}/").status_code == 404, name
         assert get_grade(schooling[name]).score == score
     # Dans le périmètre la garde laisse passer. Défaut préexistant, hors lot : ``update_grade`` lit
-    # ``obj_in.assessment_id`` que ``GradeUpdate`` n'a pas (500 pour tout le monde, aucun écran n'appelle
-    # cette route en écriture) : on prouve donc seulement que le refus de périmètre (404) n'est pas posé.
+    # ``obj_in.assessment_id`` que ``GradeUpdate`` n'a pas (AttributeError -> 500 pour tout le monde, aucun
+    # écran n'appelle cette route en écriture). Comportement ACTUEL asserté explicitement : 500, note intacte.
     in_scope = call(school, "director", "PUT", f"/school-life/grades/{schooling['g_cp']}/", json={"score": 16.0})
-    assert in_scope.status_code != 404
+    assert in_scope.status_code == 500
+    assert get_grade(schooling["g_cp"]).score == 15.0
     before = count(Grade, t)
     assert call(school, "director", "DELETE", f"/school-life/grades/{schooling['g_cp']}/").status_code == 200
     assert count(Grade, t) == before - 1
-    assert call(school, "admin_residual", "PUT", f"/school-life/grades/{schooling['g_6e']}/", json={"score": 11.0}).status_code != 404
+    assert call(school, "admin_residual", "PUT", f"/school-life/grades/{schooling['g_6e']}/", json={"score": 11.0}).status_code == 500  # même défaut préexistant
 
 
 def test_school_life_attendance_list_follows_the_student(school, schooling):
@@ -651,11 +652,18 @@ def test_class_summary_needs_the_class_in_scope(school, life):
         response = call(school, "director", "GET", "/school-life/report-cards/class-summary/",
                         params={**params, "classroom_id": str(life[klass])})
         assert response.status_code == 404, klass
+    with SessionLocal() as db:  # le calcul exige une classe rattachée à l'année de la période
+        for klass in ("cls_cp", "cls_6e"):
+            db.execute(text("UPDATE classes SET academic_year_id = CAST(:y AS uuid) WHERE id = CAST(:c AS uuid)"),
+                       {"y": str(life["year"]), "c": str(life[klass])})
+        db.commit()
     mine = call(school, "director", "GET", "/school-life/report-cards/class-summary/",
                 params={**params, "classroom_id": str(life["cls_cp"])})
-    assert mine.status_code != 404 or mine.json().get("detail") != "Classe introuvable"
+    assert mine.status_code == 200, mine.text
+    assert mine.json()["class_total"] == 1 and {i["student_id"] for i in mine.json()["items"]} == {str(life["s_cp"])}
     free = call(school, "admin_residual", "GET", "/school-life/report-cards/class-summary/", params=params)
-    assert free.status_code != 403 and free.json().get("detail") != "Classe introuvable"
+    assert free.status_code == 200, free.text
+    assert call(school, "director", "GET", "/school-life/report-cards/class-summary/", params=params).status_code == 404
 
 
 @needs_postgres
@@ -846,11 +854,72 @@ def test_appointment_slots_stay_readable_and_a_slot_holding_a_hidden_appointment
 
 
 @needs_postgres
-def test_appointment_slot_creation_stays_available_to_a_restricted_account(school, life):
+def test_a_restricted_account_only_manages_its_own_appointment_slots(school, life):
+    t = school["tenant"]
+    me, colleague = str(school["people"]["director"]), str(school["people"]["teacher"])
     body = {"date": str(TODAY + timedelta(days=9)), "start_time": "10:00", "end_time": "10:30"}
+    before = raw_count("appointment_slots", t)
+    # Création pour un autre enseignant : 404 identique à un créneau inexistant, rien d'écrit.
+    refused = call(school, "director", "POST", "/school-life/appointment-slots/", json={**body, "teacher_id": colleague})
+    assert refused.status_code == 404 and raw_count("appointment_slots", t) == before
+    # Lot tout ou rien : un seul créneau d'un autre enseignant refuse tout.
+    mixed = {"slots": [{**body, "start_time": "11:00", "end_time": "11:30"},
+                       {**body, "start_time": "12:00", "end_time": "12:30", "teacher_id": colleague}]}
+    assert call(school, "director", "POST", "/school-life/appointment-slots/bulk/", json=mixed).status_code == 404
+    assert raw_count("appointment_slots", t) == before
+    # Ses propres créneaux : implicite ou explicite.
     assert call(school, "director", "POST", "/school-life/appointment-slots/", json=body).status_code == 201
-    bulk = {"slots": [{**body, "start_time": "11:00", "end_time": "11:30"}]}
+    own = call(school, "director", "POST", "/school-life/appointment-slots/", json={**body, "start_time": "13:00", "end_time": "13:30", "teacher_id": me})
+    assert own.status_code == 201
+    bulk = {"slots": [{**body, "start_time": "14:00", "end_time": "14:30"}]}
     assert call(school, "director", "POST", "/school-life/appointment-slots/bulk/", json=bulk).status_code == 201
+    assert raw_count("appointment_slots", t) == before + 3
+    # Suppression : le créneau d'un collègue répond comme un créneau inexistant ; le sien se supprime.
+    theirs = call(school, "admin_residual", "POST", "/school-life/appointment-slots/", json={**body, "start_time": "15:00", "end_time": "15:30", "teacher_id": colleague})
+    assert theirs.status_code == 201, theirs.text
+    missing = call(school, "director", "DELETE", f"/school-life/appointment-slots/{uuid4()}/")
+    masked = call(school, "director", "DELETE", f"/school-life/appointment-slots/{theirs.json()['id']}/")
+    assert missing.status_code == masked.status_code == 404 and _error_body(missing) == _error_body(masked)
+    assert raw_count("appointment_slots", t) == before + 4
+    assert call(school, "director", "DELETE", f"/school-life/appointment-slots/{own.json()['id']}/").status_code == 200
+    # Compte non restreint : inchangé (autre enseignant, suppression du créneau d'un collègue).
+    assert call(school, "admin_residual", "DELETE", f"/school-life/appointment-slots/{theirs.json()['id']}/").status_code == 200
+    assert call(school, "admin_residual", "POST", "/school-life/appointment-slots/bulk/", json={"slots": [
+        {**body, "start_time": "16:00", "end_time": "16:30", "teacher_id": colleague}]}).status_code == 201
+
+
+# --- Comptes restreints cumulant PARENT ou TEACHER -------------------------------------------------
+
+@needs_postgres
+def test_a_restricted_account_that_is_also_a_parent_gets_the_cycle_scope_for_its_own_children(school, life):
+    from app.models import ParentStudent
+    t, who = school["tenant"], "secretary_parent"
+    with SessionLocal() as db:
+        for key in ("s_cp", "s_6e"):
+            db.add(ParentStudent(tenant_id=t, parent_id=school["people"][who], student_id=life[key]))
+        db.commit()
+    # L'enfant du cycle reste accessible, l'enfant hors cycle répond 404 (pas d'union avec le rôle parent).
+    assert call(school, who, "POST", "/school-life/generate-report-card/v2/",
+                json=report_body(life, school, "s_6e", "cls_6e")).status_code == 404
+    assert call(school, who, "POST", "/school-life/generate-report-card/v2/",
+                json=report_body(life, school, "s_cp", "cls_cp")).status_code == 200
+    assert call(school, who, "POST", "/school-life/check-ins/",
+                json={"student_id": str(life["s_6e"]), "direction": "IN"}).status_code == 404
+    assert ids(call(school, who, "GET", "/school-life/check-ins/", params={"student_ids": str(life["s_6e"])})) == set()
+    assert ids(call(school, who, "GET", "/school-life/check-ins/", params={"student_ids": str(life["s_cp"])})) == sid(life, "ci_cp")
+    assert ids(call(school, who, "GET", "/school-life/grades/", params={"student_id": str(life["s_6e"])})) == set()
+    assert ids(call(school, who, "GET", "/school-life/grades/")) == sid(life, "g_cp", "g_cp_old")
+
+
+@needs_postgres
+def test_a_restricted_account_that_is_also_a_teacher_still_gets_the_cycle_scope(school, life):
+    who = "director_teacher"
+    assert ids(call(school, who, "GET", "/school-life/check-ins/sessions/")) == sid(life, "ses_cp")
+    assert call(school, who, "POST", "/school-life/check-ins/sessions/start/",
+                json={"class_id": str(life["cls_6e"])}).status_code == 404
+    assert call(school, who, "POST", "/school-life/generate-report-card/v2/",
+                json=report_body(life, school, "s_6e", "cls_6e")).status_code == 404
+    assert call(school, who, "PATCH", f"/school-life/check-ins/sessions/{life['ses_6e']}/end/", json={}).status_code == 404
 
 
 # --- Inscriptions aux événements -----------------------------------------------------------------
@@ -967,6 +1036,8 @@ SCHOOL_LIFE_ROUTE_TESTS = {
     ("GET", "/school-life/appointment-slots/appointments/"): "test_appointment_list_hides_appointments_of_students_out_of_scope",
     ("PATCH", "/school-life/appointment-slots/appointments/{appointment_id}/"): "test_appointment_status_change_needs_the_student_in_scope_without_effect",
     ("DELETE", "/school-life/appointment-slots/{slot_id}/"): "test_appointment_slots_stay_readable_and_a_slot_holding_a_hidden_appointment_is_not_deletable",
+    ("POST", "/school-life/appointment-slots/"): "test_a_restricted_account_only_manages_its_own_appointment_slots",
+    ("POST", "/school-life/appointment-slots/bulk/"): "test_a_restricted_account_only_manages_its_own_appointment_slots",
     ("GET", "/school-life/assessments/"): "test_school_life_assessment_list_is_limited_to_classes_of_the_cycle",
     ("POST", "/school-life/assessments/"): "test_school_life_assessment_writes_need_the_class_in_scope_without_effect",
     ("PUT", "/school-life/assessments/{assessment_id}/"): "test_school_life_assessment_writes_need_the_class_in_scope_without_effect",

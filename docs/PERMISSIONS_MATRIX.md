@@ -1229,7 +1229,7 @@ identifiant reçu ou résolu (élève, classe, évaluation, séance, incident �
 élève) vérifié **avant** toute écriture ; `PUT` = état actuel ET final ; lots
 tout ou rien ; objet inexistant, hors périmètre ou d'un autre établissement =
 **404 identique**. 65 routes, jusque-là refusées (`403 CYCLE_SCOPE_DENIED`) :
-**49 `FILTERED`, 7 `INDEPENDENT`, 9 `DENY`**.
+**51 `FILTERED`, 5 `INDEPENDENT`, 9 `DENY`**.
 
 | Famille | Routes | Règle |
 |---|---|---|
@@ -1264,9 +1264,19 @@ restreints.
 `GET /school-life/bookable-resources/`, `GET /school-life/bookings/` (aucune
 donnée d'élève ni de classe : vérifié dans le code et par test ; les réservations
 exposent le nom et l'e-mail de la personne qui a réservé, donnée du personnel) ;
-`GET\|POST /school-life/appointment-slots/` et `POST .../bulk/` (créneaux :
-aucune donnée d'élève ni de classe ; le propriétaire reste contrôlé par le
-handler ; `booked_count` ne révèle que le taux d'occupation).
+`GET /school-life/appointment-slots/` (créneaux : aucune donnée d'élève ni de
+classe).
+
+**Créneaux de rendez-vous : un compte restreint ne gère que les siens.**
+`POST /school-life/appointment-slots/`, `POST .../bulk/` et
+`DELETE .../{slot_id}/` sont `FILTERED` : pour un compte restreint,
+`teacher_id` doit être le compte lui-même (par défaut c'est le cas) ; pour un
+autre enseignant, **404** identique à un créneau inexistant, sans écriture (lot :
+un seul créneau d'un autre enseignant refuse tout, avant la première insertion).
+Comptes non restreints : inchangé. Limite connue (oracle minimal) : le
+`booked_count` d'un créneau visible compte aussi les rendez-vous d'élèves hors
+périmètre (un nombre, aucune identité) ; la suppression d'un créneau qui porte un
+tel rendez-vous répond 404 comme un créneau inexistant.
 
 **Restent `DENY`** : écritures des événements, ressources réservables et
 réservations (données d'établissement, décision Q4) ;
@@ -1282,5 +1292,28 @@ peut pas enregistrer un ancien élève à un événement. Le lot de bulletins d'
 classe suit la règle « classe dans le périmètre » (le roster est celui de
 l'année de la classe). Défauts préexistants relevés, **non corrigés** : voir
 `docs/STATUT_ACTUEL.md` (2026-11-17, B2c-2). Comptes non restreints,
-TENANT_ADMIN, TEACHER (`teacher_scope`) et PARENT (`parent_scope`) : comportement
-identique à avant. Tests : `backend/tests/test_cycle_scope_school_life.py`.
+TENANT_ADMIN, TEACHER (`teacher_scope`) et PARENT (`parent_scope`) seuls :
+comportement identique à avant. **Un compte restreint qui cumule PARENT (ou
+TEACHER)** est soumis au périmètre de cycle, sans union avec ses droits de parent :
+ses propres enfants hors cycle répondent 404 (bulletin, pointage en écriture) ou
+sont absents des listes (pointages, `/school-life/grades/`).
+
+**Limites d'écran (compte restreint)** : appels encore `DENY` côté écrans :
+`StudentDetail` (`GET /payments/invoices/`, `GET /parents/students/{id}/parents/`,
+`DELETE /parents/link/{id}/`) ; `Gamification.tsx`
+(`/school-life/gamification/stats/`) ; `SchoolCalendar` et `admin.ts` (création,
+modification, suppression d'événement) ; `Bookings.tsx` (réservations, y compris
+réserver une salle). `Incidents.tsx` n'envoie jamais `student_ids` : la création
+est impossible pour un compte restreint et les incidents sans élève lui sont
+invisibles (compteurs partiels). Inscriptions aux événements : compteurs partiels
+(seules les inscriptions d'élèves du périmètre).
+
+**Défauts préexistants hors lot, non corrigés** : `PUT /school-life/grades/{id}/`
+(500 systématique), `PUT /incidents/{id}/resolve/` (colonne `resolved_at`
+absente), `POST /incidents/` avec `student_ids` (table `incident_parties`
+absente), `POST /school-life/check-ins/` ouvert à un élève ou un parent pour
+lui-même ou son enfant (à confirmer côté métier). `/student-badges/`,
+`GET /school-life/assessments/` (permission), `gamification/stats` et
+`GET /school-life/check-ins/` (périmètre enseignant) sont traités par une PR
+séparée ; le filtre de cycle de ce lot y reste tel quel. Tests :
+`backend/tests/test_cycle_scope_school_life.py`.

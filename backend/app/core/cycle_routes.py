@@ -184,9 +184,10 @@ ROUTE_POLICIES: dict[tuple[str, str], Policy] = {
     **_routes(Policy.FILTERED, "GET", "/school-life/appointment-slots/appointments/"),
     **_routes(Policy.FILTERED, "PATCH", "/school-life/appointment-slots/appointments/{appointment_id}/"),
     **_routes(Policy.FILTERED, "DELETE", "/school-life/appointment-slots/{slot_id}/"),
-    # Créneaux : aucune donnée d'élève ni de classe (le propriétaire reste contrôlé par le handler).
-    **_routes(Policy.INDEPENDENT, "GET POST", "/school-life/appointment-slots/"),
-    **_routes(Policy.INDEPENDENT, "POST", "/school-life/appointment-slots/bulk/"),
+    # Créneaux : lecture sans donnée d'élève ni de classe (INDEPENDENT) ; création et lot FILTERED :
+    # un compte restreint ne crée que ses propres créneaux (404 sinon, lot tout ou rien).
+    **_routes(Policy.INDEPENDENT, "GET", "/school-life/appointment-slots/"),
+    **_routes(Policy.FILTERED, "POST", "/school-life/appointment-slots/", "/school-life/appointment-slots/bulk/"),
     **_routes(Policy.FILTERED, "GET POST", "/school-life/event-registrations/"),
     # Calendrier, ressources réservables, réservations : lecture sans donnée d'élève (vérifié dans le
     # code) ; les écritures restent DENY (données d'établissement, Q4). gamification/stats reste DENY.

@@ -66,7 +66,7 @@ SCOPE_HELPERS = (
     # Lot B2c-2 : enveloppes locales aux handlers de la vie scolaire.
     "_require_attendance_record_in_scope", "_require_check_in_session_in_scope",
     "_require_report_card_in_scope", "_require_slot_without_out_of_scope_appointment",
-    "_require_incident_in_scope", "_early_warning_scope",
+    "_require_incident_in_scope", "_early_warning_scope", "_require_own_slot_in_scope",
 )
 
 
