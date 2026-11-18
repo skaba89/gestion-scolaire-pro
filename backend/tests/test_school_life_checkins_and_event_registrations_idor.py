@@ -166,7 +166,12 @@ class TestCheckInIdor:
         }))
         assert resp.status_code == 200, resp.text
 
-    def test_teacher_can_read_any_students_check_ins(self):
+    @pytest.mark.skipif(engine.dialect.name != "postgresql",
+                        reason="teacher_assignments est créée par migration (PostgreSQL).")
+    def test_teacher_reads_only_check_ins_of_his_classes(self):
+        # CHECKINS-TEACHER-SCOPE-01 (2026-11-18) : un enseignant non affecté à
+        # la classe de l'élève n'en voit plus les pointages (200, liste vide).
+        # Le cas affecté est couvert par test_school_life_access_fixes.py.
         tenant_id = _make_tenant()
         student_id = _make_student(tenant_id)
 
@@ -174,6 +179,7 @@ class TestCheckInIdor:
             "id": str(uuid.uuid4()), "roles": ["TEACHER"], "tenant_id": tenant_id,
         }))
         assert resp.status_code == 200, resp.text
+        assert resp.json() == []
 
 
 @pytest.mark.skipif(

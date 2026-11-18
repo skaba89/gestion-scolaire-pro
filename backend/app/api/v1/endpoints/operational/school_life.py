@@ -57,7 +57,10 @@ logger = logging.getLogger(__name__)
 def read_assessments(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    # Était get_current_user : tout compte listait les évaluations de
+    # l'établissement. Aligné sur la canonique GET /assessments/ (2026-11-18) ;
+    # le front n'appelle pas cette route.
+    current_user: dict = Depends(require_permission("settings:read")),
 ):
     tenant_id = resolve_current_tenant_id(request, current_user, db)
     # Périmètre par cycle (B2c-2) : seules les évaluations des classes du compte.
@@ -1740,6 +1743,39 @@ def _can_access_checkin_for_student(db: Session, *, current_user: dict, student_
     return _is_self_or_parent_of_student(db, current_user=current_user, student_id=student_id, tenant_id=tenant_id)
 
 
+def _teacher_student_ids(db: Session, *, tenant_id: str, user_id: str) -> set[str]:
+    """Élèves inscrits (actifs) dans une classe que l'enseignant enseigne
+    (affectation OU emploi du temps, comme teacher_teaches_class)."""
+    stmt = text("""
+        SELECT DISTINCT e.student_id
+        FROM enrollments e
+        WHERE e.tenant_id = :tid AND e.status = 'ACTIVE'
+          AND e.class_id IN (
+              SELECT classroom_id FROM teacher_assignments
+              WHERE tenant_id = :tid AND user_id = :uid
+              UNION
+              SELECT class_id FROM schedule
+              WHERE tenant_id = :tid AND teacher_id = :uid
+          )
+    """).bindparams(bindparam("tid", type_=GUID()), bindparam("uid", type_=GUID()))
+    rows = db.execute(stmt, {"tid": tenant_id, "uid": str(user_id)}).all()
+    return {str(UUID(str(r[0]))) for r in rows}
+
+
+def _teacher_session_ids(db: Session, *, tenant_id: str, user_id: str, session_ids: set) -> set[str]:
+    """Parmi `session_ids`, les séances de pointage ouvertes par cet enseignant."""
+    if not session_ids:
+        return set()
+    stmt = text("""
+        SELECT id FROM check_in_sessions
+        WHERE tenant_id = :tid AND teacher_id = :uid AND id IN :ids
+    """).bindparams(bindparam("tid", type_=GUID()), bindparam("uid", type_=GUID()),
+                    bindparam("ids", expanding=True))
+    rows = db.execute(stmt, {"tid": tenant_id, "uid": str(user_id),
+                             "ids": [str(i) for i in session_ids]}).all()
+    return {str(UUID(str(r[0]))) for r in rows}
+
+
 @router.get("/check-ins/", response_model=List[StudentCheckIn])
 def read_check_ins(
     request: Request,
@@ -1758,8 +1794,24 @@ def read_check_ins(
             for sid in student_ids:
                 if not _can_access_checkin_for_student(db, current_user=current_user, student_id=sid, tenant_id=tenant_id, write=False):
                     raise HTTPException(status_code=403, detail="Not authorized to view this student's check-ins.")
-        return crud_sl.get_check_ins(db, tenant_id=tenant_id, student_ids=student_ids, session_id=session_id,
-                                     scope_class_ids=scope_class_ids)
+        # Périmètre par cycle (B2c-2) appliqué dans la requête, puis règle enseignant (#570).
+        check_ins = crud_sl.get_check_ins(db, tenant_id=tenant_id, student_ids=student_ids, session_id=session_id,
+                                          scope_class_ids=scope_class_ids)
+        # Enseignant non privilégié : uniquement les élèves de ses classes
+        # (même règle que les présences, app/core/teacher_scope.py).
+        if is_scoped_teacher(current_user):
+            allowed = _teacher_student_ids(db, tenant_id=str(tenant_id), user_id=current_user.get("id"))
+            own_sessions = _teacher_session_ids(
+                db, tenant_id=str(tenant_id), user_id=current_user.get("id"),
+                session_ids={c.session_id for c in check_ins if c.session_id},
+            )
+            # Ses propres séances de pointage restent visibles en entier
+            # (compteur du scanner), même pour un élève hors de ses classes.
+            check_ins = [
+                c for c in check_ins
+                if str(c.student_id) in allowed or (c.session_id and str(c.session_id) in own_sessions)
+            ]
+        return check_ins
     except HTTPException:
         raise
     except Exception as e:
@@ -2072,7 +2124,14 @@ def create_event_registration(
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 @router.get("/gamification/stats/")
-def get_gamification_stats(request: Request, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+def get_gamification_stats(
+    request: Request,
+    db: Session = Depends(get_db),
+    # Était get_current_user : agrégat d'établissement lisible par tout compte
+    # (élève, parent…). Réservé au personnel (2026-11-18) ; l'écran admin
+    # Gamification est la seule utilisation.
+    current_user: dict = Depends(require_permission("school_life:read")),
+):
     try:
         tenant_id = str(resolve_current_tenant_id(request, current_user, db))
         if not tenant_id:
