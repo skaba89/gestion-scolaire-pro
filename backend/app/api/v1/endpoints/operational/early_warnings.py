@@ -9,6 +9,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.core.cycle_scope import (
+    is_cycle_restricted, require_students_in_scope, scoped_class_ids, student_scope_sql,
+)
 from app.core.database import get_db
 from app.core.security import require_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
@@ -89,6 +92,15 @@ _SELECT = """
 """
 
 
+def _early_warning_scope(db: Session, tenant_id: str, user: dict, column_sql: str):
+    """Périmètre par cycle (B2c-2) : ``(" AND <fragment>", binds)`` pour un compte restreint (une
+    alerte suit son élève), ``("", [])`` sinon. ``column_sql`` est un littéral du code."""
+    if not is_cycle_restricted(user):
+        return "", []
+    sql, binds = student_scope_sql(column_sql, scoped_class_ids(db, tenant_id, user), tenant_id=tenant_id, tag="ew")
+    return f" AND {sql}", binds
+
+
 @router.get("/")
 def list_early_warnings(
     request: Request,
@@ -99,9 +111,10 @@ def list_early_warnings(
     tenant_id = _tenant(request, current_user, db)
     # The UI currently renders all alerts. Do not silently return a paginated
     # subset that would make the counters claim completeness.
+    scope_sql, scope_binds = _early_warning_scope(db, tenant_id, current_user, "w.student_id")
     rows = db.execute(text(_SELECT + """
-        WHERE w.tenant_id = :tid ORDER BY w.created_at DESC, w.id
-    """), {"tid": tenant_id}).mappings().all()
+        WHERE w.tenant_id = :tid""" + scope_sql + """ ORDER BY w.created_at DESC, w.id
+    """).bindparams(*scope_binds), {"tid": tenant_id}).mappings().all()
     return [_row_to_response(row) for row in rows]
 
 
@@ -125,7 +138,8 @@ def list_early_warnings_paginated(
     tenant_id = _tenant(request, current_user, db)
     if status is not None and group is not None:
         raise HTTPException(status_code=422, detail="Specify status or group, not both")
-    where = " WHERE w.tenant_id = :tid"
+    scope_sql, scope_binds = _early_warning_scope(db, tenant_id, current_user, "w.student_id")
+    where = " WHERE w.tenant_id = :tid" + scope_sql  # filtre avant comptage et pagination
     params: dict = {"tid": tenant_id}
     if status is not None:
         where += " AND w.status = :status"
@@ -136,11 +150,11 @@ def list_early_warnings_paginated(
         where += " AND w.status IN ('acknowledged', 'in_progress')"
 
     total = db.execute(
-        text("SELECT COUNT(*) FROM early_warnings w" + where), params
+        text("SELECT COUNT(*) FROM early_warnings w" + where).bindparams(*scope_binds), params
     ).scalar_one()
     offset = (page - 1) * page_size
     rows = db.execute(
-        text(_SELECT + where + " ORDER BY w.created_at DESC, w.id DESC LIMIT :limit OFFSET :offset"),
+        text(_SELECT + where + " ORDER BY w.created_at DESC, w.id DESC LIMIT :limit OFFSET :offset").bindparams(*scope_binds),
         {**params, "limit": page_size, "offset": offset},
     ).mappings().all()
     return {
@@ -161,6 +175,8 @@ def early_warnings_summary(
     """Authoritative global counts, independent of loaded frontend pages."""
     _management_only(current_user)
     tenant_id = _tenant(request, current_user, db)
+    # Agrégat calculé uniquement sur les alertes des élèves du périmètre (comme les compteurs de présence).
+    scope_sql, scope_binds = _early_warning_scope(db, tenant_id, current_user, "early_warnings.student_id")
     row = db.execute(text("""
         SELECT
           COUNT(*) AS total,
@@ -171,8 +187,8 @@ def early_warnings_summary(
           COUNT(*) FILTER (WHERE status = 'dismissed') AS dismissed,
           COUNT(*) FILTER (WHERE alert_type = 'academic') AS academic,
           COUNT(*) FILTER (WHERE status = 'new' AND severity = 'critical') AS critical_new
-        FROM early_warnings WHERE tenant_id = :tid
-    """), {"tid": tenant_id}).mappings().one()
+        FROM early_warnings WHERE tenant_id = :tid""" + scope_sql + """
+    """).bindparams(*scope_binds), {"tid": tenant_id}).mappings().one()
     return {key: int(row[key]) for key in (
         "total", "new", "processing", "closed", "resolved",
         "dismissed", "academic", "critical_new",
@@ -188,6 +204,9 @@ def create_early_warning(
 ):
     _management_only(current_user)
     tenant_id = _tenant(request, current_user, db)
+    # Périmètre par cycle (B2c-2), avant toute écriture ; même 404 qu'un élève inexistant.
+    require_students_in_scope(db, tenant_id, current_user, [payload.student_id],
+                              detail="Student not found in this establishment")
     student = db.execute(text("""
         SELECT 1 FROM students
         WHERE id = :sid AND tenant_id = :tid
@@ -228,11 +247,14 @@ def update_early_warning(
     _management_only(current_user)
     tenant_id = _tenant(request, current_user, db)
     row = db.execute(text("""
-        SELECT status FROM early_warnings
+        SELECT status, student_id FROM early_warnings
         WHERE id = :id AND tenant_id = :tid FOR UPDATE
     """), {"id": str(warning_id), "tid": tenant_id}).first()
     if not row:
         raise HTTPException(status_code=404, detail="Alert not found")
+    # Périmètre par cycle (B2c-2) : l'élève de l'alerte, avant toute écriture ; même 404 qu'une alerte inexistante.
+    if is_cycle_restricted(current_user):
+        require_students_in_scope(db, tenant_id, current_user, [row[1]], detail="Alert not found")
     old_status = row[0]
     transitions = {
         "new": {"acknowledged", "dismissed"},

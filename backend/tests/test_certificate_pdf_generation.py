@@ -92,6 +92,7 @@ def _link_parent(tenant_id: str, parent_id: str, student_id: str) -> None:
 
 
 def _as(user: dict):
+    user = {**user, "_cycle_ids": None}  # compte non restreint (périmètre par cycle)
     app.dependency_overrides[get_current_user] = lambda: user
     return client
 

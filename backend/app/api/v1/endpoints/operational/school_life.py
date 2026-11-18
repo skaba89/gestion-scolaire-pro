@@ -20,6 +20,11 @@ from app.models.grade import Grade as GradeModel
 from app.models.student import Student as StudentModel, StudentStatus
 from app.models.parent_student import ParentStudent as ParentStudentModel
 from app.models.user import User as UserModel
+from app.core.cycle_scope import (
+    class_scope_sql, is_cycle_restricted, require_class_in_scope, require_classes_in_scope,
+    require_assessment_in_scope, require_student_in_scope, require_students_in_scope,
+    scoped_class_ids, student_scope_clause, student_scope_sql,
+)
 from app.core.database import get_db
 from app.core.jobs import enqueue_job
 from app.core.security import get_current_user, require_permission
@@ -57,8 +62,11 @@ def read_assessments(
     # le front n'appelle pas cette route.
     current_user: dict = Depends(require_permission("settings:read")),
 ):
+    tenant_id = resolve_current_tenant_id(request, current_user, db)
+    # Périmètre par cycle (B2c-2) : seules les évaluations des classes du compte.
+    scope_class_ids = scoped_class_ids(db, tenant_id, current_user)
     try:
-        return crud_sl.get_assessments(db, tenant_id=resolve_current_tenant_id(request, current_user, db))
+        return crud_sl.get_assessments(db, tenant_id=tenant_id, scope_class_ids=scope_class_ids)
     except Exception as e:
         db.rollback()
         logger.error("Error reading assessments: %s", e, exc_info=True)
@@ -80,6 +88,10 @@ def create_assessment(
     current_user: dict = Depends(require_permission("settings:write")),
 ):
     tenant_id = resolve_current_tenant_id(request, current_user, db)
+    # Périmètre par cycle (B2c-2) : ce schéma ne porte pas de classe, l'évaluation créée n'en
+    # a donc pas ; une évaluation sans classe n'appartient à aucun cycle (compte restreint : 404,
+    # utiliser POST /assessments/ qui exige une classe du périmètre).
+    require_classes_in_scope(db, tenant_id, current_user, [getattr(obj_in, "class_id", None)])
     ensure_refs_in_tenant(db, tenant_id, ("subjects", obj_in.subject_id),
                           ("academic_years", obj_in.academic_year_id), ("terms", obj_in.term_id))
     try:
@@ -102,6 +114,7 @@ def update_assessment(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    require_assessment_in_scope(db, tenant_id, current_user, assessment_id)  # périmètre par cycle (B2c-2)
     result = crud_sl.update_assessment(db, assessment_id=assessment_id, obj_in=obj_in, tenant_id=tenant_id)
     if not result:
         raise HTTPException(status_code=404, detail="Assessment not found")
@@ -118,6 +131,7 @@ def delete_assessment(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    require_assessment_in_scope(db, tenant_id, current_user, assessment_id)  # périmètre par cycle (B2c-2)
     assessment = db.query(AssessmentModel).filter(
         AssessmentModel.id == assessment_id,
         AssessmentModel.tenant_id == tenant_id,
@@ -185,6 +199,8 @@ def read_grades(
     current_user: dict = Depends(require_permission("grades:read")),
 ):
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    # Périmètre par cycle (B2c-2) : la note suit l'élève (filtre avant tout retour).
+    scope_class_ids = scoped_class_ids(db, tenant_id, current_user)
     allowed_ids = _allowed_student_ids_for_caller(db, current_user=current_user, tenant_id=tenant_id)
     if allowed_ids is not None:
         if student_id is not None:
@@ -198,10 +214,12 @@ def read_grades(
             # PARENT of several children with no explicit filter: aggregate.
             results = []
             for sid in allowed_ids:
-                results.extend(crud_sl.get_grades(db, tenant_id=tenant_id, student_id=UUID(sid)))
+                results.extend(crud_sl.get_grades(db, tenant_id=tenant_id, student_id=UUID(sid),
+                                                  scope_class_ids=scope_class_ids))
             return results
     try:
-        return crud_sl.get_grades(db, tenant_id=tenant_id, student_id=student_id)
+        return crud_sl.get_grades(db, tenant_id=tenant_id, student_id=student_id,
+                                  scope_class_ids=scope_class_ids)
     except Exception as e:
         db.rollback()
         logger.error("Error reading grades: %s", e, exc_info=True)
@@ -227,9 +245,15 @@ def create_grade(
     # 2026-11-11 (CRAWL-W) : ni FK ni périmètre enseignant n'étaient vérifiés
     # ici, contrairement à POST /grades/ — mêmes contrôles que la route canonique.
     from app.api.v1.endpoints.academic.grades import (
-        _ensure_assessment_session_writable, _require_teacher_grade_write_scope,
+        _ensure_assessment_session_writable, _require_grade_write_in_scope,
+        _require_teacher_grade_write_scope,
     )
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    # Périmètre par cycle (B2c-2), avant toute écriture : l'élève ET l'évaluation (donc sa classe).
+    _require_grade_write_in_scope(
+        db, tenant_id=tenant_id, current_user=current_user,
+        student_ids=[obj_in.student_id], assessment_ids=[obj_in.assessment_id],
+    )
     ensure_refs_in_tenant(db, tenant_id, ("students", obj_in.student_id),
                           ("assessments", obj_in.assessment_id), ("subjects", obj_in.subject_id))
     _ensure_assessment_session_writable(db, tenant_id=tenant_id, assessment_id=obj_in.assessment_id)
@@ -255,11 +279,20 @@ def update_grade(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
-    from app.api.v1.endpoints.academic.grades import _ensure_assessment_session_writable
+    from app.api.v1.endpoints.academic.grades import (
+        _ensure_assessment_session_writable, _require_grade_write_in_scope,
+    )
     from app.models import Grade as GradeModel
     current = db.query(GradeModel).filter(GradeModel.id == grade_id, GradeModel.tenant_id == tenant_id).first()
     if not current:
         raise HTTPException(status_code=404, detail="Grade not found")
+    # Périmètre par cycle (B2c-2) : élève et évaluation actuels (le schéma de mise à jour ne
+    # permet pas de les changer) ; même 404 qu'une note inexistante.
+    _require_grade_write_in_scope(
+        db, tenant_id=tenant_id, current_user=current_user,
+        student_ids=[current.student_id], assessment_ids=[current.assessment_id],
+        not_found="Grade not found",
+    )
     _ensure_assessment_session_writable(db, tenant_id=tenant_id, assessment_id=current.assessment_id)
     _ensure_assessment_session_writable(db, tenant_id=tenant_id,
                                         assessment_id=obj_in.assessment_id or current.assessment_id)
@@ -283,7 +316,14 @@ def delete_grade(
     grade_obj = db.query(GradeModel).filter(GradeModel.id == grade_id, GradeModel.tenant_id == tenant_id).first()
     if not grade_obj:
         raise HTTPException(status_code=404, detail="Grade not found")
-    from app.api.v1.endpoints.academic.grades import _ensure_assessment_session_writable
+    from app.api.v1.endpoints.academic.grades import (
+        _ensure_assessment_session_writable, _require_grade_write_in_scope,
+    )
+    _require_grade_write_in_scope(  # périmètre par cycle (B2c-2)
+        db, tenant_id=tenant_id, current_user=current_user,
+        student_ids=[grade_obj.student_id], assessment_ids=[grade_obj.assessment_id],
+        not_found="Grade not found",
+    )
     _ensure_assessment_session_writable(db, tenant_id=tenant_id, assessment_id=grade_obj.assessment_id)
     db.delete(grade_obj)
     log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
@@ -293,6 +333,19 @@ def delete_grade(
     return {"status": "success"}
 
 # --- Attendance ---
+
+def _require_attendance_record_in_scope(db: Session, *, current_user: dict, tenant_id: str, att) -> None:
+    """Périmètre par cycle (B2c-2) : l'élève ET la classe de la présence existante doivent être
+    dans le périmètre (une présence sans classe n'appartient à aucun cycle). Même 404 qu'une
+    présence inexistante : aucun oracle d'existence."""
+    if not is_cycle_restricted(current_user):
+        return
+    try:
+        require_students_in_scope(db, tenant_id, current_user, [att.student_id])
+        require_classes_in_scope(db, tenant_id, current_user, [att.classroom_id])
+    except HTTPException:
+        raise HTTPException(status_code=404, detail="Attendance record not found") from None
+
 
 def _teacher_may_modify(db: Session, *, current_user: dict, tenant_id: str, classroom_id: Optional[str]) -> bool:
     """Ownership scoping (institutional-readiness audit, 2026-09): mirrors
@@ -322,6 +375,7 @@ def read_attendance(
     current_user: dict = Depends(require_permission("attendance:read")),
 ):
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    scope_class_ids = scoped_class_ids(db, tenant_id, current_user)  # périmètre par cycle (B2c-2)
     allowed_ids = _allowed_student_ids_for_caller(db, current_user=current_user, tenant_id=tenant_id)
     if allowed_ids is not None:
         if student_ids:
@@ -333,7 +387,8 @@ def read_attendance(
         else:
             student_ids = [UUID(sid) for sid in allowed_ids]
     try:
-        return crud_sl.get_attendance(db, tenant_id=tenant_id, student_ids=student_ids)
+        return crud_sl.get_attendance(db, tenant_id=tenant_id, student_ids=student_ids,
+                                      scope_class_ids=scope_class_ids)
     except Exception as e:
         db.rollback()
         logger.error("Error reading attendance: %s", e, exc_info=True)
@@ -357,8 +412,15 @@ def create_attendance(
 ):
     # 2026-11-11 (CRAWL-W) : mêmes contrôles que POST /attendance/ (FK du
     # tenant, enseignant limité à ses classes).
-    from app.api.v1.endpoints.academic.attendance import _teacher_may_create
+    from app.api.v1.endpoints.academic.attendance import (
+        _require_attendance_write_in_scope, _teacher_may_create,
+    )
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    # Périmètre par cycle (B2c-2), avant toute écriture : l'élève ET la classe.
+    _require_attendance_write_in_scope(
+        db, tenant_id=tenant_id, current_user=current_user,
+        student_ids=[obj_in.student_id], classroom_ids=[obj_in.classroom_id],
+    )
     ensure_refs_in_tenant(db, tenant_id, ("students", obj_in.student_id),
                           ("subjects", obj_in.subject_id), ("classes", obj_in.classroom_id))
     if not _teacher_may_create(db, current_user=current_user, tenant_id=tenant_id,
@@ -392,6 +454,7 @@ def update_attendance(
         ).first()
         if not att:
             raise HTTPException(status_code=404, detail="Attendance record not found")
+        _require_attendance_record_in_scope(db, current_user=current_user, tenant_id=tenant_id, att=att)
         # SECURITY FIX (institutional-readiness audit, 2026-09): mirrors
         # academic/attendance.py::_teacher_may_modify — a TEACHER holds
         # attendance:write tenant-wide, so without this any teacher could
@@ -434,6 +497,7 @@ def delete_attendance(
         ).first()
         if not att:
             raise HTTPException(status_code=404, detail="Attendance record not found")
+        _require_attendance_record_in_scope(db, current_user=current_user, tenant_id=tenant_id, att=att)
         db.delete(att)
         log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
                   action="DELETE_ATTENDANCE", resource_type="ATTENDANCE",
@@ -678,6 +742,14 @@ def _manages_all_teachers(current_user: dict) -> bool:
     return user_has_permission(current_user, "settings:write")
 
 
+def _require_own_slot_in_scope(current_user: dict, teacher_id) -> None:
+    """Périmètre par cycle (B2c-2) : un compte restreint ne gère que SES créneaux
+    (``teacher_id`` == lui-même) ; pour un autre enseignant, 404 identique à un créneau
+    inexistant, avant toute écriture. Sans effet pour un compte non restreint."""
+    if is_cycle_restricted(current_user) and str(teacher_id) != str(current_user.get("id")):
+        raise HTTPException(status_code=404, detail="Créneau introuvable")
+
+
 def _slot_owner(current_user: dict, requested: Optional[UUID]) -> str:
     """Enseignant propriétaire d'un créneau à créer : soi-même, sauf pour
     l'administration qui peut créer pour un autre enseignant."""
@@ -750,6 +822,8 @@ def list_teacher_appointments(
         statuses=status.split(",") if status else None,
         date_from=from_date.isoformat() if from_date else None,
         limit=page_size, offset=(page - 1) * page_size,
+        # Périmètre par cycle (B2c-2) : un rendez-vous d'élève hors périmètre n'est pas listé.
+        scope_class_ids=scoped_class_ids(db, tenant_id, current_user),
     )
     return items
 
@@ -766,6 +840,13 @@ def update_teacher_appointment_status(
     appelée par AppointmentSlots.tsx mais absente jusqu'ici : 404)."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     appointment = appointments_svc.get_appointment(db, tenant_id, str(appointment_id))
+    # Périmètre par cycle (B2c-2) : un rendez-vous rattaché à un élève hors périmètre répond
+    # comme un rendez-vous inexistant, avant le contrôle de propriété et toute écriture.
+    if (appointment.get("student") or {}).get("id") is not None:
+        try:
+            require_student_in_scope(db, tenant_id, current_user, appointment["student"]["id"])
+        except HTTPException:
+            raise HTTPException(status_code=404, detail="Rendez-vous introuvable") from None
     owner = (appointment["teacher"] or {}).get("id")
     if owner != str(current_user.get("id")) and not _manages_all_teachers(current_user):
         raise HTTPException(status_code=403, detail="Ce rendez-vous concerne un autre enseignant")
@@ -818,6 +899,7 @@ def create_appointment_slot(
     créer au nom d'un autre enseignant."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     teacher_id = _slot_owner(current_user, obj_in.teacher_id)
+    _require_own_slot_in_scope(current_user, teacher_id)
     _check_teacher_in_tenant(db, tenant_id, teacher_id)
     slot_id = _insert_slot(db, tenant_id, teacher_id, obj_in)
     if slot_id is None:
@@ -845,6 +927,9 @@ def bulk_create_appointment_slots(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     created, skipped = [], 0
     checked: set[str] = set()
+    # Périmètre par cycle : tout le lot est vérifié avant la première insertion (tout ou rien).
+    for slot in body.slots:
+        _require_own_slot_in_scope(current_user, _slot_owner(current_user, slot.teacher_id))
     for slot in body.slots:
         teacher_id = _slot_owner(current_user, slot.teacher_id)
         if teacher_id not in checked:
@@ -862,6 +947,23 @@ def bulk_create_appointment_slots(
     )
     db.commit()
     return {"created": len(created), "skipped": skipped, "ids": created}
+
+
+def _require_slot_without_out_of_scope_appointment(db: Session, tenant_id: str, current_user: dict, slot_id: str) -> None:
+    if not is_cycle_restricted(current_user):
+        return
+    sql, binds = student_scope_sql(
+        "a.student_id", scoped_class_ids(db, tenant_id, current_user), tenant_id=tenant_id, tag="slt",
+    )
+    hidden = db.execute(
+        text(
+            "SELECT 1 FROM appointments a WHERE a.slot_id = :sid AND a.tenant_id = :tid "
+            f"AND a.student_id IS NOT NULL AND NOT ({sql}) LIMIT 1"
+        ).bindparams(bindparam("sid", type_=GUID()), bindparam("tid", type_=GUID()), *binds),
+        {"sid": slot_id, "tid": tenant_id},
+    ).first()
+    if hidden:
+        raise HTTPException(status_code=404, detail="Créneau introuvable")
 
 
 @router.delete("/appointment-slots/{slot_id}/")
@@ -882,6 +984,11 @@ def delete_appointment_slot(
     ).first()
     if not row:
         raise HTTPException(status_code=404, detail="Créneau introuvable")
+    _require_own_slot_in_scope(current_user, row[0])
+    # Périmètre par cycle (B2c-2) : un créneau qui porte un rendez-vous (quel que soit son
+    # statut) d'un élève hors périmètre répond comme un créneau inexistant : ni suppression,
+    # ni message « rendez-vous en cours » qui révélerait ce rendez-vous.
+    _require_slot_without_out_of_scope_appointment(db, tenant_id, current_user, str(slot_id))
     if str(row[0]) != str(current_user.get("id")) and not _manages_all_teachers(current_user):
         raise HTTPException(status_code=403, detail="Ce créneau appartient à un autre enseignant")
     if appointments_svc.active_appointment_count(db, tenant_id, str(slot_id)):
@@ -1285,6 +1392,14 @@ def list_check_in_sessions(
         # All filter values are passed as bound parameters (safe from injection).
         conditions = ["tenant_id = :tid"]
         params: Dict[str, Any] = {"tid": tenant_id}
+        scope_binds: list = []
+        if is_cycle_restricted(current_user):
+            # Périmètre par cycle (B2c-2) : séances des seules classes du compte (une séance sans
+            # classe n'appartient à aucun cycle) ; filtre avant comptage et pagination.
+            scope_sql, scope_binds = class_scope_sql(
+                "classroom_id", scoped_class_ids(db, tenant_id, current_user), tag="cis",
+            )
+            conditions.append(scope_sql)
         if teacher_id:
             conditions.append("teacher_id = :teacher_id")
             params["teacher_id"] = teacher_id
@@ -1305,11 +1420,11 @@ def list_check_in_sessions(
         offset = (page - 1) * page_size
 
         count_row = db.execute(
-            text(f"SELECT COUNT(*) FROM check_in_sessions WHERE {where}"), params
+            text(f"SELECT COUNT(*) FROM check_in_sessions WHERE {where}").bindparams(*scope_binds), params
         ).scalar()
 
         rows = db.execute(
-            text(f"SELECT {_SESSION_SELECT_COLUMNS} FROM check_in_sessions WHERE {where} ORDER BY session_date DESC, created_at DESC LIMIT :lim OFFSET :off"),
+            text(f"SELECT {_SESSION_SELECT_COLUMNS} FROM check_in_sessions WHERE {where} ORDER BY session_date DESC, created_at DESC LIMIT :lim OFFSET :off").bindparams(*scope_binds),
             {**params, "lim": page_size, "off": offset},
         ).fetchall()
 
@@ -1340,6 +1455,8 @@ def create_check_in_session(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    # Périmètre par cycle (B2c-2), avant toute écriture : la classe doit être dans le périmètre.
+    require_classes_in_scope(db, tenant_id, current_user, [obj_in.classroom_id])
     _check_session_class(db, tenant_id=tenant_id, current_user=current_user,
                          class_id=obj_in.classroom_id)
     try:
@@ -1396,6 +1513,7 @@ def start_check_in_session(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    require_class_in_scope(db, tenant_id, current_user, obj_in.class_id)  # périmètre par cycle (B2c-2)
     _check_session_class(db, tenant_id=tenant_id, current_user=current_user,
                          class_id=obj_in.class_id, subject_id=obj_in.subject_id)
     try:
@@ -1437,6 +1555,25 @@ class CheckInSessionEnd(BaseModel):
     end_time: Optional[time] = None
 
 
+def _require_check_in_session_in_scope(db: Session, tenant_id: str, current_user: dict, session_id) -> None:
+    """Périmètre par cycle (B2c-2) : la classe de la séance doit être dans le périmètre (une
+    séance sans classe n'appartient à aucun cycle). Même 404 qu'une séance inexistante. Sans
+    effet pour un compte non restreint."""
+    if not is_cycle_restricted(current_user):
+        return
+    try:
+        parsed = UUID(str(session_id))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Session introuvable") from None
+    row = db.execute(
+        text("SELECT classroom_id FROM check_in_sessions WHERE id = :id AND tenant_id = :tid"),
+        {"id": str(parsed), "tid": tenant_id},
+    ).first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Session introuvable")
+    require_classes_in_scope(db, tenant_id, current_user, [row[0]], detail="Session introuvable")
+
+
 @router.patch("/check-ins/sessions/{session_id}/end/")
 def end_check_in_session(
     *,
@@ -1452,6 +1589,7 @@ def end_check_in_session(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    _require_check_in_session_in_scope(db, tenant_id, current_user, session_id)  # périmètre par cycle (B2c-2)
     try:
         result = db.execute(
             text("""
@@ -1503,6 +1641,13 @@ def list_check_in_assignments(
         ALLOWED_ASSIGNMENT_STATUSES = {"PENDING", "COMPLETED", "SKIPPED", "ABSENT"}
         conditions = ["ca.tenant_id = :tid"]
         params: Dict[str, Any] = {"tid": tenant_id}
+        scope_binds: list = []
+        if is_cycle_restricted(current_user):
+            # Périmètre par cycle (B2c-2) : les affectations des seuls élèves du périmètre.
+            scope_sql, scope_binds = student_scope_sql(
+                "ca.student_id", scoped_class_ids(db, tenant_id, current_user), tenant_id=tenant_id, tag="cia",
+            )
+            conditions.append(scope_sql)
         if session_id:
             conditions.append("ca.session_id = :session_id")
             params["session_id"] = session_id
@@ -1520,7 +1665,7 @@ def list_check_in_assignments(
         offset = (page - 1) * page_size
 
         count_row = db.execute(
-            text(f"SELECT COUNT(*) FROM check_in_assignments ca WHERE {where}"), params
+            text(f"SELECT COUNT(*) FROM check_in_assignments ca WHERE {where}").bindparams(*scope_binds), params
         ).scalar()
 
         rows = db.execute(
@@ -1531,7 +1676,7 @@ def list_check_in_assignments(
                 WHERE {where}
                 ORDER BY ca.created_at DESC
                 LIMIT :lim OFFSET :off
-            """),
+            """).bindparams(*scope_binds),
             {**params, "lim": page_size, "off": offset},
         ).fetchall()
 
@@ -1641,6 +1786,7 @@ def read_check_ins(
 ):
     try:
         tenant_id = resolve_current_tenant_id(request, current_user, db)
+        scope_class_ids = scoped_class_ids(db, tenant_id, current_user)  # périmètre par cycle (B2c-2)
         from app.core.security import user_has_permission
         if not user_has_permission(current_user, "school_life:read"):
             if not student_ids:
@@ -1648,7 +1794,9 @@ def read_check_ins(
             for sid in student_ids:
                 if not _can_access_checkin_for_student(db, current_user=current_user, student_id=sid, tenant_id=tenant_id, write=False):
                     raise HTTPException(status_code=403, detail="Not authorized to view this student's check-ins.")
-        check_ins = crud_sl.get_check_ins(db, tenant_id=tenant_id, student_ids=student_ids, session_id=session_id)
+        # Périmètre par cycle (B2c-2) appliqué dans la requête, puis règle enseignant (#570).
+        check_ins = crud_sl.get_check_ins(db, tenant_id=tenant_id, student_ids=student_ids, session_id=session_id,
+                                          scope_class_ids=scope_class_ids)
         # Enseignant non privilégié : uniquement les élèves de ses classes
         # (même règle que les présences, app/core/teacher_scope.py).
         if is_scoped_teacher(current_user):
@@ -1682,6 +1830,10 @@ def create_check_in(
 ):
     try:
         tenant_id = resolve_current_tenant_id(request, current_user, db)
+        # Périmètre par cycle (B2c-2), avant toute écriture : l'élève ET la séance (donc sa classe).
+        require_student_in_scope(db, tenant_id, current_user, obj_in.student_id)
+        if obj_in.session_id is not None:
+            _require_check_in_session_in_scope(db, str(tenant_id), current_user, obj_in.session_id)
         ensure_refs_in_tenant(db, tenant_id, ("students", obj_in.student_id),
                               ("check_in_sessions", obj_in.session_id))
         if not _can_access_checkin_for_student(db, current_user=current_user, student_id=obj_in.student_id, tenant_id=tenant_id, write=True):
@@ -1718,10 +1870,16 @@ def lookup_check_in_badge(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
-    student = db.query(StudentModel).filter(
+    lookup = db.query(StudentModel).filter(
         StudentModel.tenant_id == tenant_id,
         StudentModel.card_uid == qr_code_data,
-    ).first()
+    )
+    if is_cycle_restricted(current_user):
+        # Périmètre par cycle (B2c-2) : une carte d'un élève hors périmètre se comporte comme un
+        # code inconnu (null), jamais comme une erreur qui confirmerait son existence.
+        lookup = lookup.filter(student_scope_clause(
+            StudentModel.id, scoped_class_ids(db, tenant_id, current_user), tenant_id=tenant_id))
+    student = lookup.first()
     if not student:
         return None
     return {
@@ -1749,14 +1907,20 @@ def list_badges(
         if not tenant_id:
             return []
         from sqlalchemy import text
-        rows = db.execute(text("""
+        scope_sql, scope_binds = "1 = 1", []
+        if is_cycle_restricted(current_user):
+            # Périmètre par cycle (B2c-2) : les badges des seuls élèves du périmètre, avant LIMIT.
+            scope_sql, scope_binds = student_scope_sql(
+                "b.student_id", scoped_class_ids(db, tenant_id, current_user), tenant_id=tenant_id, tag="bdg",
+            )
+        rows = db.execute(text(f"""
             SELECT b.*, s.first_name, s.last_name, s.registration_number, s.photo_url
             FROM student_badges b
             JOIN students s ON s.id = b.student_id
-            WHERE b.tenant_id = :tid
+            WHERE b.tenant_id = :tid AND {scope_sql}
             ORDER BY b.issued_at DESC
             LIMIT :limit OFFSET :offset
-        """), {"tid": tenant_id, "limit": page_size, "offset": (page - 1) * page_size}).fetchall()
+        """).bindparams(*scope_binds), {"tid": tenant_id, "limit": page_size, "offset": (page - 1) * page_size}).fetchall()
         return [{
             **dict(r._mapping),
             "student": {"id": r.student_id, "first_name": r.first_name, "last_name": r.last_name, "registration_number": r.registration_number, "photo_url": r.photo_url}
@@ -1775,14 +1939,21 @@ def students_without_badges(request: Request, db: Session = Depends(get_db),
         if not tenant_id:
             return []
         from sqlalchemy import text
-        rows = db.execute(text("""
+        scope_sql, scope_binds = "1 = 1", []
+        if is_cycle_restricted(current_user):
+            # Périmètre par cycle (B2c-2) : seuls les élèves du périmètre.
+            scope_sql, scope_binds = student_scope_sql(
+                "students.id", scoped_class_ids(db, tenant_id, current_user), tenant_id=tenant_id, tag="swb",
+            )
+        rows = db.execute(text(f"""
             SELECT id, first_name, last_name, registration_number
             FROM students
             WHERE tenant_id = :tid
               AND status = 'ACTIVE'
+              AND {scope_sql}
               AND id NOT IN (SELECT student_id FROM student_badges WHERE tenant_id = :tid AND status = 'ACTIVE')
             ORDER BY last_name, first_name
-        """), {"tid": tenant_id}).mappings().all()
+        """).bindparams(*scope_binds), {"tid": tenant_id}).mappings().all()
         return rows
     except Exception as e:
         db.rollback()
@@ -1850,10 +2021,18 @@ def list_event_registrations(
         elif student_id:
             where += " AND student_id = :student_id"
             params["student_id"] = student_id
+        scope_binds: list = []
+        if is_cycle_restricted(current_user):
+            # Périmètre par cycle (B2c-2) : seules les inscriptions d'élèves du périmètre (une
+            # inscription sans élève, d'ancien élève, n'appartient à aucun cycle) ; avant LIMIT.
+            scope_sql, scope_binds = student_scope_sql(
+                "r.student_id", scoped_class_ids(db, tenant_id, current_user), tenant_id=tenant_id, tag="evr",
+            )
+            where += f" AND {scope_sql}"
         stmt = text(
-            f"SELECT event_id, id, student_id, registered_at FROM career_event_registrations {where} "
+            f"SELECT event_id, id, student_id, registered_at FROM career_event_registrations r {where} "
             "ORDER BY registered_at DESC LIMIT :limit OFFSET :offset"
-        )
+        ).bindparams(*scope_binds)
         if "allowed_student_ids" in params:
             stmt = stmt.bindparams(bindparam("allowed_student_ids", expanding=True, type_=GUID()))
         rows = db.execute(stmt, params).mappings().all()
@@ -1899,6 +2078,12 @@ def create_event_registration(
             raise HTTPException(status_code=400, detail="tenant_id required")
         if not payload.student_id and not payload.alumni_id:
             raise HTTPException(status_code=400, detail="student_id or alumni_id is required")
+        if is_cycle_restricted(current_user):
+            # Périmètre par cycle (B2c-2), avant toute écriture : l'élève doit être dans le
+            # périmètre ; une inscription d'ancien élève (sans élève) n'appartient à aucun cycle.
+            if payload.alumni_id or not payload.student_id:
+                raise HTTPException(status_code=404, detail="Élève introuvable")
+            require_student_in_scope(db, tenant_id, current_user, payload.student_id)
 
         is_staff = user_has_permission(current_user, "hr:write") or user_has_permission(current_user, "settings:write")
         user_id = current_user.get("id")
@@ -2786,6 +2971,20 @@ def _authorize_report_card_access(
             raise HTTPException(status_code=403, detail="Accès refusé à ce bulletin")
 
 
+def _require_report_card_in_scope(db: Session, tenant_id: str, current_user: dict, student_id, classroom_id) -> None:
+    """Périmètre par cycle (B2c-2), AVANT la mise en forme (et avant toute mise en file) : un
+    bulletin contient les notes de l'élève ET le rang / les statistiques de sa classe ; l'élève et
+    la classe doivent donc être dans le périmètre. Même 404 qu'un bulletin dont l'inscription,
+    la classe ou la période n'existent pas. Sans effet pour un compte non restreint."""
+    if not is_cycle_restricted(current_user):
+        return
+    try:
+        require_student_in_scope(db, tenant_id, current_user, student_id)
+        require_class_in_scope(db, tenant_id, current_user, classroom_id)
+    except HTTPException:
+        raise HTTPException(status_code=404, detail="Inscription, classe ou période introuvable") from None
+
+
 def _validate_report_card_academic_context(
     db: Session, *, tenant_id: str, student_id: str,
     classroom_id: str, term_id: str,
@@ -2942,6 +3141,7 @@ def generate_smart_report_card(
     if not tenant_id:
         raise HTTPException(status_code=403, detail="Tenant context required")
 
+    _require_report_card_in_scope(db, tenant_id, current_user, body.student_id, body.classroom_id)
     _authorize_report_card_access(current_user, db, tenant_id, body.student_id, body.classroom_id)
 
     try:
@@ -3003,6 +3203,7 @@ def generate_report_card_pdf(
     if not tenant_id:
         raise HTTPException(status_code=403, detail="Tenant context required")
 
+    _require_report_card_in_scope(db, tenant_id, current_user, body.student_id, body.classroom_id)
     _authorize_report_card_access(current_user, db, tenant_id, body.student_id, body.classroom_id)
 
     try:
@@ -3104,6 +3305,8 @@ def get_report_card_class_summary(
         raise HTTPException(status_code=403, detail="Tenant context required")
     if is_scoped_teacher(current_user):
         raise HTTPException(status_code=403, detail="Synthèse de classe réservée à l'administration")
+    # Périmètre par cycle (B2c-2) : donnée de classe (moyennes et rangs de ses élèves).
+    require_class_in_scope(db, tenant_id, current_user, classroom_id)
 
     _validate_batch_report_card_period(
         db, tenant_id=tenant_id, classroom_id=str(classroom_id), term_id=str(term_id),
@@ -3403,6 +3606,7 @@ def generate_certificate_pdf(
     # ownership rule already proven for the report card endpoints above
     # (the function's name predates this second use; the check itself is
     # generic to "does this caller own this student record").
+    require_student_in_scope(db, tenant_id, current_user, body.student_id)  # périmètre par cycle (B2c-2)
     _authorize_report_card_access(current_user, db, tenant_id, body.student_id)
     _authorize_certificate_teacher_scope(current_user, db, tenant_id, body.student_id)
 
@@ -3716,6 +3920,10 @@ async def generate_batch_report_cards(
     if is_scoped_teacher(current_user):
         raise HTTPException(status_code=403, detail="Génération groupée réservée à l'administration")
 
+    # Périmètre par cycle (B2c-2), AVANT la mise en file : le worker ARQ n'a pas d'utilisateur
+    # et ne filtre rien ; la classe doit être dans le périmètre, sinon 404 et aucune tâche créée.
+    require_class_in_scope(db, tenant_id, current_user, body.classroom_id)
+
     job_id = _job_started(
         "generate_report_cards_batch", tenant_id,
         {"classroom_id": body.classroom_id, "term_id": body.term_id, "user_id": current_user.get("id")},
@@ -3775,6 +3983,15 @@ def get_school_life_job_status(
     ).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job introuvable")
+    if is_cycle_restricted(current_user):
+        # Périmètre par cycle (B2c-2) : un compte restreint ne lit que les tâches qu'il a
+        # lancées (``payload.user_id`` est posé côté serveur à la création) et dont la classe
+        # est toujours dans son périmètre ; une tâche sans créateur enregistré lui est masquée.
+        payload = job.payload if isinstance(job.payload, dict) else {}
+        if str(payload.get("user_id")) != str(current_user.get("id")):
+            raise HTTPException(status_code=404, detail="Job introuvable")
+        require_classes_in_scope(db, tenant_id, current_user, [payload.get("classroom_id")],
+                                 detail="Job introuvable")
 
     return {
         "id": str(job.id),
@@ -3863,6 +4080,13 @@ def list_student_cards(
     from app.models.enrollment import Enrollment
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     q = db.query(StudentModel).filter(StudentModel.tenant_id == tenant_id, StudentModel.status == StudentStatus.ACTIVE)
+    if is_cycle_restricted(current_user):
+        # Périmètre par cycle (B2c-2) : seuls les élèves du périmètre ; une classe demandée hors
+        # périmètre répond 404, comme une classe inexistante.
+        if classroom_id:
+            require_class_in_scope(db, tenant_id, current_user, classroom_id)
+        q = q.filter(student_scope_clause(
+            StudentModel.id, scoped_class_ids(db, tenant_id, current_user), tenant_id=tenant_id))
     if classroom_id:
         q = q.join(Enrollment, Enrollment.student_id == StudentModel.id).filter(
             Enrollment.tenant_id == tenant_id, Enrollment.class_id == str(classroom_id), Enrollment.status == "ACTIVE")
@@ -3883,6 +4107,9 @@ def issue_student_cards(
         raise HTTPException(status_code=400, detail=f"{MAX_CARDS_PER_REQUEST} élèves au plus par demande")
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     wanted = {str(i) for i in body.student_ids}
+    # Périmètre par cycle (B2c-2) : tous les élèves du lot, avant toute écriture (tout ou rien).
+    require_students_in_scope(db, tenant_id, current_user, wanted,
+                              detail="Élève introuvable dans cet établissement")
     students = db.query(StudentModel).filter(StudentModel.tenant_id == tenant_id,
                                              StudentModel.id.in_(list(wanted))).all()
     if len(students) != len(wanted):
@@ -3918,6 +4145,7 @@ def revoke_student_card(
 ):
     """Retire le code de carte : la carte n'est plus reconnue au pointage."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    require_student_in_scope(db, tenant_id, current_user, student_id)  # périmètre par cycle (B2c-2)
     s = db.query(StudentModel).filter(StudentModel.tenant_id == tenant_id, StudentModel.id == str(student_id)).first()
     if not s:
         raise HTTPException(status_code=404, detail="Élève introuvable")

@@ -23,9 +23,9 @@ from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
 from app.core.parent_scope import parent_student_filter
 from app.core.cycle_scope import (
-    class_scope_sql, is_cycle_restricted, require_class_in_scope, require_enrollment_in_scope,
-    require_student_in_scope, require_submission_in_scope, scoped_class_ids, student_scope_clause,
-    student_scope_sql,
+    class_scope_sql, is_cycle_restricted, require_class_in_scope, require_classes_in_scope,
+    require_enrollment_in_scope, require_student_in_scope, require_students_in_scope,
+    require_submission_in_scope, scoped_class_ids, student_scope_clause, student_scope_sql,
 )
 from app.core.tenant_resolution import resolve_current_tenant_id
 from app.core.tenant_refs import ensure_refs_in_tenant
@@ -2557,6 +2557,14 @@ def list_student_badges(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     where = ["b.tenant_id = :tid"]
     params: dict = {"tid": tenant_id}
+    scope_binds = []
+    if is_cycle_restricted(current_user):
+        # Périmètre par cycle (B2c-2) : les badges des seuls élèves du périmètre. Calculé hors du
+        # ``try`` ci-dessous : une erreur de périmètre ne doit jamais devenir une liste vide.
+        scope_sql, scope_binds = student_scope_sql(
+            "b.student_id", scoped_class_ids(db, tenant_id, current_user), tenant_id=tenant_id, tag="sbd",
+        )
+        where.append(scope_sql)
 
     # Identifiants mal formés : 422 explicite plutôt qu'une erreur de base.
     for name, value in (("student_id", student_id), ("classroom_id", classroom_id)):
@@ -2575,7 +2583,7 @@ def list_student_badges(
         WHERE {' AND '.join(where)}
         ORDER BY b.awarded_at DESC
         LIMIT 500
-    """), params).mappings().all()
+    """).bindparams(*scope_binds), params).mappings().all()
     return [dict(r) for r in rows]
 
 
@@ -2599,6 +2607,18 @@ def create_student_badge(
     try:
         # body may be a list or a single object
         items = body if isinstance(body, list) else [body]
+        if is_cycle_restricted(current_user):
+            # Périmètre par cycle (B2c-2), AVANT toute écriture : chaque élève du lot (et chaque
+            # classe fournie) doit être dans le périmètre, sinon 404 et rien n'est écrit.
+            dicts = [item if isinstance(item, dict) else {} for item in items]
+            require_students_in_scope(
+                db, tenant_id, current_user, [item.get("student_id") for item in dicts],
+                detail="Élève introuvable dans cet établissement",
+            )
+            require_classes_in_scope(
+                db, tenant_id, current_user,
+                [item["classroom_id"] for item in dicts if item.get("classroom_id") is not None],
+            )
         created = []
         for item in items:
             student_id = item.get("student_id")
@@ -2650,6 +2670,16 @@ def delete_student_badge(
         badge_uuid = str(uuid.UUID(str(badge_id)))
     except ValueError:
         raise HTTPException(status_code=404, detail="Badge introuvable")
+    if is_cycle_restricted(current_user):
+        # Périmètre par cycle (B2c-2), avant toute écriture : l'élève du badge doit être dans le
+        # périmètre ; un badge hors périmètre répond comme un badge inexistant (404).
+        owner = db.execute(
+            text("SELECT student_id FROM student_badges WHERE id = :id AND tenant_id = :tid"),
+            {"id": badge_uuid, "tid": tenant_id},
+        ).first()
+        if owner is None:
+            raise HTTPException(status_code=404, detail="Badge introuvable")
+        require_students_in_scope(db, tenant_id, current_user, [owner[0]], detail="Badge introuvable")
     result = db.execute(text("DELETE FROM student_badges WHERE id = :id AND tenant_id = :tid"),
                         {"id": badge_uuid, "tid": tenant_id})
     if result.rowcount == 0:

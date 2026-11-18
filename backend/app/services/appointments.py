@@ -148,9 +148,18 @@ def list_slots(db: Session, tenant_id: str, *, teacher_id: Optional[str] = None,
 
 def list_appointments(db: Session, tenant_id: str, *, teacher_id: Optional[str] = None,
                       parent_id: Optional[str] = None, statuses: Optional[list[str]] = None,
-                      date_from: Optional[str] = None, limit: int = 200, offset: int = 0) -> tuple[list[dict], int]:
+                      date_from: Optional[str] = None, limit: int = 200, offset: int = 0,
+                      scope_class_ids: Optional[list] = None) -> tuple[list[dict], int]:
+    """``scope_class_ids`` (périmètre par cycle, lot B2c-2) : None = aucune restriction ; sinon
+    un rendez-vous rattaché à un élève n'est listé que si l'élève est dans le périmètre (un
+    rendez-vous sans élève reste lisible). Filtre appliqué avant le comptage et la pagination."""
     conditions = ["a.tenant_id = :tid"]
     params: dict[str, Any] = {"tid": tenant_id}
+    scope_binds: list = []
+    if scope_class_ids is not None:
+        from app.core.cycle_scope import student_scope_sql
+        scope_sql, scope_binds = student_scope_sql("a.student_id", scope_class_ids, tenant_id=tenant_id, tag="apt")
+        conditions.append(f"(a.student_id IS NULL OR {scope_sql})")
     if teacher_id:
         conditions.append("a.teacher_id = :teacher_id")
         params["teacher_id"] = str(teacher_id)
@@ -172,6 +181,9 @@ def list_appointments(db: Session, tenant_id: str, *, teacher_id: Optional[str] 
     if statuses:
         stmt_count = stmt_count.bindparams(bindparam("statuses", expanding=True))
         stmt_rows = stmt_rows.bindparams(bindparam("statuses", expanding=True))
+    if scope_binds:
+        stmt_count = stmt_count.bindparams(*scope_binds)
+        stmt_rows = stmt_rows.bindparams(*scope_binds)
     total = db.execute(stmt_count, params).scalar() or 0
     rows = db.execute(stmt_rows, {**params, "lim": limit, "off": offset}).mappings().all()
     return [serialize_appointment(r) for r in rows], int(total)

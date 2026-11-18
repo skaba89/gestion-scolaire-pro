@@ -282,9 +282,13 @@ def _not_found(detail: str) -> HTTPException:
     return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=detail)
 
 
-def require_students_in_scope(db: Session, tenant_id, user: dict, student_ids: Iterable) -> None:
+def require_students_in_scope(
+    db: Session, tenant_id, user: dict, student_ids: Iterable, *, detail: str = "Élève introuvable",
+) -> None:
     """Version « lot » de ``require_student_in_scope`` : 404 si UN SEUL élève est hors
-    périmètre (tout ou rien, avant toute écriture). Sans effet pour un compte non restreint."""
+    périmètre (tout ou rien, avant toute écriture). Sans effet pour un compte non restreint.
+    ``detail`` : message du 404, pour rester identique à celui de la route quand l'objet
+    n'existe pas (aucun oracle d'existence)."""
     cycles = _cycles_of(user)
     if cycles is None:
         return
@@ -293,7 +297,7 @@ def require_students_in_scope(db: Session, tenant_id, user: dict, student_ids: I
         return
     ids = _uuid_set(values)
     if ids is None:
-        raise _not_found("Élève introuvable")
+        raise _not_found(detail)
     from app.models.student import Student
 
     class_ids = allowed_class_ids(db, tenant_id, cycles)
@@ -305,12 +309,15 @@ def require_students_in_scope(db: Session, tenant_id, user: dict, student_ids: I
         )
     ).all()
     if len(found) != len(ids):
-        raise _not_found("Élève introuvable")
+        raise _not_found(detail)
 
 
-def require_classes_in_scope(db: Session, tenant_id, user: dict, class_ids_to_check: Iterable) -> None:
+def require_classes_in_scope(
+    db: Session, tenant_id, user: dict, class_ids_to_check: Iterable, *, detail: str = "Classe introuvable",
+) -> None:
     """404 si UNE SEULE classe est hors périmètre ; une classe absente (``None``) l'est aussi
-    pour un compte restreint (une donnée sans classe n'appartient à aucun cycle)."""
+    pour un compte restreint (une donnée sans classe n'appartient à aucun cycle). ``detail`` :
+    message du 404 (identique à celui de la route pour un objet inexistant)."""
     cycles = _cycles_of(user)
     if cycles is None:
         return
@@ -319,7 +326,7 @@ def require_classes_in_scope(db: Session, tenant_id, user: dict, class_ids_to_ch
         return
     ids = _uuid_set(values)
     if ids is None:
-        raise _not_found("Classe introuvable")
+        raise _not_found(detail)
     from app.models.classroom import Classroom
 
     class_ids = allowed_class_ids(db, tenant_id, cycles)
@@ -331,7 +338,7 @@ def require_classes_in_scope(db: Session, tenant_id, user: dict, class_ids_to_ch
         )
     ).all()
     if len(found) != len(ids):
-        raise _not_found("Classe introuvable")
+        raise _not_found(detail)
 
 
 def require_assessments_in_scope(db: Session, tenant_id, user: dict, assessment_ids: Iterable) -> None:

@@ -54,7 +54,7 @@ def _student(tid: str, first="Ibrahima") -> str:
 
 def _as(tid: str, role: str) -> dict:
     uid = str(uuid.uuid4())
-    user = {"id": uid, "roles": [role], "tenant_id": tid}
+    user = {"id": uid, "roles": [role], "tenant_id": tid, "_cycle_ids": None}
     app.dependency_overrides[get_current_user] = lambda: user
     return {"Authorization": f"Bearer {create_access_token({'sub': uid, 'tenant_id': tid, 'roles': [role]})}"}
 

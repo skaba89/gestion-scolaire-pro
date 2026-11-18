@@ -1212,12 +1212,108 @@ filtrés mais leurs requêtes n'aboutissent pas aujourd'hui (table
 `class_sessions` absente de toute migration, colonnes de `student_check_ins`
 inexistantes : réponse `[]`). Comptes non restreints, TENANT_ADMIN, TEACHER
 (`teacher_scope`) et PARENT (`parent_scope`) : comportement identique à avant.
-**Limites d'écran jusqu'à B2c-2** : la fiche élève
-(`src/pages/admin/StudentDetail.tsx` via `src/queries/admin.ts`) lit
-`/school-life/grades/` et `/school-life/attendance/`, encore DENY : elle affiche
-« aucune note / présence » pour un compte restreint ; `LiveAttendance`,
-`Badges`, `QrScanPage` et `ReportCards` répondent 403. Un identifiant mal formé
-ou un `null` explicite visant une destination (élève, évaluation, classe) est
-refusé en 404 sans écriture ; un objet inexistant et un objet hors périmètre
-renvoient exactement le même message 404.
+**Limites d'écran** (mises à jour par B2c-2 : la fiche élève, `LiveAttendance`,
+`Badges`, `QrScanPage` et `ReportCards` s'appuient désormais sur des routes
+`FILTERED`, voir ci-dessous ; **non vérifié écran par écran**). Un identifiant
+mal formé ou un `null` explicite visant une destination (élève, évaluation,
+classe) est refusé en 404 sans écriture ; un objet inexistant et un objet hors
+périmètre renvoient exactement le même message 404.
 Tests : `backend/tests/test_cycle_scope_schooling.py`.
+
+### Lot B2c-2 (2026-11-17) : vie scolaire, bulletins, incidents, alertes, badges, rendez-vous
+
+Aucune permission ajoutée (`ROLE_PERMISSIONS` inchangé), aucune migration. Mêmes
+règles que B2c-1 : donnée d'élève = l'élève est dans le périmètre (l'historique
+suit l'élève) ; donnée de classe = la classe l'est ; écriture = **chaque**
+identifiant reçu ou résolu (élève, classe, évaluation, séance, incident →
+élève) vérifié **avant** toute écriture ; `PUT` = état actuel ET final ; lots
+tout ou rien ; objet inexistant, hors périmètre ou d'un autre établissement =
+**404 identique**. 65 routes, jusque-là refusées (`403 CYCLE_SCOPE_DENIED`) :
+**51 `FILTERED`, 5 `INDEPENDENT`, 9 `DENY`**.
+
+| Famille | Routes | Règle |
+|---|---|---|
+| Jumelles B2c-1 | `GET\|POST /school-life/{assessments,grades,attendance}/`, `PUT\|DELETE .../{id}/` | mêmes contrôles que les routes canoniques (classe / élève + évaluation / élève + classe) |
+| Pointages | `GET\|POST /school-life/check-ins/`, `GET .../check-ins/assignments/` | élève ; en écriture élève ET séance (donc sa classe) |
+| Séances de pointage | `GET\|POST .../check-ins/sessions/`, `POST .../sessions/start/`, `PATCH .../sessions/{id}/end/` | classe de la séance (une séance sans classe n'appartient à aucun cycle) |
+| Cartes, badges | `GET /school-life/student-cards/`, `POST .../issue/`, `DELETE .../{student_id}/`, `GET /school-life/badges/`, `GET .../students-without-badges/`, `GET\|POST /student-badges/`, `DELETE /student-badges/{id}/`, `GET .../check-ins/badges/` | élève ; une carte hors périmètre se comporte comme un code inconnu (réponse `null`, comme avant pour un code inconnu) |
+| Bulletins, attestations | `POST .../generate-report-card/v2/`, `.../pdf/`, `.../generate-certificate/pdf/`, `.../generate-report-cards/batch/`, `GET .../report-cards/class-summary/` | bulletin : élève ET classe ; attestation : élève ; lot et synthèse : classe. Vérifiés **avant** la mise en file ARQ (le worker n'a pas d'utilisateur) : hors périmètre = 404 et **aucune tâche créée** |
+| Tâches | `GET /school-life/jobs/{job_id}/` | un compte restreint ne lit que les tâches qu'il a lancées (`payload.user_id`, posé côté serveur à la création) dont la classe est toujours dans son périmètre ; une tâche sans créateur enregistré lui est masquée |
+| Alertes précoces | `GET\|POST .../early-warnings/`, `GET .../paginated/`, `GET .../summary/`, `PUT .../{id}/` | élève ; liste et pagination filtrées avant comptage ; `summary` n'agrège que les alertes des élèves du périmètre (comme les compteurs de présence). Reste réservé à la direction (`_management_only`) |
+| Incidents | `GET\|POST /incidents/`, `PUT .../{id}/`, `.../assign/`, `.../resolve/` | voir ci-dessous |
+| Rendez-vous | `GET .../appointment-slots/appointments/`, `PATCH .../appointments/{id}/`, `DELETE .../appointment-slots/{id}/` | un rendez-vous rattaché à un élève hors périmètre est masqué (404) ; un rendez-vous sans élève reste lisible |
+| Inscriptions aux événements | `GET\|POST /school-life/event-registrations/` | élève ; une inscription sans élève (ancien élève) n'appartient à aucun cycle |
+
+**Incidents multi-élèves (choix).** Un incident est visible, modifiable, assignable
+ou résolvable **seulement si TOUS ses élèves sont dans le périmètre** (et s'il en
+a au moins un ; création : au moins un élève, tous dans le périmètre). Le titre,
+la description et les notes sont communs à toutes les parties : montrer un
+incident dont un élève est hors périmètre divulguerait son contenu, et ne masquer
+que les élèves ne protégerait pas le texte libre. Constat : le lien actuel est la
+seule colonne `incidents.student_id` ; la table `incident_parties`, que
+`create_incident` alimente, n'existe dans aucune migration ni dans
+`operational_tables` (voir « Limites »). Un futur lien multi-élèves devra être
+ajouté au filtre.
+
+**Tâches (choix).** `jobs.payload.user_id` enregistre le créateur : les tâches
+sont donc filtrées par créateur (et par classe encore dans le périmètre). Les
+tâches créées avant ce lot sans `user_id` ne sont lisibles que des comptes non
+restreints.
+
+`INDEPENDENT` : `GET /school-life/events/` et `events/export.ics`,
+`GET /school-life/bookable-resources/`, `GET /school-life/bookings/` (aucune
+donnée d'élève ni de classe : vérifié dans le code et par test ; les réservations
+exposent le nom et l'e-mail de la personne qui a réservé, donnée du personnel) ;
+`GET /school-life/appointment-slots/` (créneaux : aucune donnée d'élève ni de
+classe).
+
+**Créneaux de rendez-vous : un compte restreint ne gère que les siens.**
+`POST /school-life/appointment-slots/`, `POST .../bulk/` et
+`DELETE .../{slot_id}/` sont `FILTERED` : pour un compte restreint,
+`teacher_id` doit être le compte lui-même (par défaut c'est le cas) ; pour un
+autre enseignant, **404** identique à un créneau inexistant, sans écriture (lot :
+un seul créneau d'un autre enseignant refuse tout, avant la première insertion).
+Comptes non restreints : inchangé. Limite connue (oracle minimal) : le
+`booked_count` d'un créneau visible compte aussi les rendez-vous d'élèves hors
+périmètre (un nombre, aucune identité) ; la suppression d'un créneau qui porte un
+tel rendez-vous répond 404 comme un créneau inexistant.
+
+**Restent `DENY`** : écritures des événements, ressources réservables et
+réservations (données d'établissement, décision Q4) ;
+`GET /school-life/gamification/stats/` (agrégat d'établissement, lot B2e).
+Finances (B2d) et tableaux de bord (B2e) inchangés.
+
+Limites : un compte restreint ne peut pas créer une évaluation via
+`POST /school-life/assessments/` (le schéma ne porte pas de classe : l'évaluation
+n'appartiendrait à aucun cycle ; utiliser `POST /assessments/`) ; il ne crée pas de
+séance de pointage sans classe ; un incident sans élève lié, une alerte ou un
+rendez-vous d'élève hors périmètre lui sont invisibles ; un compte restreint ne
+peut pas enregistrer un ancien élève à un événement. Le lot de bulletins d'une
+classe suit la règle « classe dans le périmètre » (le roster est celui de
+l'année de la classe). Défauts préexistants relevés, **non corrigés** : voir
+`docs/STATUT_ACTUEL.md` (2026-11-17, B2c-2). Comptes non restreints,
+TENANT_ADMIN, TEACHER (`teacher_scope`) et PARENT (`parent_scope`) seuls :
+comportement identique à avant. **Un compte restreint qui cumule PARENT (ou
+TEACHER)** est soumis au périmètre de cycle, sans union avec ses droits de parent :
+ses propres enfants hors cycle répondent 404 (bulletin, pointage en écriture) ou
+sont absents des listes (pointages, `/school-life/grades/`).
+
+**Limites d'écran (compte restreint)** : appels encore `DENY` côté écrans :
+`StudentDetail` (`GET /payments/invoices/`, `GET /parents/students/{id}/parents/`,
+`DELETE /parents/link/{id}/`) ; `Gamification.tsx`
+(`/school-life/gamification/stats/`) ; `SchoolCalendar` et `admin.ts` (création,
+modification, suppression d'événement) ; `Bookings.tsx` (réservations, y compris
+réserver une salle). `Incidents.tsx` n'envoie jamais `student_ids` : la création
+est impossible pour un compte restreint et les incidents sans élève lui sont
+invisibles (compteurs partiels). Inscriptions aux événements : compteurs partiels
+(seules les inscriptions d'élèves du périmètre).
+
+**Défauts préexistants hors lot, non corrigés** : `PUT /school-life/grades/{id}/`
+(500 systématique), `PUT /incidents/{id}/resolve/` (colonne `resolved_at`
+absente), `POST /incidents/` avec `student_ids` (table `incident_parties`
+absente), `POST /school-life/check-ins/` ouvert à un élève ou un parent pour
+lui-même ou son enfant (à confirmer côté métier). `/student-badges/`,
+`GET /school-life/assessments/` (permission), `gamification/stats` et
+`GET /school-life/check-ins/` (périmètre enseignant) sont traités par une PR
+séparée ; le filtre de cycle de ce lot y reste tel quel. Tests :
+`backend/tests/test_cycle_scope_school_life.py`.

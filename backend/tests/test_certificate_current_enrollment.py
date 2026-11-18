@@ -53,7 +53,7 @@ def test_certificate_denied_when_no_current_active_enrollment():
         with pytest.raises(HTTPException) as denied:
             api.generate_certificate_pdf(
                 _request(), api.CertificateRequest(student_id=student), db,
-                {"id": str(uuid4()), "roles": ["DIRECTOR"]},
+                {"id": str(uuid4()), "roles": ["DIRECTOR"], "_cycle_ids": None},
             )
     assert denied.value.status_code == 404
     render.assert_not_called()
