@@ -5,7 +5,7 @@
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { HomeworkList, HomeworkForm, homeworkService } from "@/features/homework";
+import { HomeworkList, HomeworkForm } from "@/features/homework";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,7 +14,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import HomeworkGradingDialog from "@/components/homework/HomeworkGradingDialog";
+import { useTenant } from "@/contexts/TenantContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, BookOpen, Calendar, Clock, BookMarked, FileText } from "lucide-react";
@@ -24,6 +27,9 @@ import { dateFnsLocale } from "@/lib/locale";
 
 export default function TeacherHomework() {
   const { t } = useTranslation();
+  const { currentTenant } = useTenant();
+  const { user } = useAuth();
+  const [grading, setGrading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [selectedHomework, setSelectedHomework] = useState<Homework | undefined>(undefined);
   const [viewingHomework, setViewingHomework] = useState<Homework | null>(null);
@@ -39,19 +45,9 @@ export default function TeacherHomework() {
     setIsOpen(false);
   };
 
-  const handleView = async (id: string) => {
-    try {
-      const homework = await homeworkService.getHomework(id);
-      setViewingHomework(homework as unknown as Homework);
-      setIsViewOpen(true);
-    } catch {
-      // If the detailed fetch fails, find from list
-      const hw = (await homeworkService.listHomework("")).find((h) => h.id === id);
-      if (hw) {
-        setViewingHomework(hw);
-        setIsViewOpen(true);
-      }
-    }
+  const handleView = (_id: string, homework: Homework) => {
+    setViewingHomework(homework);
+    setIsViewOpen(true);
   };
 
   const getDueDateLabel = (dueDate: string) => {
@@ -64,7 +60,7 @@ export default function TeacherHomework() {
     return { text: format(date, "dd MMM yyyy", { locale: dateFnsLocale() }), variant: "outline" as const };
   };
 
-  const submissions = (viewingHomework as any)?.homework_submissions || [];
+  const canOpenGrading = !!user && !!viewingHomework?.class_id && viewingHomework.tenant_id === currentTenant?.id;
   const dueInfo = viewingHomework?.due_date ? getDueDateLabel(viewingHomework.due_date) : null;
 
   return (
@@ -182,35 +178,10 @@ export default function TeacherHomework() {
                 )}
               </div>
 
-              {/* Submissions Summary */}
-              {submissions.length > 0 && (
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium">
-                      {t("homework.submissions")} ({submissions.length})
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-4 pt-0">
-                    <div className="grid grid-cols-3 gap-2 text-center">
-                      <div className="p-2 bg-muted/50 rounded-lg">
-                        <p className="text-lg font-bold">{submissions.length}</p>
-                        <p className="text-xs text-muted-foreground">{t("homework.total")}</p>
-                      </div>
-                      <div className="p-2 bg-muted/50 rounded-lg">
-                        <p className="text-lg font-bold">
-                          {submissions.filter((s: any) => s.graded_at).length}
-                        </p>
-                        <p className="text-xs text-muted-foreground">{t("homework.graded")}</p>
-                      </div>
-                      <div className="p-2 bg-muted/50 rounded-lg">
-                        <p className="text-lg font-bold">
-                          {submissions.filter((s: any) => !s.graded_at).length}
-                        </p>
-                        <p className="text-xs text-muted-foreground">{t("homework.pending")}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+              {canOpenGrading && (
+                <Button onClick={() => { setIsViewOpen(false); setGrading(true); }}>
+                  {t("homework.gradeSubmissions")}
+                </Button>
               )}
 
               {/* Actions */}
@@ -244,6 +215,15 @@ export default function TeacherHomework() {
           )}
         </DialogContent>
       </Dialog>
+      {grading && canOpenGrading && viewingHomework && currentTenant && user && (
+        <HomeworkGradingDialog
+          key={`${currentTenant.id}-${user.id}-${viewingHomework.id}`}
+          homework={viewingHomework}
+          tenantId={currentTenant.id}
+          open={grading}
+          onOpenChange={setGrading}
+        />
+      )}
     </div>
   );
 }

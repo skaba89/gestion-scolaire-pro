@@ -988,6 +988,12 @@
     "errorRecording": "Error:"
   },
   "homework": {
+    "gradeSubmissions": "Grade submissions",
+    "gradingFeedback": "Feedback",
+    "gradingLoadError": "Unable to load submissions for this class.",
+    "gradingEmpty": "No students are enrolled in this class.",
+    "gradeSaved": "Grade saved",
+    "gradeSaveError": "Unable to save the grade.",
     "teacherPageTitle": "Homework Management",
     "teacherPageSubtitle": "Create and manage homework for your classes",
     "studentPageTitle": "My Homework",

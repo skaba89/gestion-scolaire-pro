@@ -988,6 +988,12 @@
         "errorRecording": "Erreur:"
     },
     "homework": {
+        "gradeSubmissions": "Noter les rendus",
+        "gradingFeedback": "Commentaire",
+        "gradingLoadError": "Impossible de charger les rendus de cette classe.",
+        "gradingEmpty": "Aucun élève inscrit dans cette classe.",
+        "gradeSaved": "Note enregistrée",
+        "gradeSaveError": "Impossible d’enregistrer la note.",
         "teacherPageTitle": "Gestion des Devoirs",
         "teacherPageSubtitle": "Créez et gérez les devoirs pour vos classes",
         "studentPageTitle": "Mes Devoirs",
