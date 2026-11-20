@@ -1314,3 +1314,14 @@ ce fichier — pas d'un document de 2025 non révisé.
   détiennent déjà côté serveur : SUPER_ADMIN, TENANT_ADMIN, DIRECTOR,
   DEPARTMENT_HEAD, SECRETARY, STAFF, TEACHER). Le comptable ne la voit plus ;
   il recevait 403 sur l'écran depuis le correctif des statistiques.
+
+- **2026-11-20 — notation des rendus de devoirs, lot partiel SCHOOLING-ALIASES-01.**
+  Les deux routes de notation appliquent le filtre de cycle puis la règle de
+  classe de l’enseignant : affectation ou emploi du temps dans l’établissement.
+  Un devoir sans classe vérifiable reste hors périmètre de cet enseignant.
+  Les contrats des deux réponses et la règle des comptes à rôles cumulés sont
+  conservés. Tests : `test_homework_submission_grading.py`,
+  `test_cycle_scope_schooling.py`. Le dialogue `HomeworkGradingDialog`
+  utilise l’alias mais la page `TeacherHomework` ne le monte pas.
+  Le parcours de notation depuis le portail reste à raccorder et à recetter.
+  Aucune migration ; déploiement non attesté.

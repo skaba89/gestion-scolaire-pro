@@ -715,8 +715,27 @@ def test_student_submission_content_update_needs_homework_and_student_in_scope(s
     assert edit("teacher", "hw_6e", "sub_6e").status_code == 200
 
 
+@pytest.fixture
+def grading_assignment(school, schooling):
+    """Seuls les tests de notation demandent une affectation pour cet enseignant."""
+    assignment_id = uuid4()
+    with SessionLocal() as db:
+        switch_tenant_context(db, str(school["tenant"]))
+        _insert_raw(db, """INSERT INTO teacher_assignments (id, tenant_id, user_id, classroom_id)
+                           VALUES (:id, :tenant, :teacher, :classroom)""",
+                    id=assignment_id, tenant=school["tenant"], teacher=school["people"]["teacher"],
+                    classroom=schooling["cls_6e"])
+        db.commit()
+    yield
+    with SessionLocal() as db:
+        switch_tenant_context(db, str(school["tenant"]))
+        _insert_raw(db, "DELETE FROM teacher_assignments WHERE id = :id AND tenant_id = :tenant",
+                    id=assignment_id, tenant=school["tenant"])
+        db.commit()
+
+
 @needs_postgres
-def test_submission_grading_needs_homework_and_student_in_scope_without_effect(school, schooling):
+def test_submission_grading_needs_homework_and_student_in_scope_without_effect(school, schooling, grading_assignment):
     def grade(who, submission):
         return call(school, who, "POST", f"/homework/submissions/{schooling[submission]}/grade/",
                     json={"grade": 14, "feedback": "bien"})
@@ -731,7 +750,7 @@ def test_submission_grading_needs_homework_and_student_in_scope_without_effect(s
 
 
 @needs_postgres
-def test_homework_submissions_alias_list_and_grading_are_scoped(school, schooling):
+def test_homework_submissions_alias_list_and_grading_are_scoped(school, schooling, grading_assignment):
     listed = call(school, "director_teacher", "GET", "/homework-submissions/")
     assert ids(listed) == {str(schooling["sub_cp"]), str(schooling["sub_cp_on_6e"])}
     everything = {str(schooling[n]) for n in ("sub_cp", "sub_6e", "sub_cp_on_6e", "sub_6e_on_cp")}

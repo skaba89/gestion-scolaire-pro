@@ -13,6 +13,9 @@ matière compte (évaluations), la ligne doit porter sur cette matière ou
 n'en préciser aucune.
 """
 from typing import Optional
+from uuid import UUID
+
+from fastapi import HTTPException
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -47,3 +50,27 @@ def teacher_teaches_class(db: Session, *, tenant_id: str, user_id: str,
     """), {"tid": str(tenant_id), "uid": str(user_id), "cid": str(class_id),
            "sid": str(subject_id) if subject_id else None}).first()
     return row is not None
+
+
+def require_teacher_submission_class(db: Session, tenant_id: str, user: dict, submission_id: str) -> None:
+    """Réserve la notation à la classe enseignée quand le compte relève de cette règle."""
+    if not is_scoped_teacher(user):
+        return
+
+    try:
+        submission_uuid = UUID(submission_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Remise introuvable") from None
+
+    # Stabiliser le rendu et la classe du devoir jusqu'à l'enregistrement de la note.
+    class_id = db.execute(text("""
+        SELECT h.classroom_id
+        FROM homework_submissions hs
+        JOIN homework h ON h.id = hs.homework_id AND h.tenant_id = hs.tenant_id
+        WHERE hs.id = :submission AND hs.tenant_id = :tenant
+        FOR UPDATE OF hs FOR SHARE OF h
+    """), {"submission": submission_uuid, "tenant": tenant_id}).scalar_one_or_none()
+    if not class_id or not teacher_teaches_class(
+        db, tenant_id=tenant_id, user_id=user["id"], class_id=class_id,
+    ):
+        raise HTTPException(status_code=404, detail="Remise introuvable")
