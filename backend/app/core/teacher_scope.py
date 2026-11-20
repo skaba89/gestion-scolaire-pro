@@ -20,8 +20,6 @@ from fastapi import HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.core.cycle_scope import require_submission_in_scope
-
 # Rôles qui ne sont jamais restreints à « leurs » classes.
 PRIVILEGED_SCOPE_ROLES = frozenset({
     "SUPER_ADMIN", "TENANT_ADMIN", "DIRECTOR", "DEPARTMENT_HEAD", "SECRETARY", "STAFF",
@@ -54,9 +52,8 @@ def teacher_teaches_class(db: Session, *, tenant_id: str, user_id: str,
     return row is not None
 
 
-def require_submission_grading_scope(db: Session, tenant_id: str, user: dict, submission_id: str) -> None:
-    """Vérifie le cycle du compte puis la classe du devoir pour un enseignant."""
-    require_submission_in_scope(db, tenant_id, user, submission_id)
+def require_teacher_submission_class(db: Session, tenant_id: str, user: dict, submission_id: str) -> None:
+    """Réserve la notation à la classe enseignée quand le compte relève de cette règle."""
     if not is_scoped_teacher(user):
         return
 

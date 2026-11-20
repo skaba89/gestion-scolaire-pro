@@ -12,11 +12,12 @@ DDL: gen_random_uuid()/TIMESTAMPTZ, see app/core/operational_tables.py)
 never created in the SQLite test lifespan — same constraint as
 test_homework_submission_ownership.py."""
 import uuid
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 from fastapi import HTTPException
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 from conftest import get_test_client
 
 client = get_test_client()
@@ -30,7 +31,7 @@ from app.models.user import User  # noqa: E402
 from test_teacher_attendance_scope_2026_09_27 import _make_classroom, _make_schedule_slot, _make_subject, _make_student  # noqa: E402
 from test_teacher_scope_unified import _assign  # noqa: E402
 
-pytestmark = pytest.mark.skipif(
+needs_postgres = pytest.mark.skipif(
     engine.dialect.name != "postgresql",
     reason="homework_submissions is a raw Postgres-only operational table (see app/core/operational_tables.py).",
 )
@@ -100,6 +101,7 @@ def _make_submission(tenant_id: str, teacher_id: str, *, scheduled=False) -> str
     return submission_id
 
 
+@needs_postgres
 class TestGradedByCannotBeSpoofed:
     def test_client_supplied_graded_by_is_ignored(self):
         tenant_id = _make_tenant()
@@ -121,6 +123,7 @@ class TestGradedByCannotBeSpoofed:
         assert str(row["graded_by"]) != other_teacher
 
 
+@needs_postgres
 class TestGradeBoundsEnforced:
     def test_negative_grade_is_rejected(self):
         tenant_id = _make_tenant()
@@ -151,6 +154,7 @@ class TestGradeBoundsEnforced:
         assert resp.json()["grade"] == 17.5
 
 
+@needs_postgres
 @pytest.mark.parametrize(("method", "route"), [
     ("PUT", "/api/v1/homework-submissions/{id}"),
     ("POST", "/api/v1/homework/submissions/{id}/grade/"),
@@ -175,6 +179,7 @@ def test_grading_checks_the_teachers_class(method, route, scheduled):
     assert (row.grade, row.feedback, str(row.graded_by)) == (14, "Bien", teacher)
 
 
+@needs_postgres
 @pytest.mark.parametrize("case", ["autre-classe", "autre-établissement", "absent", "invalide"])
 def test_out_of_scope_submission_does_not_grant_grading(case):
     tenant = _make_tenant()
@@ -187,8 +192,38 @@ def test_out_of_scope_submission_does_not_grant_grading(case):
     user["tenant_id"] = target_tenant
     with SessionLocal() as db:
         with pytest.raises(HTTPException) as denied:
-            teacher_scope.require_submission_grading_scope(db, target_tenant, user, target_id)
+            teacher_scope.require_teacher_submission_class(db, target_tenant, user, target_id)
         assert denied.value.status_code == 404
         row = db.execute(text("SELECT grade, graded_by FROM homework_submissions WHERE id = :id"),
                          {"id": submission}).one()
         assert row == (None, None)
+
+
+def test_teacher_class_check_preserves_staff_scope():
+    db = Mock(spec=Session)
+    user = {"id": str(uuid.uuid4()), "roles": ["TEACHER", "DIRECTOR"]}
+    teacher_scope.require_teacher_submission_class(db, str(uuid.uuid4()), user, str(uuid.uuid4()))
+    db.execute.assert_not_called()
+
+
+@pytest.mark.parametrize("has_class,teaches,allowed", [
+    (False, False, False), (True, False, False), (True, True, True),
+])
+def test_teacher_class_decision(has_class, teaches, allowed):
+    tenant = str(uuid.uuid4())
+    user = {"id": str(uuid.uuid4()), "roles": ["TEACHER"]}
+    submission = str(uuid.uuid4())
+    classroom = uuid.uuid4() if has_class else None
+    db = Mock(spec=Session)
+    db.execute.return_value.scalar_one_or_none.return_value = classroom
+    with patch.object(teacher_scope, "teacher_teaches_class", return_value=teaches) as membership:
+        if allowed:
+            teacher_scope.require_teacher_submission_class(db, tenant, user, submission)
+        else:
+            with pytest.raises(HTTPException) as denied:
+                teacher_scope.require_teacher_submission_class(db, tenant, user, submission)
+            assert denied.value.status_code == 404
+    if has_class:
+        membership.assert_called_once_with(db, tenant_id=tenant, user_id=user["id"], class_id=classroom)
+    else:
+        membership.assert_not_called()
