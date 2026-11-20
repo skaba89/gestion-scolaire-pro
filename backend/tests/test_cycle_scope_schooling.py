@@ -114,6 +114,10 @@ def schooling(school, world):
         with SessionLocal() as db:
             for tid in (t, o):
                 switch_tenant_context(db, str(tid))
+                if tid == t:
+                    _insert_raw(db, """INSERT INTO teacher_assignments (tenant_id, user_id, classroom_id)
+                                       VALUES (:tenant, :teacher, :classroom)""",
+                                tenant=t, teacher=school["people"]["teacher"], classroom=world["cls_6e"])
                 for key, klass in (("hw_cp", "cls_cp"), ("hw_cp2", "cls_cp"), ("hw_6e", "cls_6e"),
                                    ("hw_nocls", None), ("hw_foreign", "foreign_class")):
                     if (key == "hw_foreign") != (tid == o):
@@ -145,7 +149,7 @@ def schooling(school, world):
         for tid in (t, o):
             switch_tenant_context(db, str(tid))
             if not IS_SQLITE:
-                for table in ("grade_history", "homework_submissions", "homework"):
+                for table in ("grade_history", "homework_submissions", "homework", "teacher_assignments"):
                     db.execute(text(f"DELETE FROM {table} WHERE tenant_id = :tid"), {"tid": str(tid)})
             for model in (Attendance, Grade, Assessment, ExamSession, Semester, Term):
                 db.query(model).filter(model.tenant_id == tid).delete()

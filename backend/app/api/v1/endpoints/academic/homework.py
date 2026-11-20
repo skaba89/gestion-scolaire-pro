@@ -15,6 +15,7 @@ from app.core.cycle_scope import (
 )
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
+from app.core.teacher_scope import require_submission_grading_scope
 from app.core.tenant_resolution import resolve_current_tenant_id
 from app.utils.audit import log_audit
 
@@ -606,7 +607,7 @@ def grade_submission(
     """Grade a homework submission."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     user_id = current_user.get("id")
-    require_submission_in_scope(db, tenant_id, current_user, submission_id)
+    require_submission_grading_scope(db, tenant_id, current_user, submission_id)
 
     result = db.execute(text("""
         UPDATE homework_submissions

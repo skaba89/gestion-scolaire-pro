@@ -25,8 +25,9 @@ from app.core.parent_scope import parent_student_filter
 from app.core.cycle_scope import (
     class_scope_sql, is_cycle_restricted, require_class_in_scope, require_classes_in_scope,
     require_enrollment_in_scope, require_student_in_scope, require_students_in_scope,
-    require_submission_in_scope, scoped_class_ids, student_scope_clause, student_scope_sql,
+    scoped_class_ids, student_scope_clause, student_scope_sql,
 )
+from app.core.teacher_scope import require_submission_grading_scope
 from app.core.tenant_resolution import resolve_current_tenant_id
 from app.core.tenant_refs import ensure_refs_in_tenant
 
@@ -1984,8 +1985,7 @@ def update_homework_submission(
     (school_life.py's AssessmentBase.max_score = 20.0).
     """
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
-    # Périmètre par cycle (B2c-1) : élève et devoir de la remise, avant toute écriture.
-    require_submission_in_scope(db, tenant_id, current_user, submission_id)
+    require_submission_grading_scope(db, tenant_id, current_user, submission_id)
 
     grade = body.get("grade")
     if grade is not None and not (0 <= float(grade) <= 20):
