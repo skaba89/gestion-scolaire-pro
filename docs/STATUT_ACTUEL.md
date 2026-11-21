@@ -1367,3 +1367,16 @@ La règle métier de l’auto-pointage reste à valider.
   et liens familiaux. Une erreur de lecture propose une nouvelle tentative.
   La saisie des pointages et la décision métier CHECKINS-SELF-01 restent indépendantes.
   Recette et production à vérifier après déploiement.
+
+- **2026-11-21 — tablette devant la classe, visibilité enseignant/secrétariat.**
+  Un scan effectué sur une borne liée à une salle rejoint désormais la séance de
+  pointage active qui correspond au créneau (établissement, classe, matière et,
+  lorsqu’il est renseigné, enseignant). L’enseignant voit donc le mouvement dans
+  sa séance et la présence en direct du secrétariat relit l’historique borné de la
+  journée toutes les cinq secondes. Une séance d’une autre classe n’est jamais
+  associée. Le mode entrée/sortie du scanner administratif est transmis au backend
+  au lieu d’être silencieusement ramené à une entrée. Vérifié en DEV sur PostgreSQL
+  par les tests kiosque et sur Vitest par le contrat de requête. Il s’agit d’une
+  actualisation automatique bornée à cinq secondes, pas encore d’un flux WebSocket.
+  La file hors ligne et l’anti-double-scan de la borne restent à livrer dans un lot
+  séparé avant un pilote avec connexion instable. REC et PROD non déployées.

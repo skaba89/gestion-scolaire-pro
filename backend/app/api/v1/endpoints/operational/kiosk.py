@@ -203,6 +203,36 @@ def _auto_mark_attendance(db: Session, *, tenant_id, student_id, slot: dict, tod
     return True
 
 
+def _find_active_check_in_session(db: Session, *, tenant_id, slot: dict, today) -> Optional[UUID]:
+    """Return the live teacher session matching the course at this room.
+
+    A room kiosk and the teacher portal write the same StudentCheckIn stream.
+    Linking the kiosk record to the active session lets the teacher's existing
+    session-scoped reader see the scan without exposing another class.
+    """
+    return db.execute(text("""
+        SELECT id
+        FROM check_in_sessions
+        WHERE tenant_id = :tenant_id
+          AND classroom_id = :class_id
+          AND subject_id IS NOT DISTINCT FROM :subject_id
+          AND session_date = :session_date
+          AND UPPER(status) = 'ACTIVE'
+          AND (
+              CAST(:teacher_id AS uuid) IS NULL
+              OR teacher_id = CAST(:teacher_id AS uuid)
+          )
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+    """), {
+        "tenant_id": tenant_id,
+        "class_id": slot["class_id"],
+        "subject_id": slot["subject_id"],
+        "session_date": today,
+        "teacher_id": slot["teacher_id"],
+    }).scalar()
+
+
 def _find_overdue_library_loans(db: Session, *, tenant_id, student: Student) -> list:
     """The same card badges into class and identifies the student at the
     library circulation desk (institutional-readiness audit, 2026-09) —
@@ -282,12 +312,27 @@ def kiosk_scan(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Élève introuvable")
 
     now = datetime.now(timezone.utc).replace(tzinfo=None)
+    slot = (
+        _find_current_slot_for_room(
+            db, tenant_id=device.tenant_id, room_id=device.room_id, now=now
+        )
+        if device.room_id
+        else None
+    )
+    session_id = (
+        _find_active_check_in_session(
+            db, tenant_id=device.tenant_id, slot=slot, today=now.date()
+        )
+        if slot
+        else None
+    )
     check_in = StudentCheckIn(
         tenant_id=device.tenant_id,
         student_id=student.id,
         checked_at=now,
         direction=direction,
         source="KIOSK",
+        session_id=session_id,
     )
     db.add(check_in)
 
@@ -296,14 +341,12 @@ def kiosk_scan(
     # is actually in session in that room right now.
     course_name = None
     attendance_marked = False
-    if direction == "IN" and device.room_id:
-        slot = _find_current_slot_for_room(db, tenant_id=device.tenant_id, room_id=device.room_id, now=now)
-        if slot:
-            attendance_marked = _auto_mark_attendance(
-                db, tenant_id=device.tenant_id, student_id=student.id, slot=slot, today=now.date(),
-            )
-            subject = db.execute(text("SELECT name FROM subjects WHERE id = :id"), {"id": slot["subject_id"]}).scalar()
-            course_name = subject
+    if direction == "IN" and slot:
+        attendance_marked = _auto_mark_attendance(
+            db, tenant_id=device.tenant_id, student_id=student.id, slot=slot, today=now.date(),
+        )
+        subject = db.execute(text("SELECT name FROM subjects WHERE id = :id"), {"id": slot["subject_id"]}).scalar()
+        course_name = subject
 
     from app.services.education_modules import current_configuration
     _, active_modules = current_configuration(db, tenant)
@@ -318,6 +361,7 @@ def kiosk_scan(
         "student_last_name": student.last_name,
         "direction": direction,
         "checked_at": check_in.checked_at,
+        "session_id": check_in.session_id,
         "attendance_marked": attendance_marked,
         "course_name": course_name,
         "library_overdue": bool(library_overdue_titles),
