@@ -25,7 +25,7 @@ interface HomeworkListProps {
   filters?: HomeworkFilters;
   onEdit?: (homework: Homework) => void;
   onDelete?: (homeworkId: string) => void;
-  onView?: (homeworkId: string) => void;
+  onView?: (homeworkId: string, homework: Homework) => void;
   showActions?: boolean;
 }
 
@@ -87,7 +87,7 @@ export function HomeworkList({
           homework={homework}
           onEdit={onEdit}
           onDelete={handleDelete}
-          onView={onView}
+          onView={onView && ((id) => onView(id, homework))}
           showActions={showActions}
         />
       ))}

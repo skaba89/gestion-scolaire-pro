@@ -1325,3 +1325,13 @@ ce fichier — pas d'un document de 2025 non révisé.
   utilise l’alias mais la page `TeacherHomework` ne le monte pas.
   Le parcours de notation depuis le portail reste à raccorder et à recetter.
   Aucune migration ; déploiement non attesté.
+
+### Portail enseignant — notation des rendus (DEV, 2026-11-20)
+
+Depuis la fiche d’un devoir, l’enseignant peut ouvrir les rendus, saisir une note
+et un commentaire, puis les relire. Le dialogue consulte les inscriptions actives
+de la classe avant de charger les copies. Il présente les rendus rattachés au
+devoir, à l’établissement et aux élèves inscrits. L’API attribue la correction au
+compte connecté. Le test de parcours est
+`tests/e2e/journeys/21-teacher-homework-grading.spec.ts`.
+La validation en recette et le déploiement de ce lot restent à établir.

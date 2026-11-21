@@ -943,6 +943,12 @@
     "errorRecording": "错误:"
   },
   "homework": {
+    "gradeSubmissions": "批改作业",
+    "gradingFeedback": "评语",
+    "gradingLoadError": "无法加载该班级的作业提交记录。",
+    "gradingEmpty": "该班级暂无在读学生。",
+    "gradeSaved": "成绩已保存",
+    "gradeSaveError": "无法保存成绩。",
     "teacherPageTitle": "作业管理",
     "teacherPageSubtitle": "为您的班级创建和管理作业",
     "studentPageTitle": "我的作业",

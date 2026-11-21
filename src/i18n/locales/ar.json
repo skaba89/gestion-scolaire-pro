@@ -909,6 +909,12 @@
     "errorRecording": "خطأ:"
   },
   "homework": {
+    "gradeSubmissions": "تقييم الواجبات المسلّمة",
+    "gradingFeedback": "ملاحظة",
+    "gradingLoadError": "تعذّر تحميل الواجبات المسلّمة لهذا الفصل.",
+    "gradingEmpty": "لا يوجد طلاب مسجّلون في هذا الفصل.",
+    "gradeSaved": "تم حفظ الدرجة",
+    "gradeSaveError": "تعذّر حفظ الدرجة.",
     "teacherPageTitle": "إدارة الواجبات",
     "teacherPageSubtitle": "أنشئ وأدر الواجبات لفصولك",
     "studentPageTitle": "واجباتي",

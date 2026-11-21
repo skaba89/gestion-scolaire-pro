@@ -1,282 +1,137 @@
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { apiClient } from "@/api/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { toast } from "sonner";
-import {
-  Users,
-  CheckCircle,
-  Clock,
-  Save,
-  Loader2,
-  FileText
-} from "lucide-react";
-import { format } from "date-fns";
-import { fr } from "date-fns/locale";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import type { Homework, HomeworkWithSubmissions } from "@/features/homework/types/homework";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
 
-interface HomeworkGradingDialogProps {
-  homework: {
-    id: string;
-    title: string;
-    class_id: string;
-    max_points: number | null;
-  };
+interface Student {
+  id: string;
+  first_name: string;
+  last_name: string;
+}
+
+interface Props {
+  homework: Pick<Homework, "id" | "title" | "class_id"> & { max_points?: number | null };
   tenantId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-const HomeworkGradingDialog = ({
-  homework,
-  tenantId,
-  open,
-  onOpenChange,
-}: HomeworkGradingDialogProps) => {
+interface Draft {
+  grade?: string;
+  feedback?: string;
+}
+
+export default function HomeworkGradingDialog({ homework, tenantId, open, onOpenChange }: Props) {
+  const { t } = useTranslation();
   const { user } = useAuth();
+  const { StudentLabel } = useStudentLabel();
   const queryClient = useQueryClient();
-  const { studentLabel, StudentLabel, studentsLabel } = useStudentLabel();
-  const [gradingData, setGradingData] = useState<Record<string, { grade: string; feedback: string }>>({});
-
-  // Get students in classroom
-  const { data: students } = useQuery({
-    queryKey: ["classroom-students-grading", homework.class_id],
-    queryFn: async () => {
-      const response = await apiClient.get("/enrollments/", {
-        params: { class_id: homework.class_id, status: "active" },
+  const [drafts, setDrafts] = useState<Record<string, Draft>>({});
+  const maxGrade = Math.min(homework.max_points ?? 20, 20);
+  const queryKey = ["homework-grading", tenantId, user?.id, homework.class_id, homework.id];
+  const roster = useQuery({
+    queryKey,
+    enabled: open && !!user?.id && !!tenantId && !!homework.class_id,
+    gcTime: 0,
+    staleTime: 0,
+    retry: false,
+    queryFn: async ({ signal }) => {
+      const { data: enrollments } = await apiClient.get<{ student: Student | null }[]>("/infrastructure/enrollments/", {
+        params: { class_id: homework.class_id, status: "active" }, signal,
       });
-      return (response.data || []).map((e: any) => e.student).filter(Boolean);
-    },
-    enabled: open && !!homework.class_id,
-  });
+      const students = new Map<string, Student>();
+      for (const { student } of enrollments) {
+        if (student) students.set(student.id, student);
+      }
+      if (!students.size) return [];
 
-  // Get submissions for this homework
-  const { data: submissions, isLoading } = useQuery({
-    queryKey: ["homework-submissions-grading", homework.id],
-    queryFn: async () => {
-      const response = await apiClient.get("/homework-submissions/", {
-        params: { homework_id: homework.id },
-      });
-      return response.data;
-    },
-    enabled: open && !!homework.id,
-  });
-
-  const gradeMutation = useMutation({
-    mutationFn: async ({ submissionId, grade, feedback }: {
-      submissionId: string;
-      grade: number;
-      feedback: string;
-    }) => {
-      await apiClient.put(`/homework-submissions/${submissionId}`, {
-        grade,
-        feedback: feedback || null,
-        graded_by: user?.id,
-        graded_at: new Date().toISOString(),
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["homework-submissions-grading"] });
-      toast.success("Note enregistrée");
-    },
-    onError: (error: any) => {
-      toast.error(error?.response?.data?.detail || error.message);
+      const { data: detail } = await apiClient.get<HomeworkWithSubmissions>(`/homework/${homework.id}/`, { signal });
+      if (detail.tenant_id !== tenantId || detail.class_id !== homework.class_id || detail.id !== homework.id) {
+        throw new Error("Homework scope changed");
+      }
+      const submissions = new Map((detail.submissions ?? [])
+        .filter(s => s.homework_id === homework.id && s.tenant_id === tenantId && students.has(s.student_id))
+        .map(s => [s.student_id, s]));
+      return Array.from(students.values(), student => ({ student, submission: submissions.get(student.id) }));
     },
   });
+  const save = useMutation({
+    mutationFn: async ({ id, grade, feedback }: { id: string; grade: number; feedback: string }) => {
+      await apiClient.put(`/homework-submissions/${id}`, { grade, feedback: feedback || null });
+    },
+    onSuccess: async (_, { id }) => {
+      await queryClient.invalidateQueries({ queryKey, exact: true });
+      setDrafts(previous => {
+        const next = { ...previous };
+        delete next[id];
+        return next;
+      });
+      toast.success(t("homework.gradeSaved"));
+    },
+    onError: () => toast.error(t("homework.gradeSaveError")),
+  });
 
-  const getSubmission = (studentId: string) => {
-    return submissions?.find((s: any) => s.student_id === studentId);
-  };
-
-  const handleGradeChange = (studentId: string, field: 'grade' | 'feedback', value: string) => {
-    setGradingData(prev => ({
-      ...prev,
-      [studentId]: {
-        ...prev[studentId],
-        [field]: value,
-      },
-    }));
-  };
-
-  const handleSaveGrade = (studentId: string) => {
-    const submission = getSubmission(studentId);
-    const data = gradingData[studentId];
-
-    if (!submission || !data?.grade) return;
-
-    const grade = parseFloat(data.grade);
-    if (isNaN(grade) || grade < 0 || grade > (homework.max_points || 20)) {
-      toast.error(`La note doit être entre 0 et ${homework.max_points || 20}`);
-      return;
-    }
-
-    gradeMutation.mutate({
-      submissionId: submission.id,
-      grade,
-      feedback: data.feedback || "",
-    });
-  };
-
-  const submittedCount = submissions?.length || 0;
-  const totalStudents = students?.length || 0;
-  const gradedCount = submissions?.filter((s: any) => s.grade !== null).length || 0;
-
+  function edit(id: string, changes: Draft) {
+    setDrafts(previous => ({ ...previous, [id]: { ...previous[id], ...changes } }));
+  }
+  const rows = roster.data ?? [];
+  const submitted = rows.filter(row => row.submission).length;
+  const graded = rows.filter(row => row.submission?.grade != null).length;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-4xl max-h-[80vh] overflow-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <FileText className="w-5 h-5" />
-            {homework.title}
-          </DialogTitle>
-          <DialogDescription>
-            Notez les devoirs rendus par les {studentsLabel}
-          </DialogDescription>
+          <DialogTitle>{homework.title}</DialogTitle>
+          <DialogDescription>{t("homework.gradeSubmissions")}</DialogDescription>
         </DialogHeader>
-
-        <div className="flex gap-4 mb-4">
-          <Badge variant="outline" className="gap-1">
-            <Users className="w-3 h-3" />
-            {submittedCount}/{totalStudents} rendus
-          </Badge>
-          <Badge variant="secondary" className="gap-1">
-            <CheckCircle className="w-3 h-3" />
-            {gradedCount} notés
-          </Badge>
-        </div>
-
-        <div className="flex-1 overflow-auto">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : (
+        {roster.isFetching || roster.isPending ? <p role="status">{t("common.loading")}</p> :
+          roster.isError ? <p role="alert">{t("homework.gradingLoadError")}</p> :
+          !rows.length ? <p>{t("homework.gradingEmpty")}</p> : (
+          <>
+            <p>{t("homework.submissions")} {submitted}/{rows.length} · {t("homework.graded")} {graded} · {t("homework.pending")} {submitted - graded}</p>
             <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{StudentLabel}</TableHead>
-                  <TableHead>Statut</TableHead>
-                  <TableHead>Travail rendu</TableHead>
-                  <TableHead>Note /{homework.max_points || 20}</TableHead>
-                  <TableHead>Commentaire</TableHead>
-                  <TableHead></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {students?.map((student: any) => {
-                  const submission = getSubmission(student.id);
-                  const currentGrade = gradingData[student.id]?.grade ?? (submission?.grade?.toString() || "");
-                  const currentFeedback = gradingData[student.id]?.feedback ?? (submission?.feedback || "");
-                  const isGraded = submission?.grade !== null && submission?.grade !== undefined;
-
-                  return (
-                    <TableRow key={student.id}>
-                      <TableCell className="font-medium">
-                        {student.first_name} {student.last_name}
-                      </TableCell>
-                      <TableCell>
-                        {submission ? (
-                          <Badge variant={isGraded ? "default" : "secondary"}>
-                            {isGraded ? (
-                              <>
-                                <CheckCircle className="w-3 h-3 mr-1" />
-                                Noté
-                              </>
-                            ) : (
-                              <>
-                                <Clock className="w-3 h-3 mr-1" />
-                                Rendu
-                              </>
-                            )}
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline">Non rendu</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="max-w-xs">
-                        {submission?.content ? (
-                          <p className="text-sm truncate" title={submission.content}>
-                            {submission.content}
-                          </p>
-                        ) : (
-                          <span className="text-muted-foreground text-sm">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {submission ? (
-                          <Input
-                            type="number"
-                            min="0"
-                            max={homework.max_points || 20}
-                            value={currentGrade}
-                            onChange={(e) => handleGradeChange(student.id, 'grade', e.target.value)}
-                            className="w-20"
-                            placeholder="Note"
-                          />
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {submission ? (
-                          <Input
-                            value={currentFeedback}
-                            onChange={(e) => handleGradeChange(student.id, 'feedback', e.target.value)}
-                            className="min-w-[150px]"
-                            placeholder="Commentaire..."
-                          />
-                        ) : (
-                          <span className="text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {submission && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleSaveGrade(student.id)}
-                            disabled={!gradingData[student.id]?.grade || gradeMutation.isPending}
-                          >
-                            <Save className="w-4 h-4" />
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
+              <TableHeader><TableRow>
+                <TableHead>{StudentLabel}</TableHead><TableHead>{t("common.status")}</TableHead>
+                <TableHead>{t("homework.submissions")}</TableHead><TableHead>{t("grades.grade")} /{maxGrade}</TableHead>
+                <TableHead>{t("homework.gradingFeedback")}</TableHead><TableHead>{t("common.save")}</TableHead>
+              </TableRow></TableHeader>
+              <TableBody>{rows.map(({ student, submission }) => {
+                const name = `${student.first_name} ${student.last_name}`;
+                const draft = submission && drafts[submission.id];
+                const grade = draft?.grade ?? String(submission?.grade ?? "");
+                const feedback = draft?.feedback ?? submission?.feedback ?? "";
+                const validGrade = /^\d+(\.\d{1,2})?$/.test(grade) && Number(grade) <= maxGrade;
+                return (
+                  <TableRow key={student.id}>
+                    <TableCell>{name}</TableCell>
+                    <TableCell>{t(submission ? (submission.grade != null ? "homework.graded" : "homework.submitted") : "parentPortal.homeworkTab.notSubmitted")}</TableCell>
+                    <TableCell className="max-w-xs break-words">{submission?.content ?? "—"}</TableCell>
+                    {submission ? <>
+                      <TableCell><Input type="number" className="w-24" min={0} max={maxGrade} step="0.01"
+                        aria-label={`${t("grades.grade")} · ${name}`} value={grade} disabled={save.isPending}
+                        onChange={e => edit(submission.id, { grade: e.target.value })} /></TableCell>
+                      <TableCell><Input aria-label={`${t("homework.gradingFeedback")} · ${name}`} value={feedback}
+                        disabled={save.isPending} onChange={e => edit(submission.id, { feedback: e.target.value })} /></TableCell>
+                      <TableCell><Button size="sm" disabled={!draft || !validGrade || save.isPending}
+                        onClick={() => save.mutate({ id: submission.id, grade: Number(grade), feedback })}>
+                        {t("common.save")}
+                      </Button></TableCell>
+                    </> : <TableCell colSpan={3}>—</TableCell>}
+                  </TableRow>
+                );
+              })}</TableBody>
             </Table>
-          )}
-
-          {!isLoading && students?.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground">
-              Aucun {studentLabel} inscrit dans cette classe
-            </div>
-          )}
-        </div>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );
-};
-
-export default HomeworkGradingDialog;
+}
