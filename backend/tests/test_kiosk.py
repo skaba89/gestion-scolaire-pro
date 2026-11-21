@@ -10,6 +10,7 @@ test_payment_webhook_events.py).
 import uuid
 
 import pytest
+from sqlalchemy import text
 from conftest import get_test_client
 
 client = get_test_client()
@@ -281,6 +282,21 @@ class TestClassroomBadgeIn:
             db.commit()
         return subject_id
 
+    def _make_teacher(self, tenant_id: str) -> str:
+        teacher_id = str(uuid.uuid4())
+        with SessionLocal() as db:
+            db.add(
+                User(
+                    id=teacher_id,
+                    tenant_id=tenant_id,
+                    email=f"{teacher_id[:8]}@example.com",
+                    username=f"teacher-{teacher_id[:8]}",
+                    is_active=True,
+                )
+            )
+            db.commit()
+        return teacher_id
+
     def _make_current_slot(self, tenant_id: str, *, room_id: str, class_id: str, subject_id: str) -> str:
         """A schedule slot covering the whole current day, so the test is
         never flaky about the wall-clock time it happens to run at."""
@@ -315,6 +331,128 @@ class TestClassroomBadgeIn:
         resp = client.post(DEVICES_URL, json={"label": "Capteur Salle 101", "room_id": room_id}, headers=_admin_headers(tenant_id))
         assert resp.status_code == 201, resp.text
         return resp.json()["token"]
+
+    def _make_active_session(
+        self, tenant_id: str, *, class_id: str, subject_id: str, teacher_id: str
+    ) -> str:
+        session_id = str(uuid.uuid4())
+        with SessionLocal() as db:
+            db.execute(
+                text("""
+                    INSERT INTO check_in_sessions
+                        (id, tenant_id, teacher_id, classroom_id, subject_id,
+                         session_date, start_time, status)
+                    VALUES
+                        (:id, :tenant_id, :teacher_id, :class_id, :subject_id,
+                         CURRENT_DATE, CURRENT_TIME, 'ACTIVE')
+                """),
+                {
+                    "id": session_id,
+                    "tenant_id": tenant_id,
+                    "teacher_id": teacher_id,
+                    "class_id": class_id,
+                    "subject_id": subject_id,
+                },
+            )
+            db.commit()
+        return session_id
+
+    def test_room_kiosk_scan_is_linked_to_the_matching_active_teacher_session(self):
+        tenant_id = _make_tenant()
+        student_id, reg = _make_student(tenant_id)
+        room_id = self._make_room(tenant_id)
+        class_id = self._make_classroom(tenant_id)
+        subject_id = self._make_subject(tenant_id)
+        teacher_id = self._make_teacher(tenant_id)
+        self._make_current_slot(
+            tenant_id, room_id=room_id, class_id=class_id, subject_id=subject_id
+        )
+        year_id = self._make_academic_year(tenant_id)
+        self._enroll(
+            tenant_id, student_id=student_id, class_id=class_id, year_id=year_id
+        )
+        session_id = self._make_active_session(
+            tenant_id,
+            class_id=class_id,
+            subject_id=subject_id,
+            teacher_id=teacher_id,
+        )
+        token = self._create_room_bound_device(tenant_id, room_id)
+
+        response = client.post(
+            SCAN_URL,
+            json={"qr_payload": reg, "direction": "IN"},
+            headers={"X-Kiosk-Token": token},
+        )
+
+        assert response.status_code == 200, response.text
+        teacher_headers = _as(
+            {
+                "id": teacher_id,
+                "roles": ["TEACHER"],
+                "tenant_id": tenant_id,
+                "_cycle_ids": None,
+            }
+        )
+        teacher_view = client.get(
+            "/api/v1/school-life/check-ins/",
+            params={"session_id": session_id},
+            headers=teacher_headers,
+        )
+        assert teacher_view.status_code == 200, teacher_view.text
+        assert [row["student_id"] for row in teacher_view.json()] == [student_id]
+
+        with SessionLocal() as db:
+            check_in = (
+                db.query(StudentCheckIn)
+                .filter(
+                    StudentCheckIn.tenant_id == tenant_id,
+                    StudentCheckIn.student_id == student_id,
+                )
+                .one()
+            )
+            assert str(check_in.session_id) == session_id
+
+    def test_room_kiosk_never_links_an_active_session_from_another_class(self):
+        tenant_id = _make_tenant()
+        student_id, reg = _make_student(tenant_id)
+        room_id = self._make_room(tenant_id)
+        class_id = self._make_classroom(tenant_id)
+        other_class_id = self._make_classroom(tenant_id)
+        subject_id = self._make_subject(tenant_id)
+        teacher_id = self._make_teacher(tenant_id)
+        self._make_current_slot(
+            tenant_id, room_id=room_id, class_id=class_id, subject_id=subject_id
+        )
+        year_id = self._make_academic_year(tenant_id)
+        self._enroll(
+            tenant_id, student_id=student_id, class_id=class_id, year_id=year_id
+        )
+        self._make_active_session(
+            tenant_id,
+            class_id=other_class_id,
+            subject_id=subject_id,
+            teacher_id=teacher_id,
+        )
+        token = self._create_room_bound_device(tenant_id, room_id)
+
+        response = client.post(
+            SCAN_URL,
+            json={"qr_payload": reg, "direction": "IN"},
+            headers={"X-Kiosk-Token": token},
+        )
+
+        assert response.status_code == 200, response.text
+        with SessionLocal() as db:
+            check_in = (
+                db.query(StudentCheckIn)
+                .filter(
+                    StudentCheckIn.tenant_id == tenant_id,
+                    StudentCheckIn.student_id == student_id,
+                )
+                .one()
+            )
+            assert check_in.session_id is None
 
     def test_enrolled_student_badging_in_is_marked_present(self):
         tenant_id = _make_tenant()

@@ -277,19 +277,22 @@ export const adminQueries = {
         queryKey: ["admin-student-check-ins", tenantId, startDate, endDate] as const,
         queryFn: async () => {
             if (!tenantId) return [];
-            const response = await apiClient.get<any[]>("/school-life/check-ins/", {
+            const response = await apiClient.get<any[]>("/student-check-ins/", {
                 params: {
-                    start_date: startDate,
-                    end_date: endDate
+                    tenant_id: tenantId,
+                    checked_at_gte: startDate,
+                    checked_at_lte: endDate,
+                    complete_day: true,
                 }
             });
             return response.data;
         },
+        refetchInterval: 5_000,
     }),
 
     getStudentLastCheckIn: async (studentId: string, tenantId: string) => {
-        const response = await apiClient.get<any[]>("/school-life/check-ins/", {
-            params: { student_ids: [studentId], limit: 1 }
+        const response = await apiClient.get<any[]>("/student-check-ins/", {
+            params: { tenant_id: tenantId, student_id: studentId }
         });
         return response.data[0] || null;
     },
@@ -302,7 +305,11 @@ export const adminQueries = {
         checked_by?: string;
         notes?: string;
     }) => {
-        const response = await apiClient.post("/school-life/check-ins/", checkInData);
+        const response = await apiClient.post("/school-life/check-ins/", {
+            student_id: checkInData.student_id,
+            direction: checkInData.check_in_type === "ENTRY" ? "IN" : "OUT",
+            source: "QR_SCAN",
+        });
         return response.data;
     },
 

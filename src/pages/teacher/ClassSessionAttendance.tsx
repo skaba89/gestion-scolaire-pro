@@ -44,7 +44,7 @@ interface CheckIn {
   };
 }
 
-const POLL_INTERVAL = 10000; // 10 seconds
+const POLL_INTERVAL = 5000; // borne de secours si la tablette et l'écran sont sur des connexions différentes
 
 export default function ClassSessionAttendance() {
   const { t } = useTranslation();

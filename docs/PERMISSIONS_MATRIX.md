@@ -1320,3 +1320,15 @@ lui-même ou son enfant (à confirmer côté métier). `/student-badges/`,
 `GET /school-life/check-ins/` (périmètre enseignant) sont traités par une PR
 séparée ; le filtre de cycle de ce lot y reste tel quel. Tests :
 `backend/tests/test_cycle_scope_school_life.py`.
+
+### Borne de classe et diffusion du pointage (2026-11-21)
+
+Le jeton révoquable de la borne reste limité à son établissement et à la salle
+configurée. Lors d’un scan, le serveur ne rattache le mouvement qu’à une séance
+`ACTIVE` du jour correspondant au créneau de cette salle : même établissement,
+même classe, même matière et même enseignant lorsque le créneau en porte un.
+La lecture enseignant conserve ensuite la règle existante « élèves de ses classes
+ou ses propres séances » ; la lecture secrétariat conserve permission, tenant et
+périmètre de cycles. Le frontend n’envoie aucun identifiant de séance de confiance
+depuis la borne : le rattachement est calculé côté serveur. Preuves :
+`backend/tests/test_kiosk.py` et `src/queries/admin.check-ins.test.ts`.
