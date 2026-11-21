@@ -4,7 +4,7 @@ from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
-from sqlalchemy import insert, text
+from sqlalchemy import bindparam, insert, text
 from uuid import UUID
 import math
 
@@ -20,6 +20,7 @@ from app.core.security import get_current_user, require_permission
 from app.core.teacher_scope import is_scoped_teacher, teacher_teaches_class
 from app.core.tenant_resolution import resolve_current_tenant_id
 from app.crud import grade as crud_grade
+from app.models.base import GUID
 from app.models.grade import Grade as GradeRow
 from app.schemas.grade import Grade, GradeCreate, GradeUpdate, GradeList
 from app.utils.audit import log_audit
@@ -42,7 +43,9 @@ def _ensure_assessment_session_writable(
          WHERE a.id = :assessment_id
            AND a.tenant_id = :tenant_id
          LIMIT 1
-    """ + lock), {"assessment_id": str(assessment_id), "tenant_id": tenant_id}).first()
+    """ + lock).bindparams(
+        bindparam("assessment_id", type_=GUID()), bindparam("tenant_id", type_=GUID()),
+    ), {"assessment_id": assessment_id, "tenant_id": tenant_id}).first()
     if session and session.status == "CLOSED":
         raise HTTPException(status_code=409, detail="Les notes d'une session clôturée sont immuables")
 

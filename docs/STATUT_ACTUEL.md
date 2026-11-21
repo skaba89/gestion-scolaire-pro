@@ -1262,7 +1262,7 @@ ce fichier — pas d'un document de 2025 non révisé.
   Détail : `docs/PERMISSIONS_MATRIX.md` (lot B2c-2). Tests :
   `test_cycle_scope_school_life.py`. Défauts préexistants relevés, **non
   corrigés** : `PUT /school-life/grades/{id}/` lit `obj_in.assessment_id` absent
-  de `GradeUpdate` (500 systématique) ; `PUT /incidents/{id}/resolve/` écrit
+  de `GradeUpdate` (corrigé le 2026-11-21, voir le journal ci-dessous) ; `PUT /incidents/{id}/resolve/` écrit
   `resolved_at`, colonne absente de `incidents` (400 systématique) ;
   `POST /incidents/` avec `student_ids` insère dans `incident_parties`, table
   absente de toute migration (400, l'incident n'est pas créé) ; `POST
@@ -1335,3 +1335,18 @@ devoir, à l’établissement et aux élèves inscrits. L’API attribue la corr
 compte connecté. Le test de parcours est
 `tests/e2e/journeys/21-teacher-homework-grading.spec.ts`.
 La validation en recette et le déploiement de ce lot restent à établir.
+
+
+### 2026-11-21 — Modification des notes de vie scolaire
+
+Un directeur autorisé pouvait lire une note de 15/20, mais sa correction à
+16/20 via `PUT /school-life/grades/{id}/` échouait avec HTTP 500. La route
+utilise désormais l’élève et l’évaluation de la note existante, vérifie les
+affectations de l’enseignant et applique le barème aux modifications partielles.
+Une session clôturée refuse l’écriture avec HTTP 409 sur PostgreSQL et SQLite.
+Le contrôle partagé de session utilise le type d’identifiant du modèle sur les
+deux bases. Le format de réponse conserve les détails de l’évaluation.
+
+Les tests de `backend/tests/test_cycle_scope_school_life.py` relisent la valeur
+enregistrée et vérifient les refus sans modification en base. La recette sur
+l’environnement dédié et le déploiement de ce correctif restent à établir.
