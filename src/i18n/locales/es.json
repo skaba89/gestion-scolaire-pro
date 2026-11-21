@@ -909,6 +909,12 @@
     "errorRecording": "Error:"
   },
   "homework": {
+    "gradeSubmissions": "Calificar entregas",
+    "gradingFeedback": "Comentario",
+    "gradingLoadError": "No se pudieron cargar las entregas de esta clase.",
+    "gradingEmpty": "No hay estudiantes inscritos en esta clase.",
+    "gradeSaved": "Calificación guardada",
+    "gradeSaveError": "No se pudo guardar la calificación.",
     "teacherPageTitle": "Gestión de Tareas",
     "teacherPageSubtitle": "Cree y gestione las tareas para sus clases",
     "studentPageTitle": "Mis Tareas",
