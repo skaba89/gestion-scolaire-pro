@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import text, bindparam
 from sqlalchemy.exc import SQLAlchemyError
 from uuid import UUID
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -442,93 +442,88 @@ def _class_sessions_scope(db: Session, tenant_id: str, current_user: dict):
     paramètres liés ; vide pour un compte non restreint."""
     if not is_cycle_restricted(current_user):
         return "", []
-    sql, binds = class_scope_sql("cs.class_id", scoped_class_ids(db, tenant_id, current_user), tag="cs")
+    sql, binds = class_scope_sql("cs.classroom_id", scoped_class_ids(db, tenant_id, current_user), tag="cs")
     return f" AND {sql}", binds
+
+
+def _read_class_sessions(db, tenant_id, scope, *, class_id, subject_id, session_date, status, active_only):
+    scope_sql, binds = scope
+    where = " WHERE cs.tenant_id = :tenant_id" + scope_sql
+    params = {"tenant_id": tenant_id}
+    for column, key, value in (
+        ("cs.classroom_id", "class_id", class_id), ("cs.subject_id", "subject_id", subject_id),
+        ("cs.session_date", "session_date", session_date), ("UPPER(cs.status)", "status", status),
+    ):
+        if value is not None:
+            where += f" AND {column} = :{key}"
+            params[key] = str(value) if isinstance(value, UUID) else value
+
+    if active_only:
+        # Une séance démarrée depuis le portail reste ouverte sans heure de fin.
+        where += " AND (cs.end_time IS NULL OR cs.session_date + cs.end_time >= LOCALTIMESTAMP)"
+        order = " ORDER BY cs.session_date ASC, cs.start_time ASC NULLS LAST, cs.id"
+    else:
+        order = " ORDER BY cs.session_date DESC, cs.start_time DESC NULLS LAST, cs.id"
+
+    rows = db.execute(text("""
+        SELECT cs.id, cs.tenant_id, cs.classroom_id AS class_id, cs.subject_id, cs.teacher_id,
+               cs.session_date, cs.start_time, cs.end_time, cs.status, cs.created_at, cs.updated_at,
+               sub.name AS subject_name, c.name AS class_name,
+               u.first_name AS teacher_first_name, u.last_name AS teacher_last_name
+        FROM check_in_sessions cs
+        LEFT JOIN subjects sub ON sub.id = cs.subject_id AND sub.tenant_id = cs.tenant_id
+        LEFT JOIN classes c ON c.id = cs.classroom_id AND c.tenant_id = cs.tenant_id
+        LEFT JOIN users u ON u.id = cs.teacher_id AND u.tenant_id = cs.tenant_id
+    """ + where + order).bindparams(*binds), params).mappings()
+    return [
+        {
+            **row,
+            "subject": {"name": row.subject_name} if row.subject_name else None,
+            "classroom": {"name": row.class_name} if row.class_name else None,
+            "teacher": {"first_name": row.teacher_first_name, "last_name": row.teacher_last_name}
+            if row.teacher_first_name or row.teacher_last_name else None,
+            # Les séances de pointage n'ont pas d'affectation de salle.
+            "room": None, "room_id": None, "room_name": None,
+        }
+        for row in rows
+    ]
 
 
 @class_sessions_router.get("/")
 def list_class_sessions(
     request: Request,
+    class_id: Optional[UUID] = None,
+    subject_id: Optional[UUID] = None,
+    session_date: Optional[date] = None,
+    status: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("school_life:read")),
 ):
-    """GET /class-sessions/ — list class sessions."""
+    """Séances dans le périmètre de vie scolaire du compte."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
-    if not tenant_id:
-        return []
-    scope_sql, scope_binds = _class_sessions_scope(db, tenant_id, current_user)
-    try:
-        rows = db.execute(text("""
-            SELECT cs.*,
-                   sub.name as subject_name,
-                   r.name as room_name,
-                   u.first_name as teacher_first_name,
-                   u.last_name as teacher_last_name,
-                   c.name as class_name
-            FROM class_sessions cs
-            LEFT JOIN subjects sub ON sub.id = cs.subject_id
-            LEFT JOIN rooms r ON r.id = cs.room_id
-            LEFT JOIN users u ON u.id = cs.teacher_id
-            LEFT JOIN classrooms c ON c.id = cs.class_id
-            WHERE cs.tenant_id = :tenant_id""" + scope_sql + """
-            ORDER BY cs.start_time DESC
-        """).bindparams(*scope_binds), {"tenant_id": tenant_id}).fetchall()
-        return [
-            {
-                **dict(r._mapping),
-                "subject": {"name": r.subject_name} if r.subject_name else None,
-                "room": {"name": r.room_name} if r.room_name else None,
-                "teacher": {"first_name": r.teacher_first_name, "last_name": r.teacher_last_name} if r.teacher_first_name else None,
-                "classroom": {"name": r.class_name} if r.class_name else None,
-            }
-            for r in rows
-        ]
-    except Exception:
-        # class_sessions table may not exist yet — return empty
-        return []
+    return _read_class_sessions(
+        db, tenant_id, _class_sessions_scope(db, tenant_id, current_user),
+        class_id=class_id, subject_id=subject_id, session_date=session_date,
+        status=status.upper() if status is not None else None, active_only=False,
+    )
 
 
 @class_sessions_router.get("/active/")
 def list_active_class_sessions(
     request: Request,
+    class_id: Optional[UUID] = None,
+    subject_id: Optional[UUID] = None,
+    session_date: Optional[date] = None,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_permission("school_life:read")),
 ):
-    """GET /class-sessions/active/ — list currently active sessions."""
+    """Séances ouvertes, y compris celles dont l'heure de fin reste à saisir."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
-    if not tenant_id:
-        return []
-    scope_sql, scope_binds = _class_sessions_scope(db, tenant_id, current_user)
-    try:
-        rows = db.execute(text("""
-            SELECT cs.*,
-                   sub.name as subject_name,
-                   r.name as room_name,
-                   u.first_name as teacher_first_name,
-                   u.last_name as teacher_last_name,
-                   c.name as class_name
-            FROM class_sessions cs
-            LEFT JOIN subjects sub ON sub.id = cs.subject_id
-            LEFT JOIN rooms r ON r.id = cs.room_id
-            LEFT JOIN users u ON u.id = cs.teacher_id
-            LEFT JOIN classrooms c ON c.id = cs.class_id
-            WHERE cs.tenant_id = :tenant_id""" + scope_sql + """
-              AND cs.status = 'ACTIVE'
-              AND cs.end_time >= NOW()
-            ORDER BY cs.start_time ASC
-        """).bindparams(*scope_binds), {"tenant_id": tenant_id}).fetchall()
-        return [
-            {
-                **dict(r._mapping),
-                "subject": {"name": r.subject_name} if r.subject_name else None,
-                "room": {"name": r.room_name} if r.room_name else None,
-                "teacher": {"first_name": r.teacher_first_name, "last_name": r.teacher_last_name} if r.teacher_first_name else None,
-                "classroom": {"name": r.class_name} if r.class_name else None,
-            }
-            for r in rows
-        ]
-    except Exception:
-        return []
+    return _read_class_sessions(
+        db, tenant_id, _class_sessions_scope(db, tenant_id, current_user),
+        class_id=class_id, subject_id=subject_id, session_date=session_date,
+        status="ACTIVE", active_only=True,
+    )
 
 
 # ─── 6. School Events standalone (/school-events/) ────────────────────────────

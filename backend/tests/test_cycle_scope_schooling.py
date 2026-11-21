@@ -27,7 +27,6 @@ from conftest import get_test_client
 client = get_test_client()
 
 from sqlalchemy import bindparam, event, select, text  # noqa: E402
-from sqlalchemy import inspect as sa_inspect  # noqa: E402
 
 from app.core import cycle_scope  # noqa: E402
 from app.core.cycle_routes import Policy, policy_for  # noqa: E402
@@ -848,34 +847,105 @@ def test_exam_session_list_counts_only_assessments_of_the_cycle(school, schoolin
     assert call(school, "teacher", "GET", "/exam-sessions/").status_code == 200
 
 
+@pytest.fixture
+def class_sessions(school, schooling):
+    """Séances de la table opérationnelle, avec un témoin dans l'autre établissement."""
+    keys = {}
+    with SessionLocal() as db:
+        for name, klass, day, state in (
+            ("cp", "cls_cp", "2026-11-02", "ACTIVE"),
+            ("ended", "cls_cp", "2026-11-01", "COMPLETED"),
+            ("expired", "cls_cp", "2001-01-01", "ACTIVE"),
+            ("college", "cls_6e", "2026-11-02", "ACTIVE"),
+            ("unassigned", None, "2026-11-02", "ACTIVE"),
+            ("foreign", "foreign_class", "2026-11-02", "ACTIVE"),
+        ):
+            foreign = name == "foreign"
+            tenant = school["other"] if foreign else school["tenant"]
+            switch_tenant_context(db, str(tenant))
+            keys[name] = uuid4()
+            _insert_raw(db, """
+                INSERT INTO check_in_sessions
+                    (id, tenant_id, classroom_id, teacher_id, subject_id, session_date, start_time, end_time, status)
+                VALUES (:id, :tenant, :classroom, :teacher, :subject, :day, '08:00', :end_time, :status)
+            """, id=keys[name], tenant=tenant, classroom=schooling[klass] if klass else None,
+                        teacher=None if foreign else school["people"]["teacher"],
+                        subject=schooling["subj_foreign"] if foreign else schooling["subject"],
+                        day=day, end_time="09:00" if name in ("expired", "ended") else None, status=state)
+        db.commit()
+    yield {name: str(key) for name, key in keys.items()}
+    with SessionLocal() as db:
+        for name, key in keys.items():
+            tenant = school["other"] if name == "foreign" else school["tenant"]
+            switch_tenant_context(db, str(tenant))
+            _insert_raw(db, "DELETE FROM check_in_sessions WHERE id = :id AND tenant_id = :tid", id=key, tid=tenant)
+        db.commit()
+
+
 @needs_postgres
 @pytest.mark.parametrize("path", ["/class-sessions/", "/class-sessions/active/"])
-def test_class_sessions_are_limited_to_classes_of_the_cycle(school, schooling, path):
-    """La table ``class_sessions`` n'existe dans aucune migration : on la crée pour le test
-    (la route avale l'erreur et renvoie [] quand elle est absente)."""
-    t = school["tenant"]
-    keys = {name: uuid4() for name in ("cs_cp", "cs_6e", "cs_nocls")}
-    if sa_inspect(engine).has_table("class_sessions"):
-        pytest.skip("la table class_sessions existe déjà : on ne la modifie ni ne la supprime")
-    with SessionLocal() as db:
-        db.execute(text("""CREATE TABLE class_sessions (
-            id uuid PRIMARY KEY, tenant_id uuid NOT NULL, class_id uuid, subject_id uuid, room_id uuid,
-            teacher_id uuid, status text, start_time timestamptz, end_time timestamptz)"""))
-        for name, klass in (("cs_cp", "cls_cp"), ("cs_6e", "cls_6e"), ("cs_nocls", None)):
-            db.execute(text("""INSERT INTO class_sessions (id, tenant_id, class_id, status, start_time, end_time)
-                               VALUES (CAST(:i AS uuid), CAST(:t AS uuid), CAST(:c AS uuid), 'ACTIVE',
-                                       NOW() - interval '1 hour', NOW() + interval '1 hour')"""),
-                       {"i": str(keys[name]), "t": str(t), "c": str(schooling[klass]) if klass else None})
-        db.commit()
+def test_class_sessions_are_limited_to_classes_of_the_cycle(school, schooling, class_sessions, path):
+    active = path.endswith("/active/")
+    keys = class_sessions
+    primary = {keys["cp"]} if active else {keys["cp"], keys["ended"], keys["expired"]}
+    for who in ("director", "director_teacher"):
+        assert ids(call(school, who, "GET", path)) == primary
+    for who in ("secretary_free", "admin_residual", "teacher"):
+        assert ids(call(school, who, "GET", path)) == primary | {keys["college"], keys["unassigned"]}
+    for who in ("parent", "student"):
+        assert call(school, who, "GET", path).status_code == 403
+
+    filters = {"class_id": str(schooling["cls_cp"]), "subject_id": str(schooling["subject"]),
+               "session_date": "2026-11-02", "status": "active"}
+    result = call(school, "director", "GET", path, params=filters)
+    assert ids(result) == {keys["cp"]}
+    row = result.json()[0]
+    assert row["class_id"] == filters["class_id"]
+    assert row["classroom"]["name"] == row["class_name"]
+    assert row["subject"]["name"] == row["subject_name"]
+    assert row["teacher"]["first_name"] == row["teacher_first_name"]
+    assert row["room"] is None
+    for override in ({"subject_id": str(uuid4())}, {"session_date": "2026-11-03"},
+                     {"class_id": str(schooling["cls_6e"])}):
+        assert ids(call(school, "director", "GET", path, params={**filters, **override})) == set()
+    if not active:
+        assert ids(call(school, "director", "GET", path, params={"status": "completed"})) == {keys["ended"]}
+
+
+@needs_postgres
+def test_class_session_alias_tracks_start_and_end(school, schooling, grading_assignment):
+    body = {"class_id": str(schooling["cls_6e"]), "subject_id": str(schooling["subject"])}
+    teacher = "teacher"
+    started = call(school, teacher, "POST", "/school-life/check-ins/sessions/start/", json=body)
+    assert started.status_code == 200, started.text
+    session_id = started.json()["id"]
     try:
-        assert ids(call(school, "director", "GET", path)) == {str(keys["cs_cp"])}
-        everything = {str(v) for v in keys.values()}
-        for who in ("secretary_free", "admin_residual", "teacher"):
-            assert ids(call(school, who, "GET", path)) == everything, who
-    finally:  # créée par ce test (le test est ignoré si elle existait) : supprimée par lui
+        assert session_id in ids(call(school, teacher, "GET", "/class-sessions/active/", params=body))
+        ended = call(school, teacher, "PATCH", f"/school-life/check-ins/sessions/{session_id}/end/", json={})
+        assert ended.status_code == 200
+        assert session_id not in ids(call(school, teacher, "GET", "/class-sessions/active/", params=body))
+        assert session_id in ids(call(school, teacher, "GET", "/class-sessions/", params=body))
+    finally:
         with SessionLocal() as db:
-            db.execute(text("DROP TABLE class_sessions"))
+            switch_tenant_context(db, str(school["tenant"]))
+            _insert_raw(db, "DELETE FROM check_in_sessions WHERE id = :id AND tenant_id = :tid",
+                        id=session_id, tid=school["tenant"])
             db.commit()
+
+
+def test_class_sessions_read_error_is_not_an_empty_list(school):
+    from sqlalchemy.exc import OperationalError
+
+    def fail_read(conn, cursor, statement, parameters, context, executemany):
+        if "FROM check_in_sessions cs" in statement:
+            raise OperationalError("lecture des séances indisponible", {}, Exception("test"))
+
+    event.listen(engine, "before_cursor_execute", fail_read)
+    try:
+        response = call(school, "admin_residual", "GET", "/class-sessions/")
+        assert response.status_code == 500
+    finally:
+        event.remove(engine, "before_cursor_execute", fail_read)
 
 
 def test_student_check_ins_alias_applies_the_student_scope(school, schooling):

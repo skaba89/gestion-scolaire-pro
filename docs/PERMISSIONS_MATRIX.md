@@ -1207,10 +1207,11 @@ finances (B2d) ; agrégats d'établissement et tableaux de bord (B2e).
 
 Limites connues : un compte restreint ne peut pas saisir une donnée sans classe
 (évaluation, devoir, présence) ; `GET /attendance/` garde son `total` historique
-(nombre de lignes renvoyées) ; `/class-sessions/` et `/student-check-ins/` sont
-filtrés mais leurs requêtes n'aboutissent pas aujourd'hui (table
-`class_sessions` absente de toute migration, colonnes de `student_check_ins`
-inexistantes : réponse `[]`). Comptes non restreints, TENANT_ADMIN, TEACHER
+(nombre de lignes renvoyées). Depuis le 21 novembre 2026, les deux alias
+de séances lisent `check_in_sessions`. Ils exigent `school_life:read` et
+filtrent les classes du cycle avant de retourner une liste. L'alias
+`/student-check-ins/` lit encore des colonnes absentes et répond `[]`.
+Comptes non restreints, TENANT_ADMIN, TEACHER
 (`teacher_scope`) et PARENT (`parent_scope`) : comportement identique à avant.
 **Limites d'écran** (mises à jour par B2c-2 : la fiche élève, `LiveAttendance`,
 `Badges`, `QrScanPage` et `ReportCards` s'appuient désormais sur des routes

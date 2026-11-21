@@ -1236,7 +1236,7 @@ ce fichier — pas d'un document de 2025 non révisé.
   `GET /grades/history/` masquée par `GET /grades/{grade_id}/` sont **corrigés par
   #568** ; `grade_history` n'a pas de colonne `student_id` ; `POST /grades/bulk`
   insère une colonne `comment` inexistante (`grades.comments`) et échoue (400) ;
-  `/class-sessions/` (table absente de toute migration) répond toujours `[]` ;
+  `/class-sessions/` répondait toujours `[]` (lecture corrigée le 2026-11-21) ;
   `/student-check-ins/` lit des colonnes inexistantes, n'a que `get_current_user`
   (parent non filtré) et avale l'erreur par `except Exception` (réponse `[]`).
   Écrans encore affectés pour un compte restreint jusqu'à B2c-2 : fiche élève
@@ -1350,3 +1350,13 @@ deux bases. Le format de réponse conserve les détails de l’évaluation.
 Les tests de `backend/tests/test_cycle_scope_school_life.py` relisent la valeur
 enregistrée et vérifient les refus sans modification en base. La recette sur
 l’environnement dédié et le déploiement de ce correctif restent à établir.
+
+### 2026-11-21 — Lecture des séances de classe
+
+Les deux routes de compatibilité `GET /class-sessions/` et
+`GET /class-sessions/active/` lisent les séances créées par la vie scolaire.
+Le test PostgreSQL démarre une séance avec le compte enseignant, la retrouve
+par classe et matière, puis la clôture. La séance quitte la liste active et
+reste dans l’historique. Les tests vérifient les deux cycles d’un établissement
+mixte, un second établissement et la distinction entre liste vide et erreur SQL.
+La règle métier de l’auto-pointage reste à valider.
