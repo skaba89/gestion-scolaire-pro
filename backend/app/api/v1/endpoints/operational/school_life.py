@@ -1,4 +1,5 @@
 import logging
+import math
 import base64
 import html as html_mod
 import re
@@ -281,9 +282,14 @@ def update_grade(
         raise HTTPException(status_code=403, detail="No tenant context")
     from app.api.v1.endpoints.academic.grades import (
         _ensure_assessment_session_writable, _require_grade_write_in_scope,
+        _require_teacher_grade_write_scope,
     )
-    from app.models import Grade as GradeModel
-    current = db.query(GradeModel).filter(GradeModel.id == grade_id, GradeModel.tenant_id == tenant_id).first()
+    from app.crud import grade as crud_grade
+    from app.schemas.grade import GradeUpdate as AcademicGradeUpdate
+
+    current = db.query(GradeModel).filter(
+        GradeModel.id == grade_id, GradeModel.tenant_id == tenant_id,
+    ).with_for_update().first()
     if not current:
         raise HTTPException(status_code=404, detail="Grade not found")
     # Périmètre par cycle (B2c-2) : élève et évaluation actuels (le schéma de mise à jour ne
@@ -293,10 +299,22 @@ def update_grade(
         student_ids=[current.student_id], assessment_ids=[current.assessment_id],
         not_found="Grade not found",
     )
+    _require_teacher_grade_write_scope(
+        db, tenant_id=tenant_id, current_user=current_user,
+        student_id=current.student_id, assessment_id=current.assessment_id,
+    )
     _ensure_assessment_session_writable(db, tenant_id=tenant_id, assessment_id=current.assessment_id)
-    _ensure_assessment_session_writable(db, tenant_id=tenant_id,
-                                        assessment_id=obj_in.assessment_id or current.assessment_id)
-    result = crud_sl.update_grade(db, grade_id=grade_id, obj_in=obj_in, tenant_id=tenant_id)
+
+    patch = obj_in.model_dump(exclude_unset=True)
+    for field in ("score", "max_score", "coefficient"):
+        if field in patch and (patch[field] is None or not math.isfinite(patch[field])):
+            raise HTTPException(status_code=422, detail=f"Valeur numérique finie requise pour {field}")
+    try:
+        update = AcademicGradeUpdate.model_validate(patch)
+        result = crud_grade.update_grade(db, grade_id, update, tenant_id)
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=422, detail="Valeur de note ou de barème invalide") from exc
     if not result:
         raise HTTPException(status_code=404, detail="Grade not found")
     return result

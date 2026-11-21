@@ -36,7 +36,7 @@ from app.models.student_check_in import StudentCheckIn  # noqa: E402
 from test_cycle_scope_gate import _assert_denied, school, structure  # noqa: E402,F401
 from test_cycle_scope_schooling import (  # noqa: E402,F401
     TODAY, _error_body, _insert_raw, assessment_body, attendance_body, count, get_assessment,
-    get_attendance, get_grade, grade_body, raw_count, raw_value, schooling,
+    get_attendance, get_grade, grade_body, grading_assignment, raw_count, raw_value, schooling,
 )
 from test_cycle_scope_students import call, ids, world  # noqa: E402,F401
 
@@ -328,16 +328,58 @@ def test_school_life_grade_writes_need_student_and_assessment_in_scope_without_e
         assert call(school, "director", "PUT", f"/school-life/grades/{schooling[name]}/", json={"score": 1.0}).status_code == 404, name
         assert call(school, "director", "DELETE", f"/school-life/grades/{schooling[name]}/").status_code == 404, name
         assert get_grade(schooling[name]).score == score
-    # Dans le périmètre la garde laisse passer. Défaut préexistant, hors lot : ``update_grade`` lit
-    # ``obj_in.assessment_id`` que ``GradeUpdate`` n'a pas (AttributeError -> 500 pour tout le monde, aucun
-    # écran n'appelle cette route en écriture). Comportement ACTUEL asserté explicitement : 500, note intacte.
     in_scope = call(school, "director", "PUT", f"/school-life/grades/{schooling['g_cp']}/", json={"score": 16.0})
-    assert in_scope.status_code == 500
-    assert get_grade(schooling["g_cp"]).score == 15.0
+    assert in_scope.status_code == 200, in_scope.text
+    assert in_scope.json()["score"] == 16.0
+    assert in_scope.json()["assessment"]["id"] == str(schooling["a_cp"])
+    assert get_grade(schooling["g_cp"]).score == 16.0
     before = count(Grade, t)
     assert call(school, "director", "DELETE", f"/school-life/grades/{schooling['g_cp']}/").status_code == 200
     assert count(Grade, t) == before - 1
-    assert call(school, "admin_residual", "PUT", f"/school-life/grades/{schooling['g_6e']}/", json={"score": 11.0}).status_code == 500  # même défaut préexistant
+    assert call(school, "admin_residual", "PUT", f"/school-life/grades/{schooling['g_6e']}/", json={"score": 11.0}).status_code == 200
+    assert get_grade(schooling["g_6e"]).score == 11.0
+
+
+def test_school_life_grade_partial_update_respects_scale(school, schooling):
+    grade_id = schooling["g_cp"]
+    url = f"/school-life/grades/{grade_id}/"
+    updated = call(school, "director", "PUT", url, json={"score": 0, "comments": "À reprendre"})
+    assert updated.status_code == 200
+    assert updated.json()["score"] == 0
+    assert call(school, "director", "PUT", url, json={"score": 16}).status_code == 200
+    for invalid in ({"score": 21}, {"score": -1}, {"max_score": 15}, {"coefficient": 0},
+                    {"max_score": "Infinity"},
+                    {"score": None}, {"max_score": None}, {"coefficient": None}, {"comments": "x" * 501}):
+        assert call(school, "director", "PUT", url, json=invalid).status_code == 422
+        saved = get_grade(grade_id)
+        assert (saved.score, saved.max_score, saved.coefficient, saved.comments) == (16, 20, 1, "À reprendre")
+    cleared = call(school, "director", "PUT", url, json={"comments": None})
+    assert cleared.status_code == 200
+    assert get_grade(grade_id).comments is None
+
+
+@needs_postgres
+def test_school_life_grade_update_uses_teaching_assignment(school, schooling, grading_assignment):
+    own = f"/school-life/grades/{schooling['g_6e']}/"
+    assert call(school, "teacher", "PUT", own, json={"score": 11}).status_code == 200
+    assert get_grade(schooling["g_6e"]).score == 11
+    other = schooling["g_cp"]
+    assert call(school, "teacher", "PUT", f"/school-life/grades/{other}/", json={"score": 16}).status_code == 403
+    assert get_grade(other).score == 15
+
+
+def test_school_life_closed_session_keeps_grade(school, schooling):
+    from app.models.exam_session import ExamSession
+
+    with SessionLocal() as db:
+        switch_tenant_context(db, str(school["tenant"]))
+        session = db.get(ExamSession, schooling["session"])
+        session.status = "CLOSED"
+        db.commit()
+    grade_id = schooling["g_cp"]
+    closed = call(school, "director", "PUT", f"/school-life/grades/{grade_id}/", json={"score": 16})
+    assert closed.status_code == 409
+    assert get_grade(grade_id).score == 15
 
 
 def test_school_life_attendance_list_follows_the_student(school, schooling):
