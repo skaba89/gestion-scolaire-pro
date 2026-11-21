@@ -63,3 +63,57 @@ it("relance la lecture au changement de date ou d’établissement", async () =>
     params: { ...params, tenant_id: "école B" },
   })));
 });
+
+it("recherche sur toutes les pages et exporte les mouvements filtrés avec leur source", async () => {
+  const movements = Array.from({ length: 42 }, (_, i) => ({
+    id: String(i), student_id: String(i), checked_at: "2026-11-02T08:24:00Z",
+    student: { first_name: "Aïcha", last_name: i > 39 ? '=Nom;"Test"' : "Camara", registration_number: `MAT-${i}` },
+    check_in_type: i === 41 ? null : i % 2 === 0 ? "EXIT" : "ENTRY",
+    source: i === 41 ? null : "CARD",
+  }));
+  get.mockResolvedValue({ data: movements });
+  render(<QueryClientProvider client={new QueryClient()}><CheckInHistory tenantId="a" userId="u" /></QueryClientProvider>);
+  expect(await screen.findByText("1-10 sur 42")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Suivant" }));
+  expect(screen.getByText("11-20 sur 42")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Précédent" }));
+  fireEvent.click(screen.getByRole("button", { name: "5" }));
+  expect(screen.getByText("41-42 sur 42")).toBeInTheDocument();
+  // Radix recentre l’option lors de l’ouverture ; jsdom ne gère pas le défilement.
+  const scroll = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollIntoView");
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: vi.fn() });
+  try {
+    fireEvent.keyDown(screen.getByRole("combobox"), { key: "ArrowDown" });
+    fireEvent.keyDown(await screen.findByRole("option", { name: "20" }), { key: "Enter" });
+  } finally {
+    if (scroll) Object.defineProperty(HTMLElement.prototype, "scrollIntoView", scroll);
+    else Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+  }
+  expect(screen.getByText("1-20 sur 42")).toBeInTheDocument();
+  fireEvent.change(screen.getByRole("textbox"), { target: { value: "mat-41" } });
+  expect(screen.getByText("1-1 sur 1")).toBeInTheDocument();
+  fireEvent.change(screen.getByRole("textbox"), { target: { value: "=nom" } });
+  expect(screen.getByText("1-2 sur 2")).toBeInTheDocument();
+  const createURL = vi.fn((_file: Blob) => "blob:history");
+  const revokeURL = vi.fn();
+  const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+  vi.stubGlobal("URL", class extends URL { static createObjectURL = createURL; static revokeObjectURL = revokeURL; });
+  try {
+    fireEvent.click(screen.getByRole("button", { name: "CSV" }));
+    const reader = new FileReader();
+    const content = new Promise<string>((resolve, reject) => {
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = reject;
+    });
+    reader.readAsText(createURL.mock.calls[0][0]);
+    const lines = (await content).trim().split("\r\n");
+    expect(lines).toHaveLength(3);
+    expect(lines[1]).toContain(`"'=Nom;""Test""";"Aïcha";"MAT-40";"Sortie";"CARD"`);
+    expect(lines[2]).toContain('"MAT-41";"—";"—"');
+    expect(click).toHaveBeenCalledOnce();
+    expect(revokeURL).toHaveBeenCalledWith("blob:history");
+  } finally {
+    click.mockRestore();
+    vi.unstubAllGlobals();
+  }
+});
