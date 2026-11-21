@@ -617,6 +617,8 @@
     "statusLost": "مفقود",
     "statusExpired": "منتهي الصلاحية",
     "tabBadges": "الشارات",
+    "historyLoadError": "تعذر تحميل سجل الحضور.",
+    "historyRetry": "إعادة المحاولة",
     "tabHistory": "سجل الحضور",
     "noBadgesFound": "لم يتم العثور على أي شارة",
     "scanQR": "مسح رمز QR",

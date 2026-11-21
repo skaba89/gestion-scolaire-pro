@@ -651,6 +651,8 @@
     "statusLost": "丢失",
     "statusExpired": "已过期",
     "tabBadges": "徽章",
+    "historyLoadError": "无法加载考勤记录。",
+    "historyRetry": "重试",
     "tabHistory": "考勤历史",
     "noBadgesFound": "未找到任何徽章",
     "scanQR": "扫描二维码",

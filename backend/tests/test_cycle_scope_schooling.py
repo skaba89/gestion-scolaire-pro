@@ -948,26 +948,90 @@ def test_class_sessions_read_error_is_not_an_empty_list(school):
         event.remove(engine, "before_cursor_execute", fail_read)
 
 
-def test_student_check_ins_alias_applies_the_student_scope(school, schooling):
-    """L'alias lit des colonnes qui n'existent pas dans ``student_check_ins`` : il répond toujours
-    [] (erreur avalée). Le filtre est posé pour le jour où il sera réparé : on vérifie la requête
-    envoyée à la base."""
-    statements = []
+@pytest.fixture
+def history_records(school, schooling):
+    from app.models.student_check_in import StudentCheckIn
+    keys = {}
+    with SessionLocal() as db:
+        for key, who, day, direction in (
+            ("entry", "s_cp", 2, "IN"), ("exit", "s_cp", 2, "OUT"),
+            ("tomorrow", "s_cp", 3, "IN"), ("college", "s_6e", 2, "IN"),
+            ("foreign", "s_foreign", 2, "IN"),
+        ):
+            tenant = school["other"] if key == "foreign" else school["tenant"]
+            switch_tenant_context(db, str(tenant))
+            keys[key] = uuid4()
+            db.add(StudentCheckIn(id=keys[key], tenant_id=tenant, student_id=schooling[who],
+                                  checked_at=datetime(2026, 11, day, 16 if direction == "OUT" else 0),
+                                  direction=direction, source="QR_SCAN"))
+            db.flush()
+        db.commit()
+    yield {key: str(value) for key, value in keys.items()}
+    with SessionLocal() as db:
+        for tenant in (school["tenant"], school["other"]):
+            switch_tenant_context(db, str(tenant))
+            db.query(StudentCheckIn).filter(StudentCheckIn.tenant_id == tenant,
+                                            StudentCheckIn.id.in_(keys.values())).delete(synchronize_session=False)
+        db.commit()
 
-    def spy(conn, cursor, statement, parameters, context, executemany):
-        statements.append(statement)
 
-    event.listen(engine, "before_cursor_execute", spy)
+def test_student_check_ins_alias_applies_the_student_scope(school, schooling, history_records):
+    url = "/student-check-ins/"
+    keys = history_records
+    params = {"checked_at_gte": "2026-11-02T01:00:00+01:00", "checked_at_lt": "2026-11-03T01:00:00+01:00"}
+    response = call(school, "director", "GET", url, params=params)
+    assert response.status_code == 200
+    rows = response.json()
+    assert [(r["id"], r["check_in_type"]) for r in rows] == [(keys["exit"], "EXIT"), (keys["entry"], "ENTRY")]
+    assert rows[0]["student"]["id"] == str(schooling["s_cp"])
+    assert rows[0]["student"]["first_name"] == "s_cp"
+    assert datetime.fromisoformat(rows[0]["checked_at"]).utcoffset() == timedelta(0)
+    assert ids(call(school, "admin_residual", "GET", url, params=params)) == {keys[k] for k in ("entry", "exit", "college")}
+    assert ids(call(school, "admin_residual", "GET", url, params={**params, "classroom_id": str(schooling["cls_6e"])})) == {keys["college"]}
+    assert ids(call(school, "director_teacher", "GET", url, params=params)) == {keys["entry"], keys["exit"]}
+    assert ids(call(school, "parent", "GET", url, params={**params, "student_id": str(schooling["s_cp"])})) == {keys["entry"], keys["exit"]}
+    assert call(school, "parent", "GET", url, params={**params, "student_id": str(schooling["s_foreign"])}).status_code == 403
+    assert call(school, "admin_residual", "GET", url, params={"tenant_id": str(school["other"])}).status_code == 403
+    assert call(school, "director", "GET", url, params={"checked_at_gte": "2026-11-04T00:00:00Z", "checked_at_lt": params["checked_at_lt"]}).status_code == 422
+
+
+def test_checkin_history_family_list_and_student_identity(school, schooling, history_records):
+    from app.models.student import Student
+    with SessionLocal() as db:
+        switch_tenant_context(db, str(school["tenant"]))
+        student = db.get(Student, schooling["s_cp"])
+        student.user_id = school["people"]["student"]
+        db.commit()
+    mine = {history_records[key] for key in ("entry", "exit", "tomorrow")}
+    assert ids(call(school, "student", "GET", "/student-check-ins/")) == mine
+    assert ids(call(school, "parent", "GET", "/student-check-ins/")) == mine | {history_records["college"]}
+
+
+def test_complete_day_includes_all_rows_and_last_microsecond(school, schooling):
+    from app.models.student_check_in import StudentCheckIn
+    tenant = school["tenant"]
+    stamp = datetime(2026, 11, 2, 23, 59, 59, 999999)
+    with SessionLocal() as db:
+        switch_tenant_context(db, str(tenant))
+        db.add_all([StudentCheckIn(tenant_id=tenant, student_id=schooling["s_cp"], checked_at=stamp)
+                    for _ in range(201)])
+        db.commit()
     try:
-        assert call(school, "director", "GET", "/student-check-ins/").json() == []
-        restricted = [s for s in statements if "student_check_ins ci" in s]
-        statements.clear()
-        assert call(school, "admin_residual", "GET", "/student-check-ins/").json() == []
-        free = [s for s in statements if "student_check_ins ci" in s]
+        params = {"checked_at_gte": "2026-11-02T00:00:00Z", "checked_at_lt": "2026-11-03T00:00:00Z"}
+        url = "/student-check-ins/"
+        assert len(ids(call(school, "director", "GET", url, params=params))) == 200
+        assert len(ids(call(school, "director", "GET", url, params={**params, "complete_day": True}))) == 201
+        assert call(school, "director", "GET", url, params={"complete_day": True}).status_code == 422
     finally:
-        event.remove(engine, "before_cursor_execute", spy)
-    assert restricted and "enrollments chk_e" in restricted[0] and "ci.student_id" in restricted[0]
-    assert free and "enrollments" not in free[0]
+        with SessionLocal() as db:
+            switch_tenant_context(db, str(tenant))
+            db.query(StudentCheckIn).filter_by(tenant_id=tenant, student_id=schooling["s_cp"], checked_at=stamp).delete()
+            db.commit()
+
+
+@needs_postgres
+def test_teacher_can_read_own_roster_checkin_history(school, schooling, grading_assignment, history_records):
+    assert ids(call(school, "teacher", "GET", "/student-check-ins/")) == {history_records["college"]}
 
 
 @needs_postgres

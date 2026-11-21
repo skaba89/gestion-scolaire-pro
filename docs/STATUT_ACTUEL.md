@@ -1237,8 +1237,8 @@ ce fichier — pas d'un document de 2025 non révisé.
   #568** ; `grade_history` n'a pas de colonne `student_id` ; `POST /grades/bulk`
   insère une colonne `comment` inexistante (`grades.comments`) et échoue (400) ;
   `/class-sessions/` répondait toujours `[]` (lecture corrigée le 2026-11-21) ;
-  `/student-check-ins/` lit des colonnes inexistantes, n'a que `get_current_user`
-  (parent non filtré) et avale l'erreur par `except Exception` (réponse `[]`).
+  l’ancien alias `/student-check-ins/` masquait une erreur SQL et renvoyait `[]`
+  (historique de pointage corrigé le 2026-11-21).
   Écrans encore affectés pour un compte restreint jusqu'à B2c-2 : fiche élève
   (`StudentDetail`, notes/présences lues via `/school-life/*`, vides) ;
   `LiveAttendance`, `Badges`, `QrScanPage`, `ReportCards` (403).
@@ -1360,3 +1360,10 @@ par classe et matière, puis la clôture. La séance quitte la liste active et
 reste dans l’historique. Les tests vérifient les deux cycles d’un établissement
 mixte, un second établissement et la distinction entre liste vide et erreur SQL.
 La règle métier de l’auto-pointage reste à valider.
+
+- **2026-11-21 — historique des pointages, onglet Badges.** L’écran charge les entrées
+  et sorties de la journée civile sélectionnée, avec recherche par matricule et export CSV.
+  La lecture respecte établissement, cycle, classes de l’enseignant, séances propres
+  et liens familiaux. Une erreur de lecture propose une nouvelle tentative.
+  La saisie des pointages et la décision métier CHECKINS-SELF-01 restent indépendantes.
+  Recette et production à vérifier après déploiement.

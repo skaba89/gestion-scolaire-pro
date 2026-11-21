@@ -696,6 +696,8 @@
         "statusLost": "Perdu",
         "statusExpired": "Expiré",
         "tabBadges": "Badges",
+        "historyLoadError": "Impossible de charger les pointages.",
+        "historyRetry": "Réessayer",
         "tabHistory": "Historique Pointages",
         "noBadgesFound": "Aucun badge trouvé",
         "scanQR": "Scanner QR",

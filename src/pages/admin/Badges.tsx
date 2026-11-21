@@ -368,7 +368,7 @@ export default function BadgesPage() {
         </TabsContent>
 
         <TabsContent value="history">
-          <CheckInHistory />
+          {tenant && user && <CheckInHistory key={`${tenant.id}:${user.id}`} tenantId={tenant.id} userId={user.id} />}
         </TabsContent>
       </Tabs>
 

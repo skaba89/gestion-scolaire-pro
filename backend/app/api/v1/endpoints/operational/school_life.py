@@ -8,7 +8,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import bindparam, text
+from sqlalchemy import bindparam, column, select, table, text
 from typing import List, Optional, Dict, Any, Tuple
 from uuid import UUID, uuid4
 from datetime import datetime, date, time, timezone
@@ -1780,18 +1780,18 @@ def _teacher_student_ids(db: Session, *, tenant_id: str, user_id: str) -> set[st
     return {str(UUID(str(r[0]))) for r in rows}
 
 
+def _teacher_session_query(tenant_id, user_id):
+    sessions = table("check_in_sessions", column("id", GUID()), column("tenant_id", GUID()),
+                     column("teacher_id", GUID()))
+    return select(sessions.c.id).where(sessions.c.tenant_id == tenant_id, sessions.c.teacher_id == user_id)
+
+
 def _teacher_session_ids(db: Session, *, tenant_id: str, user_id: str, session_ids: set) -> set[str]:
-    """Parmi `session_ids`, les séances de pointage ouvertes par cet enseignant."""
+    """Parmi les séances demandées, celles ouvertes par l'enseignant."""
     if not session_ids:
         return set()
-    stmt = text("""
-        SELECT id FROM check_in_sessions
-        WHERE tenant_id = :tid AND teacher_id = :uid AND id IN :ids
-    """).bindparams(bindparam("tid", type_=GUID()), bindparam("uid", type_=GUID()),
-                    bindparam("ids", expanding=True))
-    rows = db.execute(stmt, {"tid": tenant_id, "uid": str(user_id),
-                             "ids": [str(i) for i in session_ids]}).all()
-    return {str(UUID(str(r[0]))) for r in rows}
+    owned = _teacher_session_query(tenant_id, user_id)
+    return {str(sid) for sid in db.scalars(owned.where(owned.selected_columns.id.in_(session_ids)))}
 
 
 @router.get("/check-ins/", response_model=List[StudentCheckIn])

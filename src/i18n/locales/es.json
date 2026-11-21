@@ -617,6 +617,8 @@
     "statusLost": "Perdido",
     "statusExpired": "Expirado",
     "tabBadges": "Insignias",
+    "historyLoadError": "No se pudo cargar el registro de asistencia.",
+    "historyRetry": "Reintentar",
     "tabHistory": "Historial de Asistencia",
     "noBadgesFound": "No se encontraron insignias",
     "scanQR": "Escanear QR",

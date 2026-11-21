@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import text, bindparam
 from sqlalchemy.exc import SQLAlchemyError
 from uuid import UUID
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -2484,52 +2484,86 @@ student_check_ins_router = APIRouter()
 @student_check_ins_router.get("/")
 def list_student_check_ins(
     request: Request,
-    student_id: Optional[str] = None,
-    classroom_id: Optional[str] = None,
+    student_id: Optional[UUID] = None,
+    classroom_id: Optional[UUID] = None,
+    tenant_id: Optional[UUID] = None,
+    checked_at_gte: Optional[datetime] = None,
+    checked_at_lte: Optional[datetime] = None,
+    checked_at_lt: Optional[datetime] = None,
+    complete_day: bool = False,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """GET /student-check-ins/ — list check-in records."""
-    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
-    user_id = current_user.get("id")
-    where = ["ci.tenant_id = :tid"]
-    params: dict = {"tid": tenant_id}
+    """Historique autorisé, du plus récent au plus ancien, sur la journée locale demandée."""
+    from sqlalchemy import or_, select
+    from app.api.v1.endpoints.operational.school_life import (
+        _can_access_checkin_for_student, _teacher_session_query, _teacher_student_ids,
+    )
+    from app.core.security import user_has_permission
+    from app.core.teacher_scope import is_scoped_teacher
+    from app.models.parent_student import ParentStudent
+    from app.models.student import Student
+    from app.models.student_check_in import StudentCheckIn
 
-    # Students can only see their own check-ins
-    roles = current_user.get("roles", [])
-    if "STUDENT" in roles and not any(r in roles for r in ("TEACHER", "TENANT_ADMIN", "DIRECTOR")):
-        where.append("ci.student_id = :user_id")
-        params["user_id"] = user_id
-    elif student_id:
-        where.append("ci.student_id = :student_id")
-        params["student_id"] = student_id
+    tenant = resolve_current_tenant_id(request, current_user, db)
+    if tenant_id is not None and tenant_id != tenant:
+        raise HTTPException(status_code=403, detail="Établissement non autorisé")
+    user_id = current_user["id"]
+    query = db.query(StudentCheckIn, Student.first_name, Student.last_name, Student.registration_number).join(
+        Student, (Student.id == StudentCheckIn.student_id) & (Student.tenant_id == StudentCheckIn.tenant_id),
+    ).filter(StudentCheckIn.tenant_id == tenant)
 
-    if classroom_id:
-        where.append("ci.classroom_id = :classroom_id")
-        params["classroom_id"] = classroom_id
+    scope = scoped_class_ids(db, tenant, current_user)
+    if scope is not None:
+        query = query.filter(student_scope_clause(StudentCheckIn.student_id, scope, tenant_id=tenant))
+    if classroom_id is not None:
+        query = query.filter(student_scope_clause(StudentCheckIn.student_id, [classroom_id], tenant_id=tenant))
+    if not user_has_permission(current_user, "school_life:read"):
+        if student_id is not None:
+            if not _can_access_checkin_for_student(db, current_user=current_user, student_id=student_id,
+                                                   tenant_id=tenant, write=False):
+                raise HTTPException(status_code=403, detail="Pointages non autorisés pour cet élève")
+        else:
+            # Même relation élève / responsable que la lecture de vie scolaire.
+            children = select(ParentStudent.student_id).where(ParentStudent.tenant_id == tenant,
+                                                              ParentStudent.parent_id == user_id)
+            query = query.filter(or_(Student.user_id == user_id, Student.id.in_(children)))
+    if student_id is not None:
+        query = query.filter(StudentCheckIn.student_id == student_id)
+    if is_scoped_teacher(current_user):
+        roster = _teacher_student_ids(db, tenant_id=str(tenant), user_id=user_id)
+        query = query.filter(or_(StudentCheckIn.student_id.in_(roster),
+                                 StudentCheckIn.session_id.in_(_teacher_session_query(tenant, user_id))))
 
-    scope_binds = []
-    if is_cycle_restricted(current_user):
-        # Périmètre par cycle (B2c-1) : les pointages des seuls élèves du périmètre.
-        scope_sql, scope_binds = student_scope_sql(
-            "ci.student_id", scoped_class_ids(db, tenant_id, current_user), tenant_id=tenant_id, tag="chk",
-        )
-        where.append(scope_sql)
+    def utc_naive(value):
+        return value.astimezone(timezone.utc).replace(tzinfo=None) if value and value.tzinfo else value
 
-    try:
-        rows = db.execute(text(f"""
-            SELECT ci.id, ci.student_id, ci.classroom_id, ci.check_in_time,
-                   ci.check_out_time, ci.status, ci.notes, ci.created_at,
-                   u.first_name, u.last_name
-            FROM student_check_ins ci
-            LEFT JOIN users u ON u.id = ci.student_id
-            WHERE {' AND '.join(where)}
-            ORDER BY ci.check_in_time DESC
-            LIMIT 200
-        """).bindparams(*scope_binds), params).mappings().all()
-        return [dict(r) for r in rows]
-    except Exception:
-        return []
+    start, inclusive_end, exclusive_end = map(utc_naive, (checked_at_gte, checked_at_lte, checked_at_lt))
+    if inclusive_end is not None and exclusive_end is not None:
+        raise HTTPException(status_code=422, detail="Choisir une seule borne de fin")
+    end = exclusive_end if exclusive_end is not None else inclusive_end
+    if start and end and end < start:
+        raise HTTPException(status_code=422, detail="Intervalle de pointage invalide")
+    if complete_day and (not start or not end or end - start > timedelta(hours=26)):
+        raise HTTPException(status_code=422, detail="Une journée bornée est requise")
+    if start is not None:
+        query = query.filter(StudentCheckIn.checked_at >= start)
+    if inclusive_end is not None:
+        query = query.filter(StudentCheckIn.checked_at <= inclusive_end)
+    if exclusive_end is not None:
+        query = query.filter(StudentCheckIn.checked_at < exclusive_end)
+    query = query.order_by(StudentCheckIn.checked_at.desc(), StudentCheckIn.id.desc())
+    if not complete_day:
+        query = query.limit(200)
+
+    types = {"IN": "ENTRY", "ENTRY": "ENTRY", "OUT": "EXIT", "EXIT": "EXIT"}
+    return [
+        {"id": row.id, "student_id": row.student_id, "source": row.source,
+         "check_in_type": types.get((row.direction or "").upper()),
+         "checked_at": row.checked_at.replace(tzinfo=timezone.utc) if row.checked_at.tzinfo is None else row.checked_at,
+         "student": {"id": row.student_id, "first_name": first, "last_name": last, "registration_number": reg}}
+        for row, first, last, reg in query
+    ]
 
 
 # ─── /student-badges/ alias → /school-life/badges/ ───────────────────────────
