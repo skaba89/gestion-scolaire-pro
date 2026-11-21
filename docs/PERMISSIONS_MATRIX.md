@@ -1209,8 +1209,10 @@ Limites connues : un compte restreint ne peut pas saisir une donnée sans classe
 (évaluation, devoir, présence) ; `GET /attendance/` garde son `total` historique
 (nombre de lignes renvoyées). Depuis le 21 novembre 2026, les deux alias
 de séances lisent `check_in_sessions`. Ils exigent `school_life:read` et
-filtrent les classes du cycle avant de retourner une liste. L'alias
-`/student-check-ins/` lit encore des colonnes absentes et répond `[]`.
+filtrent les classes du cycle avant de retourner une liste. L’alias
+`/student-check-ins/` utilise le modèle de pointage. Un agent habilité voit son périmètre,
+un enseignant ses inscrits actifs ou les pointages de ses propres séances, une famille
+les dossiers liés à son compte. Les filtres de classe et de cycle restent cumulatifs.
 Comptes non restreints, TENANT_ADMIN, TEACHER
 (`teacher_scope`) et PARENT (`parent_scope`) : comportement identique à avant.
 **Limites d'écran** (mises à jour par B2c-2 : la fiche élève, `LiveAttendance`,

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { apiClient } from "@/api/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -14,8 +14,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
-import { format, startOfDay, endOfDay } from "date-fns";
+import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
+import { format, startOfDay, addDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Search, CalendarIcon, ArrowRightCircle, ArrowLeftCircle, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -24,31 +25,25 @@ import { useStudentLabel } from "@/hooks/useStudentLabel";
 interface CheckIn {
   id: string;
   student_id: string;
-  check_in_type: "ENTRY" | "EXIT";
+  check_in_type: "ENTRY" | "EXIT" | null;
   checked_at: string;
-  location: string | null;
-  notes: string | null;
+  source: string | null;
   student?: {
     id: string;
     first_name: string;
     last_name: string;
     registration_number: string | null;
   };
-  checked_by_profile?: {
-    first_name: string | null;
-    last_name: string | null;
-  };
 }
 
 interface CheckInHistoryProps {
-  tenantId?: string;
+  tenantId: string;
+  userId: string;
 }
 
-export default function CheckInHistory({ tenantId }: CheckInHistoryProps) {
-  const { toast } = useToast();
-  const { studentLabel, StudentLabel, studentsLabel, StudentsLabel } = useStudentLabel();
-  const [checkIns, setCheckIns] = useState<CheckIn[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function CheckInHistory({ tenantId, userId }: CheckInHistoryProps) {
+  const { t } = useTranslation();
+  const { StudentLabel, studentsLabel } = useStudentLabel();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
 
@@ -56,31 +51,24 @@ export default function CheckInHistory({ tenantId }: CheckInHistoryProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  useEffect(() => {
-    if (tenantId) {
-      fetchCheckIns();
-    }
-  }, [tenantId, selectedDate]);
-
-  const fetchCheckIns = async () => {
-    if (!tenantId) return;
-
-    setLoading(true);
-    const dayStart = startOfDay(selectedDate).toISOString();
-    const dayEnd = endOfDay(selectedDate).toISOString();
-
-    const { data } = await apiClient.get<CheckIn[]>("/student-check-ins/", {
-      params: {
-        tenant_id: tenantId,
-        checked_at_gte: dayStart,
-        checked_at_lte: dayEnd,
-        ordering: "-checked_at",
-      },
-    });
-
-    setCheckIns(data || []);
-    setLoading(false);
-  };
+  const dayStart = startOfDay(selectedDate).toISOString();
+  const nextDay = startOfDay(addDays(selectedDate, 1)).toISOString();
+  const history = useQuery({
+    queryKey: ["badge-check-in-history", tenantId, userId, dayStart, nextDay],
+    queryFn: async ({ signal }) => {
+      const response = await apiClient.get<CheckIn[]>("/student-check-ins/", {
+        params: { tenant_id: tenantId, checked_at_gte: dayStart, checked_at_lt: nextDay, complete_day: true },
+        signal,
+      });
+      return response.data;
+    },
+    retry: false,
+    gcTime: 0,
+    staleTime: 0,
+    placeholderData: undefined,
+  });
+  const ready = history.isSuccess && !history.isFetching;
+  const checkIns = ready ? history.data : [];
 
   const filteredCheckIns = checkIns.filter(checkIn => {
     const studentName = `${checkIn.student?.first_name} ${checkIn.student?.last_name}`.toLowerCase();
@@ -105,28 +93,28 @@ export default function CheckInHistory({ tenantId }: CheckInHistoryProps) {
   const exportToCSV = () => {
     if (filteredCheckIns.length === 0) return;
 
-    const headers = ["Heure", "Nom", "Prénom", "N° Étudiant", "Type", "Enregistré par"];
+    const headers = ["Heure", "Nom", "Prénom", "N° Étudiant", "Type", "Source"];
     const rows = filteredCheckIns.map(checkIn => [
       format(new Date(checkIn.checked_at), "HH:mm:ss"),
       checkIn.student?.last_name || "",
       checkIn.student?.first_name || "",
       checkIn.student?.registration_number || "",
-      checkIn.check_in_type === "ENTRY" ? "Entrée" : "Sortie",
-      checkIn.checked_by_profile
-        ? `${checkIn.checked_by_profile.first_name} ${checkIn.checked_by_profile.last_name}`
-        : "Automatique"
+      checkIn.check_in_type === "ENTRY" ? "Entrée" : checkIn.check_in_type === "EXIT" ? "Sortie" : "—",
+      checkIn.source || "—"
     ]);
 
-    const csvContent = [
-      headers.join(";"),
-      ...rows.map(row => row.join(";"))
-    ].join("\n");
+    const quote = (value: string) => {
+      const safe = /^\s*[=+@-]/.test(value) ? "'" + value : value;
+      return '"' + safe.replace(/"/g, '""') + '"';
+    };
+    const csvContent = [headers, ...rows].map(row => row.map(quote).join(";")).join("\r\n");
 
     const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
     link.download = `pointages-${format(selectedDate, "yyyy-MM-dd")}.csv`;
     link.click();
+    URL.revokeObjectURL(link.href);
   };
 
   return (
@@ -135,15 +123,19 @@ export default function CheckInHistory({ tenantId }: CheckInHistoryProps) {
         <CardTitle className="flex items-center justify-between flex-wrap gap-2">
           <span>Historique des pointages</span>
           <div className="flex items-center gap-4 text-sm font-normal">
-            <span className="flex items-center gap-1">
-              <ArrowRightCircle className="h-4 w-4 text-green-600" />
-              {totalEntries} entrées
-            </span>
-            <span className="flex items-center gap-1">
-              <ArrowLeftCircle className="h-4 w-4 text-orange-600" />
-              {totalExits} sorties
-            </span>
-            <span>{uniqueStudents} {studentsLabel.toLowerCase()}</span>
+            {ready && (
+              <>
+                <span className="flex items-center gap-1">
+                  <ArrowRightCircle className="h-4 w-4 text-green-600" />
+                  {totalEntries} entrées
+                </span>
+                <span className="flex items-center gap-1">
+                  <ArrowLeftCircle className="h-4 w-4 text-orange-600" />
+                  {totalExits} sorties
+                </span>
+                <span>{uniqueStudents} {studentsLabel.toLowerCase()}</span>
+              </>
+            )}
             <Button variant="outline" size="sm" onClick={exportToCSV} disabled={filteredCheckIns.length === 0}>
               <Download className="h-4 w-4 mr-1" />
               CSV
@@ -194,7 +186,12 @@ export default function CheckInHistory({ tenantId }: CheckInHistoryProps) {
         </div>
       </CardHeader>
       <CardContent>
-        {loading ? (
+        {history.isError && !history.isFetching ? (
+          <div role="alert" className="text-center py-8">
+            <p>{t("badges.historyLoadError")}</p>
+            <Button variant="outline" onClick={() => history.refetch()}>{t("badges.historyRetry")}</Button>
+          </div>
+        ) : !ready ? (
           <div className="text-center py-8">Chargement...</div>
         ) : filteredCheckIns.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
@@ -208,7 +205,7 @@ export default function CheckInHistory({ tenantId }: CheckInHistoryProps) {
                 <TableHead>{StudentLabel}</TableHead>
                 <TableHead>N° Étudiant</TableHead>
                 <TableHead>Type</TableHead>
-                <TableHead>Enregistré par</TableHead>
+                <TableHead>Source</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -227,17 +224,15 @@ export default function CheckInHistory({ tenantId }: CheckInHistoryProps) {
                         <ArrowRightCircle className="h-3 w-3 mr-1" />
                         Entrée
                       </Badge>
-                    ) : (
+                    ) : checkIn.check_in_type === "EXIT" ? (
                       <Badge className="bg-orange-100 text-orange-800">
                         <ArrowLeftCircle className="h-3 w-3 mr-1" />
                         Sortie
                       </Badge>
-                    )}
+                    ) : "—"}
                   </TableCell>
                   <TableCell>
-                    {checkIn.checked_by_profile
-                      ? `${checkIn.checked_by_profile.first_name} ${checkIn.checked_by_profile.last_name}`
-                      : "Automatique"}
+                    {checkIn.source || "—"}
                   </TableCell>
                 </TableRow>
               ))}

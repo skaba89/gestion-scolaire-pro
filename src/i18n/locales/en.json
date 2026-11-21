@@ -696,6 +696,8 @@
     "statusLost": "Lost",
     "statusExpired": "Expired",
     "tabBadges": "Badges",
+    "historyLoadError": "Attendance records could not be loaded.",
+    "historyRetry": "Try again",
     "tabHistory": "Attendance History",
     "noBadgesFound": "No badges found",
     "scanQR": "Scan QR",
