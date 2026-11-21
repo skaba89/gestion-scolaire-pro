@@ -4,7 +4,7 @@ from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import insert, text
 from uuid import UUID
 import math
 
@@ -20,7 +20,9 @@ from app.core.security import get_current_user, require_permission
 from app.core.teacher_scope import is_scoped_teacher, teacher_teaches_class
 from app.core.tenant_resolution import resolve_current_tenant_id
 from app.crud import grade as crud_grade
+from app.models.grade import Grade as GradeRow
 from app.schemas.grade import Grade, GradeCreate, GradeUpdate, GradeList
+from app.utils.audit import log_audit
 
 router = APIRouter()
 
@@ -589,14 +591,8 @@ def create_bulk_grades(
     if not tenant_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tenant ID required")
 
-    # BUSINESS-RULE FIX (institutional-readiness audit, 2026-09): this
-    # validated score against a hardcoded 0-100 range, but BulkGradeItem
-    # never carries a max_score and the raw INSERT below never sets one
-    # either — the `grades` table's own column default is 20.0 (see
-    # 20260424_0003_ensure_core_table_columns.py), matching every other
-    # grade in this app (GradeBase.max_score default, same 20.0). A score
-    # of e.g. 85 passed this check yet produced a >400% grade once stored
-    # against that real max_score, corrupting averages/transcripts.
+    # Le contrat de saisie en masse note sur 20. Le modèle applique ce barème
+    # et le coefficient par défaut à toutes les lignes de la transaction.
     BULK_GRADE_DEFAULT_MAX_SCORE = 20.0
     # Périmètre par cycle (B2c-1) : CHAQUE élève et CHAQUE évaluation du lot sont vérifiés
     # avant toute écriture ; un seul élément hors périmètre refuse tout le lot (404).
@@ -622,35 +618,22 @@ def create_bulk_grades(
 
     created = []
     try:
+        statement = insert(GradeRow).returning(
+            GradeRow.id, GradeRow.student_id, GradeRow.assessment_id, GradeRow.score,
+            GradeRow.comments.label("comment"), GradeRow.created_at,
+        )
         for item in body.grades:
-            row = db.execute(text("""
-                INSERT INTO grades (tenant_id, student_id, assessment_id, score, comment, created_at, updated_at)
-                VALUES (:tenant_id, :student_id, :assessment_id, :score, :comment, NOW(), NOW())
-                RETURNING id, student_id, assessment_id, score, comment, created_at
-            """), {
-                "tenant_id": tenant_id,
-                "student_id": str(item.student_id),
-                "assessment_id": str(item.assessment_id),
-                "score": item.score,
-                "comment": item.comment,
-            }).mappings().first()
+            row = db.execute(statement.values(
+                tenant_id=tenant_id, student_id=item.student_id, assessment_id=item.assessment_id,
+                score=item.score, comments=item.comment,
+            )).mappings().one()
             created.append(dict(row))
 
-        # Audit log for bulk operation
-        try:
-            from app.utils.audit import log_audit
-            log_audit(
-                db,
-                user_id=current_user.get("id"),
-                tenant_id=tenant_id,
-                action="BULK_CREATE",
-                resource_type="GRADE",
-                resource_id=None,
-                details={"count": len(created), "assessment_ids": list(set(str(g.assessment_id) for g in body.grades))},
-            )
-        except Exception:
-            pass  # Don't fail the operation if audit logging fails
-
+        log_audit(
+            db, user_id=current_user.get("id"), tenant_id=tenant_id,
+            action="BULK_CREATE", resource_type="GRADE", resource_id=None,
+            details={"count": len(created), "assessment_ids": sorted({str(g.assessment_id) for g in body.grades})},
+        )
         db.commit()
         return {"created": len(created), "grades": created}
     except HTTPException:

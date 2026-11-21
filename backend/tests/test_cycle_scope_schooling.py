@@ -476,15 +476,66 @@ def test_grade_bulk_is_all_or_nothing(school, schooling):
         response = call(school, "director", "POST", "/grades/bulk", json={"grades": batch})
         assert response.status_code == 404, batch
         assert count(Grade, t) == before  # aucune écriture partielle
-    # Un lot entièrement dans le périmètre franchit la garde (jamais 404). L'INSERT du handler vise la
-    # colonne inexistante ``grades.comment`` (défaut antérieur, hors lot : 400 avant et après B2c-1) :
-    # la réussite de l'écriture elle-même n'est donc pas démontrable ici.
-    ok = call(school, "director", "POST", "/grades/bulk", json={"grades": [item("s_cp", "a_cp_empty")]})
-    assert ok.status_code != 404
-    free = call(school, "admin_residual", "POST", "/grades/bulk",
-                json={"grades": [item("s_cp", "a_cp_empty"), item("s_6e", "a_6e")]})
-    assert free.status_code != 404  # un compte non restreint n'est jamais refusé pour le périmètre
+    # Un refus sur la seconde note laisse aussi la première intacte.
+    cp = {**item("s_cp", "a_cp_empty"), "score": 0, "comment": "À reprendre"}
+    invalid = {**cp, "score": 21}
+    refused = call(school, "director", "POST", "/grades/bulk", json={"grades": [cp, invalid]})
+    assert refused.status_code == 422
     assert count(Grade, t) == before
+
+    for role, batch in (
+        ("director", [cp]),
+        ("admin_residual", [item("s_cp", "a_nocls"), {**item("s_6e", "a_nocls"), "comment": "Calcul exact"}]),
+    ):
+        response = call(school, role, "POST", "/grades/bulk", json={"grades": batch})
+        assert response.status_code == 201, response.text
+        created = response.json()
+        assert created["created"] == len(created["grades"]) == len(batch)
+        for row, expected in zip(created["grades"], batch, strict=True):
+            assert row["student_id"] == expected["student_id"]
+            assert row["assessment_id"] == expected["assessment_id"]
+            assert row["score"] == expected["score"]
+            assert row["comment"] == expected.get("comment")
+            reread = call(school, role, "GET", f"/grades/{row['id']}/")
+            assert reread.status_code == 200, reread.text
+            grade = reread.json()
+            assert grade["tenant_id"] == str(t)
+            assert grade["score"] == expected["score"]
+            assert grade["comments"] == expected.get("comment")
+            assert grade["max_score"] == 20
+            assert grade["coefficient"] == 1
+    assert count(Grade, t) == before + 3
+
+
+@needs_postgres
+def test_bulk_grade_retry_after_second_insert_fails(school, schooling):
+    before = count(Grade, school["tenant"])
+    batch = {"grades": [
+        {"student_id": str(schooling[student]), "assessment_id": str(schooling["a_nocls"]), "score": 14}
+        for student in ("s_cp", "s_6e")
+    ]}
+    inserts = 0
+
+    def fail_second_insert(conn, cursor, statement, parameters, context, executemany):
+        nonlocal inserts
+        if statement.lstrip().lower().startswith("insert into grades "):
+            inserts += 1
+            if inserts == 2:
+                raise RuntimeError("Interruption de test sur la seconde insertion")
+
+    event.listen(engine, "before_cursor_execute", fail_second_insert)
+    try:
+        failed = call(school, "admin_residual", "POST", "/grades/bulk", json=batch)
+    finally:
+        event.remove(engine, "before_cursor_execute", fail_second_insert)
+    assert inserts == 2
+    assert failed.status_code == 400
+    assert count(Grade, school["tenant"]) == before
+
+    retried = call(school, "admin_residual", "POST", "/grades/bulk", json=batch)
+    assert retried.status_code == 201
+    assert retried.json()["created"] == 2
+    assert count(Grade, school["tenant"]) == before + 2
 
 
 @needs_postgres
