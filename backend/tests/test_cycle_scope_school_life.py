@@ -975,6 +975,9 @@ def test_incident_parties_force_rls_hides_other_tenants(school, life):
             )
         )
         connection.execute(text(f'GRANT USAGE ON SCHEMA public TO "{role}"'))
+        # switch_tenant_context() validates that the requested tenant exists
+        # before setting the transaction-local RLS context.
+        connection.execute(text(f'GRANT SELECT ON tenants TO "{role}"'))
         connection.execute(text(f'GRANT SELECT ON incident_parties TO "{role}"'))
 
     restricted_url = make_url(
