@@ -2,19 +2,21 @@ import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MapPin, Users, Shield, Heart, Building, FileText, AlertTriangle } from "lucide-react";
+import { MapPin, Users, Shield, Heart, Building, FileText, AlertTriangle, type LucideIcon } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { type IncidentRecord, normalizeIncidentStatus } from "./incidentTypes";
 
 interface IncidentTableProps {
-    incidents: any[];
+    incidents: IncidentRecord[];
     onUpdateStatus: (id: string, status: string) => void;
+    onResolve?: (id: string) => void;
     showActions?: boolean;
 }
 
-export function IncidentTable({ incidents, onUpdateStatus, showActions = true }: IncidentTableProps) {
+export function IncidentTable({ incidents, onUpdateStatus, onResolve, showActions = true }: IncidentTableProps) {
     const getTypeBadge = (type: string) => {
-        const configs: Record<string, { icon: any; label: string; className: string }> = {
+        const configs: Record<string, { icon: LucideIcon; label: string; className: string }> = {
             discipline: { icon: Users, label: "Discipline", className: "bg-orange-100 text-orange-800" },
             safety: { icon: Shield, label: "Sécurité", className: "bg-red-100 text-red-800" },
             health: { icon: Heart, label: "Santé", className: "bg-pink-100 text-pink-800" },
@@ -22,7 +24,7 @@ export function IncidentTable({ incidents, onUpdateStatus, showActions = true }:
             bullying: { icon: AlertTriangle, label: "Harcèlement", className: "bg-purple-100 text-purple-800" },
             other: { icon: FileText, label: "Autre", className: "bg-gray-100 text-gray-800" },
         };
-        const config = configs[type] || configs.other;
+        const config = configs[String(type).toLowerCase()] || configs.other;
         const Icon = config.icon;
         return (
             <Badge className={config.className}>
@@ -39,19 +41,21 @@ export function IncidentTable({ incidents, onUpdateStatus, showActions = true }:
             major: { variant: "default", label: "Majeur" },
             critical: { variant: "destructive", label: "Critique" },
         };
-        const config = configs[severity] || configs.medium;
+        const config = configs[String(severity).toLowerCase()] || configs.medium;
         return <Badge variant={config.variant}>{config.label}</Badge>;
     };
 
     const getStatusBadge = (status: string) => {
         const configs: Record<string, { variant: "default" | "secondary" | "destructive" | "outline"; label: string }> = {
+            open: { variant: "outline", label: "Signalé" },
             reported: { variant: "outline", label: "Signalé" },
             investigating: { variant: "default", label: "En cours" },
+            assigned: { variant: "default", label: "Assigné" },
             action_taken: { variant: "secondary", label: "Action prise" },
             resolved: { variant: "secondary", label: "Résolu" },
             closed: { variant: "outline", label: "Clôturé" },
         };
-        const config = configs[status] || configs.reported;
+        const config = configs[normalizeIncidentStatus(status)] || configs.reported;
         return <Badge variant={config.variant}>{config.label}</Badge>;
     };
 
@@ -63,6 +67,7 @@ export function IncidentTable({ incidents, onUpdateStatus, showActions = true }:
                         <TableHead>N°</TableHead>
                         <TableHead>Type</TableHead>
                         <TableHead>Titre</TableHead>
+                        <TableHead>Élèves</TableHead>
                         <TableHead>Gravité</TableHead>
                         {!showActions && <TableHead>Résolu par</TableHead>}
                         <TableHead>Lieu</TableHead>
@@ -72,11 +77,16 @@ export function IncidentTable({ incidents, onUpdateStatus, showActions = true }:
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {incidents.map((incident) => (
-                        <TableRow key={incident.id} className={!showActions ? "opacity-75" : ""}>
-                            <TableCell className="font-mono text-sm">{incident.incident_number}</TableCell>
+                    {incidents.map((incident) => {
+                        const status = normalizeIncidentStatus(incident.status);
+                        return (
+                          <TableRow key={incident.id} className={!showActions ? "opacity-75" : ""}>
+                            <TableCell className="font-mono text-sm">
+                                {incident.incident_number || `INC-${String(incident.id).slice(0, 8).toUpperCase()}`}
+                            </TableCell>
                             <TableCell>{getTypeBadge(incident.incident_type)}</TableCell>
                             <TableCell className="max-w-[200px] truncate">{incident.title}</TableCell>
+                            <TableCell>{Array.isArray(incident.parties) ? incident.parties.length : 0}</TableCell>
                             <TableCell>{getSeverityBadge(incident.severity)}</TableCell>
                             {!showActions && (
                                 <TableCell className="text-muted-foreground">
@@ -98,19 +108,19 @@ export function IncidentTable({ incidents, onUpdateStatus, showActions = true }:
                             {showActions && (
                                 <TableCell>
                                     <div className="flex gap-1">
-                                        {incident.status === "reported" && (
+                                        {(status === "open" || status === "reported") && (
                                             <Button
                                                 size="sm"
                                                 variant="outline"
-                                                onClick={() => onUpdateStatus(incident.id, "investigating")}
+                                                onClick={() => onUpdateStatus(incident.id, "INVESTIGATING")}
                                             >
                                                 Investiguer
                                             </Button>
                                         )}
-                                        {incident.status === "investigating" && (
+                                        {(["investigating", "assigned", "action_taken"].includes(status)) && (
                                             <Button
                                                 size="sm"
-                                                onClick={() => onUpdateStatus(incident.id, "resolved")}
+                                                onClick={() => onResolve?.(incident.id)}
                                             >
                                                 Résoudre
                                             </Button>
@@ -118,11 +128,12 @@ export function IncidentTable({ incidents, onUpdateStatus, showActions = true }:
                                     </div>
                                 </TableCell>
                             )}
-                        </TableRow>
-                    ))}
+                          </TableRow>
+                        );
+                    })}
                     {incidents.length === 0 && (
                         <TableRow>
-                            <TableCell colSpan={showActions ? 8 : 8} className="text-center py-8 text-muted-foreground">
+                            <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                                 Aucun incident trouvé
                             </TableCell>
                         </TableRow>

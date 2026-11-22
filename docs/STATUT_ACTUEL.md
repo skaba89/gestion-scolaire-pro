@@ -1260,12 +1260,9 @@ ce fichier — pas d'un document de 2025 non révisé.
   (un compte restreint cumulant PARENT ou TEACHER reste soumis au périmètre :
   enfant hors cycle = 404, pas d'union).
   Détail : `docs/PERMISSIONS_MATRIX.md` (lot B2c-2). Tests :
-  `test_cycle_scope_school_life.py`. Défauts préexistants relevés, **non
-  corrigés** : `PUT /school-life/grades/{id}/` lit `obj_in.assessment_id` absent
-  de `GradeUpdate` (corrigé le 2026-11-21, voir le journal ci-dessous) ; `PUT /incidents/{id}/resolve/` écrit
-  `resolved_at`, colonne absente de `incidents` (400 systématique) ;
-  `POST /incidents/` avec `student_ids` insère dans `incident_parties`, table
-  absente de toute migration (400, l'incident n'est pas créé) ; `POST
+  `test_cycle_scope_school_life.py`. Défauts préexistants relevés : la modification
+  des notes a été corrigée le 2026-11-21 ; la création multi-élèves et la
+  résolution des incidents ont été corrigées en DEV le 2026-11-22 ; `POST
   /student-badges/` déclare `body: dict` mais le code attend aussi une liste
   (422) ; `GET /student-badges/` n'a que `get_current_user` et aucun filtre
   d'appartenance (constat à la lecture du code, non testé) : un élève ou un
@@ -1392,3 +1389,16 @@ La règle métier de l’auto-pointage reste à valider.
   Une même clé avec un autre élève ou une autre direction répond 409 ; la même clé
   générée par deux tablettes reste isolée. Migration additive `20261121_0001`,
   aucun pointage existant transformé. Vérifié en DEV ; REC et PROD non déployées.
+
+- **2026-11-22 — création et résolution des incidents (INCIDENTS-SCHEMA-01).**
+  Une migration additive crée `incident_parties`, ajoute `incidents.resolved_at`,
+  pose deux index et force une policy RLS stricte. La création vérifie tous les
+  élèves dans l'établissement avant la première écriture, conserve le premier
+  lien dans `incidents.student_id` pour les données historiques, puis écrit les
+  participants dans la même transaction. Pour un compte limité à des cycles,
+  un incident multi-élèves est visible et modifiable uniquement si tous ses
+  participants sont dans le périmètre. L'écran accepte plusieurs élèves,
+  reconnaît les statuts existants sans dépendre de leur casse et appelle la
+  route métier de résolution avec conclusion et action prise. Tests rouges
+  ajoutés avant le correctif dans `test_cycle_scope_school_life.py` et
+  `Incidents.test.tsx`. Vérifié en DEV ; REC et PROD non déployées.

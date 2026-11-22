@@ -1252,11 +1252,11 @@ ou résolvable **seulement si TOUS ses élèves sont dans le périmètre** (et s
 a au moins un ; création : au moins un élève, tous dans le périmètre). Le titre,
 la description et les notes sont communs à toutes les parties : montrer un
 incident dont un élève est hors périmètre divulguerait son contenu, et ne masquer
-que les élèves ne protégerait pas le texte libre. Constat : le lien actuel est la
-seule colonne `incidents.student_id` ; la table `incident_parties`, que
-`create_incident` alimente, n'existe dans aucune migration ni dans
-`operational_tables` (voir « Limites »). Un futur lien multi-élèves devra être
-ajouté au filtre.
+que les élèves ne protégerait pas le texte libre. Le lien historique
+`incidents.student_id` reste lu pour les données existantes. Depuis la migration
+`20261122_0001`, `incident_parties` porte tous les élèves d'un nouvel incident
+avec sa propre policy RLS. Le filtre combine les deux représentations et applique
+la règle « tous les participants » avant pagination.
 
 **Tâches (choix).** `jobs.payload.user_id` enregistre le créateur : les tâches
 sont donc filtrées par créateur (et par classe encore dans le périmètre). Les
@@ -1306,19 +1306,16 @@ sont absents des listes (pointages, `/school-life/grades/`).
 `DELETE /parents/link/{id}/`) ; `Gamification.tsx`
 (`/school-life/gamification/stats/`) ; `SchoolCalendar` et `admin.ts` (création,
 modification, suppression d'événement) ; `Bookings.tsx` (réservations, y compris
-réserver une salle). `Incidents.tsx` n'envoie jamais `student_ids` : la création
-est impossible pour un compte restreint et les incidents sans élève lui sont
-invisibles (compteurs partiels). Inscriptions aux événements : compteurs partiels
+réserver une salle). `Incidents.tsx` permet désormais de sélectionner plusieurs
+élèves ; un incident sans élève reste volontairement invisible à un compte
+restreint. Inscriptions aux événements : compteurs partiels
 (seules les inscriptions d'élèves du périmètre).
 
-**Défauts préexistants hors lot, non corrigés** : `PUT /school-life/grades/{id}/`
-(500 systématique), `PUT /incidents/{id}/resolve/` (colonne `resolved_at`
-absente), `POST /incidents/` avec `student_ids` (table `incident_parties`
-absente), `POST /school-life/check-ins/` ouvert à un élève ou un parent pour
-lui-même ou son enfant (à confirmer côté métier). `/student-badges/`,
-`GET /school-life/assessments/` (permission), `gamification/stats` et
-`GET /school-life/check-ins/` (périmètre enseignant) sont traités par une PR
-séparée ; le filtre de cycle de ce lot y reste tel quel. Tests :
+**Défaut métier restant à confirmer** : `POST /school-life/check-ins/` reste
+ouvert à un élève ou un parent pour lui-même ou son enfant. Les accès
+`/student-badges/`, `GET /school-life/assessments/`, `gamification/stats` et le
+périmètre enseignant des pointages ont été traités dans des lots séparés ; le
+filtre de cycle reste inchangé. Tests :
 `backend/tests/test_cycle_scope_school_life.py`.
 
 ### Borne de classe et diffusion du pointage (2026-11-21)
