@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 20722)
-Total output lines: 1289
-
 """Périmètre par cycle (lot B2c-2) : vie scolaire, pointages, cartes et badges, bulletins et
 attestations, alertes précoces, incidents, rendez-vous, inscriptions aux événements.
 
@@ -618,7 +615,51 @@ def card_uid(student_id):
         return db.get(Student, student_id).card_uid
 
 
-def test_student_card_issue_and_revoke_need_the_students_in_scope_without_effect(school, …722 tokens truncated…us_code == 200, ok.text
+def test_student_card_issue_and_revoke_need_the_students_in_scope_without_effect(school, life):
+    for batch in ([life["s_6e"]], [life["s_none"]], [life["s_foreign"]], [life["s_cp"], life["s_6e"]]):
+        response = call(school, "secretary", "POST", "/school-life/student-cards/issue/",
+                        json={"student_ids": [str(i) for i in batch], "reissue": True})
+        assert response.status_code == 404, batch
+    assert card_uid(life["s_cp"]) == "SF-CP" and card_uid(life["s_6e"]) == "SF-6E"  # lot tout ou rien
+    assert call(school, "secretary", "DELETE", f"/school-life/student-cards/{life['s_6e']}/").status_code == 404
+    assert call(school, "secretary", "DELETE", f"/school-life/student-cards/{life['s_foreign']}/").status_code == 404
+    assert card_uid(life["s_6e"]) == "SF-6E"
+    ok = call(school, "secretary", "POST", "/school-life/student-cards/issue/",
+              json={"student_ids": [str(life["s_cp"])], "reissue": True})
+    assert ok.status_code == 200 and ok.json()["changed"] == 1 and card_uid(life["s_cp"]) != "SF-CP"
+    assert call(school, "secretary", "DELETE", f"/school-life/student-cards/{life['s_cp']}/").status_code == 200
+    assert card_uid(life["s_cp"]) is None
+    free = call(school, "secretary_free", "POST", "/school-life/student-cards/issue/",
+                json={"student_ids": [str(life["s_6e"])], "reissue": True})
+    assert free.status_code == 200 and card_uid(life["s_6e"]) != "SF-6E"
+    assert call(school, "secretary_free", "DELETE", f"/school-life/student-cards/{life['s_6e']}/").status_code == 200
+
+
+# --- Bulletins, attestations, tâches -----------------------------------------------------------
+
+def _term(school):
+    with SessionLocal() as db:
+        return db.query(Term.id).filter(Term.tenant_id == school["tenant"]).scalar()
+
+
+def report_body(life, school, student="s_cp", klass="cls_cp"):
+    return {"student_id": str(life[student]), "term_id": str(_term(school)), "classroom_id": str(life[klass])}
+
+
+@pytest.mark.parametrize("path", ["/school-life/generate-report-card/v2/", "/school-life/generate-report-card/pdf/"])
+def test_report_card_needs_student_and_class_in_scope(school, life, path):
+    uniform = None
+    for student, klass in (("s_6e", "cls_6e"), ("s_cp", "cls_6e"), ("s_6e", "cls_cp"), ("s_none", "cls_cp"),
+                           ("s_foreign", "cls_cp"), ("s_cp", "foreign_class")):
+        response = call(school, "director", "POST", path, json=report_body(life, school, student, klass))
+        assert response.status_code == 404, (student, klass)
+        uniform = uniform or _error_body(response)
+        assert _error_body(response) == uniform  # même message pour tous les refus
+    if IS_SQLITE:  # SQL brut sur UUID en texte : le bulletin lui-même ne se génère que sur PostgreSQL
+        return
+    # Élève et classe du périmètre : le bulletin est produit.
+    ok = call(school, "director", "POST", path, json=report_body(life, school))
+    assert ok.status_code == 200, ok.text
 
 
 @needs_postgres
