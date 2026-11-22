@@ -135,6 +135,17 @@ describe("flushOfflineQueue", () => {
     expect(await queueLength()).toBe(0);
   });
 
+  it("notifie le kiosque avec la réponse de chaque action synchronisée", async () => {
+    const action = await enqueueAction({ ...makeAttendance("s1"), kind: "kiosk-scan" });
+    const response = { data: { student_first_name: "Aïcha" } };
+    const client = { post: vi.fn().mockResolvedValue(response), patch: vi.fn(), put: vi.fn() };
+    const onSynced = vi.fn();
+
+    await flushOfflineQueue(TENANT, client, null, onSynced);
+
+    expect(onSynced).toHaveBeenCalledWith(action, response);
+  });
+
   it("abandonne définitivement les actions refusées par le serveur", async () => {
     await enqueueAction(makeAttendance("s1"));
     await enqueueAction(makeAttendance("s2"));

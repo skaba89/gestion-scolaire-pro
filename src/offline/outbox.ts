@@ -156,7 +156,7 @@ export async function clearOfflineQueue(): Promise<void> {
   await offlineDb.offline_actions.clear();
 }
 
-type HttpClient = {
+export type HttpClient = {
   post: (url: string, body?: unknown, config?: unknown) => Promise<unknown>;
   patch: (url: string, body?: unknown, config?: unknown) => Promise<unknown>;
   put: (url: string, body?: unknown, config?: unknown) => Promise<unknown>;
@@ -183,6 +183,7 @@ export async function flushOfflineQueue(
   currentTenantId: string | null | undefined,
   client: HttpClient = apiClient,
   currentUserId: string | null = null,
+  onSynced?: (action: OfflineAction, response: unknown) => void | Promise<void>,
 ): Promise<FlushResult> {
   await pruneOldResolvedActions();
 
@@ -208,16 +209,28 @@ export async function flushOfflineQueue(
 
     const config = { headers: { "X-Idempotency-Key": action.idempotencyKey } };
     try {
-      if (action.method === "POST") await client.post(action.url, action.body, config);
-      else if (action.method === "PATCH") await client.patch(action.url, action.body, config);
-      else await client.put(action.url, action.body, config);
+      let response: unknown;
+      if (action.method === "POST") response = await client.post(action.url, action.body, config);
+      else if (action.method === "PATCH") response = await client.patch(action.url, action.body, config);
+      else response = await client.put(action.url, action.body, config);
       sent += 1;
       remaining -= 1;
       await offlineDb.offline_actions.update(action.id, {
         status: "SYNCED",
         syncedAt: new Date().toISOString(),
         error: undefined,
+        httpStatus: undefined,
       });
+      if (onSynced) {
+        // The write is already acknowledged and persisted as SYNCED. A UI
+        // callback must never turn a successful business operation into a
+        // retry merely because rendering its receipt failed.
+        try {
+          await onSynced(action, response);
+        } catch (callbackError) {
+          console.error("Offline sync receipt callback failed", callbackError);
+        }
+      }
     } catch (error) {
       if (isNetworkError(error)) {
         // Toujours hors ligne : on repasse en PENDING et on s'arrête ici —
@@ -234,6 +247,7 @@ export async function flushOfflineQueue(
       await offlineDb.offline_actions.update(action.id, {
         status: "REJECTED",
         conflict: isConflict,
+        httpStatus: status,
         error: isConflict
           ? "Conflit : cette donnée a déjà été synchronisée avec un contenu différent."
           : `Refusé par le serveur (${status ?? "erreur"}).`,

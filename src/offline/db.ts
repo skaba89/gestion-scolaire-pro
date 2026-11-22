@@ -30,6 +30,9 @@ export interface OfflineAction {
    * "the server said no" (see app/core/idempotency.py::get_idempotent_response_or_lock).
    */
   conflict?: boolean;
+  /** HTTP status for a terminal server rejection (used by unattended
+   * kiosks to distinguish an unknown badge from a revoked device). */
+  httpStatus?: number;
   error?: string;
   retryCount: number;
   createdAt: string;

@@ -454,6 +454,94 @@ class TestClassroomBadgeIn:
             )
             assert check_in.session_id is None
 
+    def test_retried_kiosk_event_creates_one_movement_and_one_attendance(self):
+        tenant_id = _make_tenant()
+        student_id, reg = _make_student(tenant_id)
+        room_id = self._make_room(tenant_id)
+        class_id = self._make_classroom(tenant_id)
+        subject_id = self._make_subject(tenant_id)
+        self._make_current_slot(
+            tenant_id, room_id=room_id, class_id=class_id, subject_id=subject_id
+        )
+        year_id = self._make_academic_year(tenant_id)
+        self._enroll(
+            tenant_id, student_id=student_id, class_id=class_id, year_id=year_id
+        )
+        token = self._create_room_bound_device(tenant_id, room_id)
+        event_id = str(uuid.uuid4())
+        headers = {
+            "X-Kiosk-Token": token,
+            "X-Idempotency-Key": event_id,
+        }
+
+        first = client.post(
+            SCAN_URL,
+            json={"qr_payload": reg, "direction": "IN"},
+            headers=headers,
+        )
+        replay = client.post(
+            SCAN_URL,
+            json={"qr_payload": reg, "direction": "IN"},
+            headers=headers,
+        )
+
+        assert first.status_code == 200, first.text
+        assert replay.status_code == 200, replay.text
+        assert replay.json()["checked_at"] == first.json()["checked_at"]
+        with SessionLocal() as db:
+            assert db.query(StudentCheckIn).filter(
+                StudentCheckIn.tenant_id == tenant_id,
+                StudentCheckIn.student_id == student_id,
+            ).count() == 1
+            assert db.query(Attendance).filter(
+                Attendance.tenant_id == tenant_id,
+                Attendance.student_id == student_id,
+            ).count() == 1
+
+    def test_same_event_key_with_a_different_direction_is_rejected(self):
+        tenant_id = _make_tenant()
+        _, reg = _make_student(tenant_id)
+        token = _create_device(tenant_id)
+        headers = {
+            "X-Kiosk-Token": token,
+            "X-Idempotency-Key": str(uuid.uuid4()),
+        }
+
+        assert client.post(
+            SCAN_URL, json={"qr_payload": reg, "direction": "IN"}, headers=headers
+        ).status_code == 200
+        conflict = client.post(
+            SCAN_URL, json={"qr_payload": reg, "direction": "OUT"}, headers=headers
+        )
+
+        assert conflict.status_code == 409, conflict.text
+
+    def test_same_client_key_is_isolated_between_two_kiosk_devices(self):
+        tenant_id = _make_tenant()
+        student_id, reg = _make_student(tenant_id)
+        token_a = _create_device(tenant_id, "Tablette A")
+        token_b = _create_device(tenant_id, "Tablette B")
+        event_id = str(uuid.uuid4())
+
+        for token in (token_a, token_b):
+            response = client.post(
+                SCAN_URL,
+                json={"qr_payload": reg, "direction": "IN"},
+                headers={
+                    "X-Kiosk-Token": token,
+                    "X-Idempotency-Key": event_id,
+                },
+            )
+            assert response.status_code == 200, response.text
+
+        with SessionLocal() as db:
+            rows = db.query(StudentCheckIn).filter(
+                StudentCheckIn.tenant_id == tenant_id,
+                StudentCheckIn.student_id == student_id,
+            ).all()
+            assert len(rows) == 2
+            assert len({str(row.kiosk_device_id) for row in rows}) == 2
+
     def test_enrolled_student_badging_in_is_marked_present(self):
         tenant_id = _make_tenant()
         student_id, reg = _make_student(tenant_id)

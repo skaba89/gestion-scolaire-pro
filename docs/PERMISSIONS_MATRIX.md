@@ -1332,3 +1332,12 @@ ou ses propres séances » ; la lecture secrétariat conserve permission, tenant
 périmètre de cycles. Le frontend n’envoie aucun identifiant de séance de confiance
 depuis la borne : le rattachement est calculé côté serveur. Preuves :
 `backend/tests/test_kiosk.py` et `src/queries/admin.check-ins.test.ts`.
+
+La reprise hors ligne ne stocke pas le jeton de la borne dans IndexedDB : il
+reste dans le stockage local déjà utilisé et n’est ajouté qu’au moment de
+l’envoi. Chaque entrée en attente est cloisonnée par le slug de l’établissement ;
+la synchronisation n’envoie jamais la file d’un autre slug. Côté serveur, le
+rejeu est cloisonné par le tenant résolu depuis le jeton **et** l’identifiant de
+l’appareil. La clé du client ne choisit donc ni l’établissement, ni la salle, ni
+la séance. Preuves : `src/pages/public/kioskQueue.test.ts` et les cas de rejeu /
+appareils distincts de `backend/tests/test_kiosk.py`.

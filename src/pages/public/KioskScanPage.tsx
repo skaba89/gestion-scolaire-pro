@@ -1,7 +1,5 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useParams } from "react-router-dom";
-import axios from "axios";
-import { apiClient } from "@/api/client";
 import QRScanner from "@/components/badges/QRScanner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -12,21 +10,20 @@ import {
     AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
     AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ScanLine, LogIn, LogOut, Settings, CheckCircle2, XCircle, BookX } from "lucide-react";
+import { ScanLine, LogIn, LogOut, Settings, CheckCircle2, XCircle, BookX, WifiOff } from "lucide-react";
+import {
+    kioskPendingCount,
+    recordKioskScan,
+    syncKioskScans,
+    type KioskScanData,
+} from "./kioskQueue";
 
 function tokenStorageKey(tenantSlug: string) {
     return `schoolflow:kiosk_token:${tenantSlug}`;
 }
 
-// Deliberately NOT using apiClient here: apiClient's response interceptor
-// treats any 401 as an expired staff session and dispatches a logout/
-// redirect-to-/auth event. A kiosk has no staff session — a 401 here just
-// means the device token is missing/revoked, and must never bounce the
-// kiosk to a login screen it can't use.
-const kioskAxios = axios.create({ baseURL: apiClient.defaults.baseURL, timeout: 15_000 });
-
 type ScanResult = {
-    status: "success" | "not_found" | "error";
+    status: "success" | "pending" | "not_found" | "error";
     message: string;
     libraryOverdueTitles?: string[];
 };
@@ -39,6 +36,52 @@ export default function KioskScanPage() {
     const [direction, setDirection] = useState<"IN" | "OUT">("IN");
     const [lastResult, setLastResult] = useState<ScanResult | null>(null);
     const [resetOpen, setResetOpen] = useState(false);
+    const [pendingCount, setPendingCount] = useState(0);
+    const [isOnline, setIsOnline] = useState(() => navigator.onLine);
+
+    const showSuccess = useCallback((data: KioskScanData) => {
+        const base = `${data.student_first_name} ${data.student_last_name} — ${data.direction === "IN" ? "Entrée" : "Sortie"} enregistrée`;
+        const courseNote = data.attendance_marked && data.course_name
+            ? ` — présent(e) marqué(e) pour ${data.course_name}`
+            : "";
+        const overdueTitles = data.library_overdue ? data.library_overdue_titles : undefined;
+        setLastResult({
+            status: "success",
+            message: `${base}${courseNote}`,
+            libraryOverdueTitles: overdueTitles,
+        });
+        if (window.navigator.vibrate) window.navigator.vibrate(100);
+        setTimeout(() => setLastResult(null), overdueTitles?.length ? 7000 : 3000);
+    }, []);
+
+    useEffect(() => {
+        let active = true;
+        const refreshPending = async () => {
+            const count = await kioskPendingCount(tenantSlug);
+            if (active) setPendingCount(count);
+        };
+        const synchronize = async () => {
+            setIsOnline(navigator.onLine);
+            if (!token || !navigator.onLine) {
+                await refreshPending();
+                return;
+            }
+            try {
+                const count = await syncKioskScans(tenantSlug, token, undefined, showSuccess);
+                if (active) setPendingCount(count);
+            } catch {
+                await refreshPending();
+            }
+        };
+        void synchronize();
+        window.addEventListener("online", synchronize);
+        window.addEventListener("offline", synchronize);
+        return () => {
+            active = false;
+            window.removeEventListener("online", synchronize);
+            window.removeEventListener("offline", synchronize);
+        };
+    }, [showSuccess, tenantSlug, token]);
 
     const saveToken = () => {
         const trimmed = tokenInput.trim();
@@ -58,38 +101,30 @@ export default function KioskScanPage() {
     const handleScan = useCallback(async (qrData: string) => {
         if (!token) return;
         try {
-            const { data } = await kioskAxios.post(
-                "/kiosk/scan/",
-                { qr_payload: qrData, direction },
-                { headers: { "X-Kiosk-Token": token } },
-            );
-            const base = `${data.student_first_name} ${data.student_last_name} — ${data.direction === "IN" ? "Entrée" : "Sortie"} enregistrée`;
-            const courseNote = data.attendance_marked && data.course_name
-                ? ` — présent(e) marqué(e) pour ${data.course_name}`
-                : "";
-            const overdueTitles: string[] | undefined = data.library_overdue ? data.library_overdue_titles : undefined;
-            setLastResult({
-                status: "success",
-                message: `${base}${courseNote}`,
-                libraryOverdueTitles: overdueTitles,
-            });
-            if (window.navigator.vibrate) window.navigator.vibrate(100);
-            // A library-overdue notice needs more than the usual 3s glance —
-            // give staff/student time to actually read it before it clears.
-            setTimeout(() => setLastResult(null), overdueTitles?.length ? 7000 : 3000);
-            return;
-        } catch (err: any) {
-            const httpStatus = err?.response?.status;
-            if (httpStatus === 401 || httpStatus === 403) {
+            const result = await recordKioskScan(tenantSlug, token, qrData, direction);
+            setPendingCount(result.pending);
+            if (result.status === "SYNCED" && result.data) {
+                showSuccess(result.data);
+                return;
+            }
+            if (result.status === "PENDING" || result.status === "SYNCING") {
+                setLastResult({
+                    status: "pending",
+                    message: "Réseau indisponible : pointage conservé sur la tablette et envoyé automatiquement au retour d’Internet.",
+                });
+                if (window.navigator.vibrate) window.navigator.vibrate([80, 80, 80]);
+            } else if (result.httpStatus === 401 || result.httpStatus === 403) {
                 setLastResult({ status: "error", message: "Appareil non reconnu ou désactivé. Réinitialisez l'appareil." });
-            } else if (httpStatus === 404) {
+            } else if (result.httpStatus === 404) {
                 setLastResult({ status: "not_found", message: "Élève introuvable pour ce code" });
             } else {
-                setLastResult({ status: "error", message: "Erreur de connexion, réessayez" });
+                setLastResult({ status: "error", message: "Pointage refusé par le serveur. Vérifiez l’appareil et le badge." });
             }
+        } catch {
+            setLastResult({ status: "error", message: "File locale pleine ou indisponible. Rétablissez Internet avant de continuer." });
         }
         setTimeout(() => setLastResult(null), 3000);
-    }, [token, direction]);
+    }, [direction, showSuccess, tenantSlug, token]);
 
     if (!token) {
         return (
@@ -166,11 +201,17 @@ export default function KioskScanPage() {
                 <div className="fixed inset-x-4 bottom-8 mx-auto max-w-md space-y-2 animate-in slide-in-from-bottom-4">
                     <div
                         className={`rounded-lg shadow-lg p-4 flex items-center gap-3 ${
-                            lastResult.status === "success" ? "bg-emerald-600 text-white" : "bg-destructive text-destructive-foreground"
+                            lastResult.status === "success"
+                                ? "bg-emerald-600 text-white"
+                                : lastResult.status === "pending"
+                                    ? "bg-amber-500 text-amber-950"
+                                    : "bg-destructive text-destructive-foreground"
                         }`}
                     >
                         {lastResult.status === "success" ? (
                             <CheckCircle2 className="h-6 w-6 shrink-0" />
+                        ) : lastResult.status === "pending" ? (
+                            <WifiOff className="h-6 w-6 shrink-0" />
                         ) : (
                             <XCircle className="h-6 w-6 shrink-0" />
                         )}
@@ -194,7 +235,9 @@ export default function KioskScanPage() {
 
             <div className="flex justify-center">
                 <Badge variant="outline" className="gap-1 text-muted-foreground">
+                    {!isOnline && <WifiOff className="h-3 w-3" />}
                     Mode {direction === "IN" ? "Entrée" : "Sortie"} actif
+                    {pendingCount > 0 ? ` — ${pendingCount} en attente` : " — synchronisé"}
                 </Badge>
             </div>
 
