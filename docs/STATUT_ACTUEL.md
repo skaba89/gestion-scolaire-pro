@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 24970)
+Total output lines: 1404
+
 # Statut actuel — source de vérité datée
 
 **Dernière mise à jour : 2026-11-11 (journal de production ci-dessous ; production en `81eaf4a`). Le
@@ -566,285 +569,7 @@ ce fichier — pas d'un document de 2025 non révisé.
 - **2026-11-03 — exports comptables justes (API-02 de `docs/audit/`).**
   L'écran « Exports comptables » (FEC, Sage, Ciel) appelait une route
   inexistante pour les paiements et recevait, pour les factures, les 50
-  premières toutes dates confondues (filtres ignorés par le serveur) : les
-  journaux exportés étaient faux, sans message d'erreur. Corrigés aussi :
-  montant pris sur le total de la facture, dates d'émission, brouillons et
-  annulations exclus, période « 3 derniers mois », protection contre
-  l'injection de formule dans les CSV. Routes : `date_from` / `date_to`
-  facultatifs sur `GET /payments/payments/` et `/payments/invoices/` (sans
-  eux, comportement inchangé). **Nouveau contrôle CI** : tout appel du
-  frontend vers une route inexistante fait échouer le job `Backend`
-  (référence `scripts/audit/api-route-gaps-baseline.json`, 79 connus).
-- **2026-11-03 — exercice de restauration outillé (OPS-01 / P0-3).**
-  `deploy/vps/scripts/exercice-restauration.sh` restaure le dernier dump de
-  B2 dans un PostgreSQL jetable sans réseau et contrôle révision, RLS
-  forcée, volumes, relations, cohérence des paiements et isolation sous le
-  rôle `schoolflow_app` ; mesure RPO/RTO ; rapport sans donnée personnelle.
-  Testé sur dumps au format du VPS (5 cas, dont 4 pannes détectées).
-  **Pas encore exécuté sur le VPS** : la restauration de la production
-  reste à démontrer (procédure : `deploy/vps/README.md`).
-- **2026-11-03 — suite pytest hermétique (QA-01 de `docs/audit/`).** Relancer
-  les tests sur la même base faisait échouer 19 tests (SQLite) et les règles
-  de paiement (PostgreSQL) : identifiants fixes soumis à une contrainte
-  d'unicité dans 6 fichiers de test. Suffixes uniques par exécution ; deux
-  exécutions successives sont vertes (SQLite 1 596/0, PostgreSQL 74/74).
-  Tests uniquement, aucun code applicatif modifié.
-- **2026-11-03 — annulation réservée aux paiements encaissés (FIN-02).**
-  Annuler un paiement en attente, échoué ou déjà remboursé retirait de la
-  facture un montant jamais reçu : refusé (400, statut cité). L'historique
-  des paiements affichait « Validé » pour tout paiement non annulé, y
-  compris en attente ou échoué : il affiche désormais le statut réel.
-- **2026-11-03 — pré-inscription par les parents réparée (API-03).** La page
-  `/parent/pre-registration` appelait trois routes inexistantes : aucun
-  parent ne pouvait réinscrire son enfant. Elle proposait en outre l'année
-  scolaire **précédente** au lieu de la suivante (ordre de tri). Nouvelles
-  routes authentifiées `GET /admissions/reenrollments/mine/` et
-  `POST /admissions/reenrollments/` (permission `admissions:reenroll`, rôle
-  PARENT) : seulement ses propres enfants, année et niveau du même
-  établissement, une demande par enfant et par année, coordonnées prises
-  sur le compte du parent, audit. Les demandes arrivent dans la liste des
-  admissions comme celles du portail public. Constaté, non corrigé :
-  `POST /admissions/public/reenroll/` ne vérifie pas le demandeur (SEC-ADM-01).
-- **2026-11-03 — réinscription publique : sécurisée et réparée (SEC-ADM-01,
-  ADM-02).** La 1re étape du portail public de réinscription
-  (`verify-student`) échouait en erreur 500 pour tout parent (jointure sur
-  deux colonnes inexistantes). La 2e (`reenroll`) acceptait n'importe quel
-  e-mail pour n'importe quel élève : elle exige désormais matricule +
-  e-mail d'un parent rattaché, revérifiés par le serveur. Les dossiers de
-  candidature n'acceptent plus une année ou un niveau d'un autre
-  établissement. Exploitation éventuelle non vérifiée (journaux de
-  production non consultés).
-- **2026-11-04 — restauration de la production démontrée (P0-3 / OPS-01).**
-  Exercice exécuté sur le VPS depuis Backblaze B2 : dump de la nuit
-  déchiffré et restauré dans une base jetable sans réseau, révision et 122
-  tables RLS forcées identiques à la production, rôle restreint
-  fail-closed. **RPO 5 h, RTO technique 19 s.** Rapport :
-  `docs/audit/preuves/restauration-b2-20261104.md`. Réserve : la production
-  ne contient encore aucun élève ; à refaire chaque trimestre et dès les
-  premières données réelles. La 1re tentative avait échoué à cause du
-  script (schéma `public`), corrigé.
-- **2026-11-04 — messagerie : présence, « en train d'écrire » et recherche
-  fonctionnent (MSG-01).** Chaque contact apparaissait toujours « hors
-  ligne », l'indicateur de saisie ne s'affichait jamais et la recherche ne
-  trouvait rien : ces fonctions appelaient des routes inexistantes. Trois
-  routes de lecture ajoutées (`/communication/presence/{id}/`,
-  `/communication/conversations/{id}/typing/`,
-  `/communication/messages/search/`) avec une règle de confidentialité :
-  on ne voit la présence que des personnes avec qui l'on échange, et l'on ne
-  cherche que dans ses propres conversations. Compteur de non-lus du parent
-  réparé ; 732 lignes de code mort retirées.
-- **2026-11-04 — règles académiques réellement appliquées (RULES-01) ;
-  bulletin falsifiable supprimé (BUL-01).** L'établissement règle sa moyenne
-  de passage et ses seuils de mention (par niveau si besoin) dans un
-  formulaire ; bulletins (unitaires, PDF, par lot) et relevés les
-  appliquent. Sans réglage : 10/20 et mentions à 12, 14, 16, 18, comme
-  avant. Auparavant la page n'enregistrait rien et les seuils étaient
-  écrits en dur. Supprimé : `POST /school-life/generate-report-card/`, qui
-  produisait un bulletin d'apparence officielle à partir de notes saisies
-  par le navigateur, sans permission (aucun écran ne l'utilisait).
-- **2026-11-04 — cartes QR des élèves reconnues au pointage (BADGE-01).**
-  La page « Badges », l'impression par lot et la présence en direct
-  fabriquaient un code que ni la borne ni le scanner enseignant ne lisaient,
-  et l'enregistraient à des adresses inexistantes ou qui le jetaient :
-  aucune carte imprimée ne fonctionnait. Désormais un seul code, celui de la
-  fiche élève : émission, réémission en cas de perte (l'ancienne carte cesse
-  de fonctionner) et retrait, réservés au personnel (`students:write`). Les
-  listes de badges n'étaient protégées que par la connexion : réservées au
-  personnel.
-- **2026-11-04 — gamification retirée (GAME-01).** Badges de récompense,
-  classement et notifications de déblocage : aucun backend, aucun écran
-  affiché ne les utilisait — 1 916 lignes supprimées (décision du
-  propriétaire : masquer en attendant un vrai module). Distinct des **badges
-  QR des élèves** (`/admin/badges`), conservés : leur création, leur
-  suspension et leur suppression n'ont pas de route (BADGE-01, ouvert).
-- **2026-11-04 — score qualité recalculé : 57 / 100** (47 le 2026-11-03).
-  Mesures sur `a9c17a8` : aucun P0 ouvert ; appels du frontend vers une route
-  inexistante 94 → 53 (contrôle CI bloquant) ; écrans défectueux 22 → 18 ;
-  PostgreSQL en CI 2 433 tests, couverture 72 % ; suite SQLite hermétique
-  (1 629 ×2) ; TypeScript 184 → 178 ; ESLint 2 027 → 1 949. Détail et preuves
-  par axe : `docs/audit/QUALITY_SCORECARD.md`. Restent bloquants pour 99 :
-  E2E non obligatoires, charge non mesurée, hors-ligne non testé, recette pilote.
-
-- **2026-11-09 — page « Bulletins » : liste complète, moyenne et rang
-  officiels (REPORT-CARDS-ROSTER-01, REPORT-CARDS-SUMMARY-01).** Au-delà de
-  100 élèves dans l'établissement, des inscrits disparaissaient de la liste
-  (#498). La colonne « Moy. estimée », recalculée dans le navigateur sur
-  toutes les périodes, est remplacée par la moyenne et le rang du bulletin
-  officiel de la période : nouvelle route en lecture
-  `GET /school-life/report-cards/class-summary/` (`grades:write`, refusée à
-  l'enseignant à périmètre limité comme l'export groupé), même calcul que le
-  PDF. Corrigé au passage : le nom de fichier des PDF de bulletin et
-  d'attestation contenait les accents bruts du prénom (« Fodé ») dans
-  l'en-tête HTTP ; désormais ASCII + `filename*` UTF-8. Code mort divergent
-  `_compute_class_ranks_batch` supprimé. Un test PostgreSQL compare
-  synthèse, métadonnées v2 et texte du PDF (`pypdf`, dépendance de test).
-- **2026-11-09 — recette automatisée des portails par rôle (B7).** Le job
-  « E2E Journeys » connecte désormais 9 rôles d'établissement (direction,
-  secrétariat, comptabilité, chef de département, étudiant, parent, ancien
-  étudiant, en plus de l'admin et de l'enseignant) et ouvre chaque entrée de
-  leur menu (196 au total). **Défauts réels trouvés, non encore corrigés** :
-  portail parent entièrement en erreur dès qu'un enfant est rattaché
-  (`ReminderSystem`) ; tableau de bord étudiant en 500 sur PostgreSQL ;
-  portail chef de département en 500 (tableau de bord, classes, emploi du
-  temps) ; anciens étudiants et secrétariat renvoyés vers la page publique ;
-  appel à une route bibliothèque inexistante. Ils sont listés dans
-  `tests/e2e/journeys/role-portals.baseline.json` (tout nouveau défaut fait
-  échouer la CI) et dans `docs/audit/REMAINING_WORK.md` (R1–R5).
-- **2026-11-09 — portail parent rétabli (R1).** Tout le portail parent
-  plantait (« invoiceData.forEach is not a function ») dès qu'un enfant était
-  rattaché : le composant de rappels traitait la réponse paginée de
-  `GET /invoices/` comme un tableau. Corrigé ; rappels limités aux factures
-  impayées (PENDING, PARTIAL, OVERDUE) avec le reste à payer. La recette E2E
-  parcourt désormais les 8 entrées du portail parent sans défaut.
-- **2026-11-09 — tableau de bord étudiant rétabli (R2).** `GET
-  /students/dashboard/` répondait 500 sur PostgreSQL pour tout élève (jointure
-  sur une colonne `enrollments.level_id` inexistante) ; il comparait aussi le
-  statut à `active` (stocké `ACTIVE`, donc jamais d'inscription trouvée) et ne
-  filtrait pas l'établissement. Corrigé, avec un test PostgreSQL ; la recette
-  E2E parcourt le portail étudiant sans défaut.
-- **2026-11-09 — portail chef de département rétabli (R3).** Tableau de
-  bord, classes et emploi du temps répondaient 500 sur PostgreSQL (colonnes
-  `attendance.class_id` et `classes.section`, table `schedules` inexistantes) ;
-  six requêtes comparaient le statut d'inscription à `active` (stocké
-  `ACTIVE`) : liste des élèves et rapports toujours vides. Les « activités
-  récentes » affichaient les notes de tout l'établissement : limitées aux
-  élèves du département. Tests PostgreSQL ; recette E2E du portail sans
-  défaut. Les trois défauts P0 trouvés par la recette des portails sont
-  corrigés.
-- **2026-11-09 — chaque rôle arrive sur son portail (R4).** Les anciens
-  étudiants et le secrétariat étaient renvoyés vers la page publique lors d'un
-  accès refusé ; le chef de département passait par l'espace admin après la
-  connexion. Une seule règle (`src/lib/roleRedirect.ts`) sert désormais aux
-  gardes de route et à la connexion. Vérifié en E2E pour les 9 rôles.
-- **2026-11-09 — « Marketplace Éducatif » retirée (R5).** L'entrée de menu
-  admin appelait une API inexistante (page toujours vide) et la case
-  « Partager sur le Marketplace global » ne partageait rien. Retirées tant
-  qu'un partage entre établissements n'est pas cadré (produit, sécurité,
-  RLS). La recette E2E des 9 portails tourne désormais avec une référence
-  vide : 0 défaut connu sur les 202 entrées de menu parcourues.
-- **2026-11-09 — plus aucune donnée hors ligne après déconnexion (O1).** La
-  page Présences de l'enseignant met en cache les élèves de la classe pour la
-  saisie hors ligne ; ce cache (noms de mineurs), les présences et notes en
-  attente restaient dans le navigateur après la déconnexion, lisibles par
-  l'utilisateur suivant d'un poste partagé. Toutes les bases hors ligne sont
-  désormais vidées ; avant, l'application tente d'envoyer les saisies en
-  attente et annonce celles qui seront perdues. Parcours E2E 10.
-- **2026-11-09 — saisies hors ligne : plus de perte silencieuse (O2–O5).**
-  Un envoi interrompu (onglet fermé, coupure en plein envoi) n'était jamais
-  repris ; au-delà de 200 saisies, les plus anciennes étaient effacées même
-  non envoyées ; celles d'un autre établissement étaient supprimées. Désormais
-  : reprise avec la même clé d'idempotence, refus visible quand la file est
-  pleine, conservation des saisies d'un autre établissement ou utilisateur
-  (jamais envoyées sous une autre identité). Parcours E2E 11 : pointage sans
-  réseau, retour du réseau, une seule présence au dernier statut.
-- **2026-11-09 — hors ligne : bonne liste d'élèves et indicateur fiable (O6).**
-  Sans réseau, la liste d'une classe montrait la première page des élèves de
-  tout l'établissement (paramètre de classe ignoré par l'API) : elle vient
-  désormais des inscriptions de la classe. L'indicateur global « en attente »
-  comptait une file que rien n'alimentait (toujours 0) et son bouton
-  supprimait sans envoyer : il compte maintenant les vraies saisies et les
-  envoie. Code hors ligne mort retiré (usePWA, useOfflineStorage, lib/db).
-- **2026-11-09 — « Analyse des résultats » alignée sur le bulletin.** L'onglet
-  de la page Bulletins recalculait ses statistiques dans le navigateur sur
-  toutes les notes de toutes les périodes, note par note, avec un taux de
-  réussite au seuil 10 écrit en dur. Il affiche désormais les valeurs
-  officielles de la période (même calcul que le PDF), le seuil de réussite
-  réglé pour le niveau et les moyennes de classe par matière, fournies par
-  `GET /school-life/report-cards/class-summary/` (champs `passing_grade` et
-  `subjects` ajoutés).
-- **2026-11-09 — admission : la conversion en élève fonctionne (A1, P0).**
-  Sur PostgreSQL, valider l'inscription d'un candidat accepté échouait
-  toujours (erreur 500 : élève inséré sans identifiant). Corrigé, avec
-  verrou contre la double validation, matricule automatique qui saute ceux
-  déjà pris (y compris par une autre école) et date de naissance exigée au
-  lieu d'être remplacée par la date du jour. Parcours E2E 12 : candidature →
-  élève → inscription. La production n'a pas été vérifiée directement
-  (lecture refusée) ; elle applique les mêmes migrations, donc très
-  probablement concernée tant que ce correctif n'est pas déployé.
-- **2026-11-09 — réinscription sans doublon (RE-01).** Valider la demande de
-  réinscription d'un élève existant (formulaire public) créait un second
-  élève, avec un nouveau matricule, au lieu de réinscrire le premier. La
-  demande est désormais rattachée à l'élève existant (vérifié dans
-  l'établissement) ; l'écran Admissions affiche « Réinscription » et
-  « Valider la réinscription ». Transfert de classe et changement d'année
-  vérifiés sains. Parcours E2E 13. Déployé le 2026-11-09 (`7ad5379`).
-- **2026-11-09 — finances : un parent ne peut plus solder lui-même une facture
-  (F1, P0).** La route de paiement parent acceptait les méthodes « espèces »
-  et « virement » et créditait aussitôt la facture : un parent pouvait, par
-  un appel d'API, marquer la facture de son enfant comme payée. Réservé
-  désormais au personnel habilité. Aussi corrigé : deux confirmations
-  Mobile Money simultanées faisaient perdre un paiement du solde de la
-  facture (F2) ; échec masqué lors de la préparation d'un paiement en ligne
-  (F3) ; données de paiement complètes dans les journaux (F4). Déployé le
-  2026-11-09 (`a40d276`) ; contrôle en production : aucun paiement
-  espèces/virement enregistré par un compte parent.
-
-- **2026-11-10 — changement de classe en une seule opération (A5).**
-  `POST /enrollments/{id}/transfer/` et action « Changer de classe » : un
-  échec ne laisse plus l'élève sans classe active. Le choix de classe de la
-  fiche élève en modification, sans effet jusqu'ici, est désactivé.
-
-- **2026-11-10 — matricule unique par établissement (A2, migration
-  `20261110_0001`).** Un index unique global oublié en 2026-04 empêchait une
-  école d'utiliser un matricule pris par une autre (erreur 500 qui révélait
-  son existence), et l'import CSV ignorait ces élèves en les comptant
-  « créés ». Migration non rétrocompatible (`backward_compatible = False`) :
-  la version précédente de l'import ne fonctionne plus sur ce schéma ;
-  readiness 503 pendant les quelques secondes entre la migration et le
-  redémarrage dans `deploy.sh`. Retour arrière : `alembic downgrade
-  20261108_0001` (refusé avec la liste des matricules si des écoles en
-  partagent un). Déployé le 2026-11-10 (`23f4870`).
-
-- **2026-11-10 — conversion d'une candidature : le parent est rattaché (A3).**
-  Compte parent de l'établissement trouvé par e-mail, sinon compte en attente
-  à activer dans « Utilisateurs en attente » ; le parent voit ensuite
-  l'enfant dans son portail. Réservé aux rôles qui gèrent déjà les comptes
-  (`settings:write`). Déployé le 2026-11-11 (`81eaf4a`, sans migration).
-
-- **2026-11-11 — parcours E2E obligatoires avant fusion (C1).** Le ruleset
-  `protect-main` exige désormais « E2E Journeys (real stack) » en plus des
-  5 contrôles existants. Le job tourne sur toute PR vers `main` (aucun filtre
-  de chemins) ; un échec E2E bloque donc la fusion. Retour arrière : retirer
-  ce contrôle du ruleset (voir `docs/runbooks/github-main-protection.md`).
-
-- **2026-11-11 — rappels de devoirs de l'élève (R6).** Le bloc « Rappels »
-  de l'accueil élève n'affichait jamais de devoir : il lisait `GET /students/`
-  (paginé, refusé à l'élève) comme un tableau. Il utilise désormais les
-  devoirs à venir de `GET /students/dashboard/`, déjà chargés par l'accueil.
-
-- **2026-11-11 — couleurs des moyennes de la page Bulletins.** Elles
-  utilisaient des seuils fixes (10 et 14) alors que le seuil de réussite et
-  la mention « Bien » se règlent par niveau. `GET /school-life/report-cards/class-summary/`
-  renvoie désormais `items[].color` (champ ajouté, rétrocompatible), la
-  couleur du bulletin PDF selon les règles du niveau ; la page l'affiche.
-
-- **2026-11-11 — PayTech : vérification des notifications conforme au
-  fournisseur (F5).** Le contrôle attendait une signature que PayTech
-  n'envoie pas (HMAC de `ref_command` seul dans `hash` / `x-paytech-hash`) :
-  toute vraie notification aurait été rejetée et aucun paiement PayTech
-  crédité. Désormais `hmac_compute` = HMAC-SHA256(api_secret,
-  `montant|ref_command|api_key`) (documentation PayTech, docs.intech.sn,
-  relue le 2026-11-11 : le texte signe `item_price`, ses exemples PHP/Node
-  `final_item_price` — les deux sont acceptés, et le montant signé doit
-  couvrir le paiement attendu) ; repli par hachages fixes des clés refusé
-  (rejouable). Production vérifiée en lecture seule le 2026-11-10 : aucune
-  école sur PayTech, aucune notification reçue — aucun impact passé.
-  Premier paiement réel à faire avec un établissement pilote.
-
-- **2026-11-11 — rendez-vous parents-enseignants fonctionnels.** La fonction
-  n'avait jamais marché de bout en bout : création de créneau refusée,
-  réservation en échec sur PostgreSQL, génération de semaine / confirmation /
-  annulation vers des routes absentes, double réservation possible, liste du
-  parent toujours vide, et tout enseignant voyait les rendez-vous de tout
-  l'établissement. Nouveau service `app/services/appointments.py` ; nouvelles
-  routes `POST /school-life/appointment-slots/bulk/`,
-  `PATCH /school-life/appointment-slots/appointments/{id}/`,
-  `POST /parents/appointments/{id}/cancel/` ; réservation sur `slot_id`
-  (enseignant, date, heure lus dans le créneau verrouillé) ; aucune migration
-  ni nouvelle permission. Appels frontend sans route : 29 → 25.
-
-- **2026-11-11 — pages jamais construites côté serveur retirées.**
-  Parrainages, plans de réussite, signatures électroniques, tableau de bord
+…4970 tokens truncated…atures électroniques, tableau de bord
   exécutif (prévisions de trésorerie) : pages sans route ; visioconférences :
   route sans lien de menu ; `utils/cashFlowForecasting.ts` et
   `utils/pedagogicalEngine.ts` : importés nulle part. Toutes appelaient des
@@ -1260,12 +985,9 @@ ce fichier — pas d'un document de 2025 non révisé.
   (un compte restreint cumulant PARENT ou TEACHER reste soumis au périmètre :
   enfant hors cycle = 404, pas d'union).
   Détail : `docs/PERMISSIONS_MATRIX.md` (lot B2c-2). Tests :
-  `test_cycle_scope_school_life.py`. Défauts préexistants relevés, **non
-  corrigés** : `PUT /school-life/grades/{id}/` lit `obj_in.assessment_id` absent
-  de `GradeUpdate` (corrigé le 2026-11-21, voir le journal ci-dessous) ; `PUT /incidents/{id}/resolve/` écrit
-  `resolved_at`, colonne absente de `incidents` (400 systématique) ;
-  `POST /incidents/` avec `student_ids` insère dans `incident_parties`, table
-  absente de toute migration (400, l'incident n'est pas créé) ; `POST
+  `test_cycle_scope_school_life.py`. Défauts préexistants relevés : la modification
+  des notes a été corrigée le 2026-11-21 ; la création multi-élèves et la
+  résolution des incidents ont été corrigées en DEV le 2026-11-22 ; `POST
   /student-badges/` déclare `body: dict` mais le code attend aussi une liste
   (422) ; `GET /student-badges/` n'a que `get_current_user` et aucun filtre
   d'appartenance (constat à la lecture du code, non testé) : un élève ou un
@@ -1392,3 +1114,16 @@ La règle métier de l’auto-pointage reste à valider.
   Une même clé avec un autre élève ou une autre direction répond 409 ; la même clé
   générée par deux tablettes reste isolée. Migration additive `20261121_0001`,
   aucun pointage existant transformé. Vérifié en DEV ; REC et PROD non déployées.
+
+- **2026-11-22 — création et résolution des incidents (INCIDENTS-SCHEMA-01).**
+  Une migration additive crée `incident_parties`, ajoute `incidents.resolved_at`,
+  pose deux index et force une policy RLS stricte. La création vérifie tous les
+  élèves dans l'établissement avant la première écriture, conserve le premier
+  lien dans `incidents.student_id` pour les données historiques, puis écrit les
+  participants dans la même transaction. Pour un compte limité à des cycles,
+  un incident multi-élèves est visible et modifiable uniquement si tous ses
+  participants sont dans le périmètre. L'écran accepte plusieurs élèves,
+  reconnaît les statuts existants sans dépendre de leur casse et appelle la
+  route métier de résolution avec conclusion et action prise. Tests rouges
+  ajoutés avant le correctif dans `test_cycle_scope_school_life.py` et
+  `Incidents.test.tsx`. Vérifié en DEV ; REC et PROD non déployées.

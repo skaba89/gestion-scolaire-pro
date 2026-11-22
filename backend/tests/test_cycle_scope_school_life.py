@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 20722)
+Total output lines: 1289
+
 """Périmètre par cycle (lot B2c-2) : vie scolaire, pointages, cartes et badges, bulletins et
 attestations, alertes précoces, incidents, rendez-vous, inscriptions aux événements.
 
@@ -615,51 +618,7 @@ def card_uid(student_id):
         return db.get(Student, student_id).card_uid
 
 
-def test_student_card_issue_and_revoke_need_the_students_in_scope_without_effect(school, life):
-    for batch in ([life["s_6e"]], [life["s_none"]], [life["s_foreign"]], [life["s_cp"], life["s_6e"]]):
-        response = call(school, "secretary", "POST", "/school-life/student-cards/issue/",
-                        json={"student_ids": [str(i) for i in batch], "reissue": True})
-        assert response.status_code == 404, batch
-    assert card_uid(life["s_cp"]) == "SF-CP" and card_uid(life["s_6e"]) == "SF-6E"  # lot tout ou rien
-    assert call(school, "secretary", "DELETE", f"/school-life/student-cards/{life['s_6e']}/").status_code == 404
-    assert call(school, "secretary", "DELETE", f"/school-life/student-cards/{life['s_foreign']}/").status_code == 404
-    assert card_uid(life["s_6e"]) == "SF-6E"
-    ok = call(school, "secretary", "POST", "/school-life/student-cards/issue/",
-              json={"student_ids": [str(life["s_cp"])], "reissue": True})
-    assert ok.status_code == 200 and ok.json()["changed"] == 1 and card_uid(life["s_cp"]) != "SF-CP"
-    assert call(school, "secretary", "DELETE", f"/school-life/student-cards/{life['s_cp']}/").status_code == 200
-    assert card_uid(life["s_cp"]) is None
-    free = call(school, "secretary_free", "POST", "/school-life/student-cards/issue/",
-                json={"student_ids": [str(life["s_6e"])], "reissue": True})
-    assert free.status_code == 200 and card_uid(life["s_6e"]) != "SF-6E"
-    assert call(school, "secretary_free", "DELETE", f"/school-life/student-cards/{life['s_6e']}/").status_code == 200
-
-
-# --- Bulletins, attestations, tâches -----------------------------------------------------------
-
-def _term(school):
-    with SessionLocal() as db:
-        return db.query(Term.id).filter(Term.tenant_id == school["tenant"]).scalar()
-
-
-def report_body(life, school, student="s_cp", klass="cls_cp"):
-    return {"student_id": str(life[student]), "term_id": str(_term(school)), "classroom_id": str(life[klass])}
-
-
-@pytest.mark.parametrize("path", ["/school-life/generate-report-card/v2/", "/school-life/generate-report-card/pdf/"])
-def test_report_card_needs_student_and_class_in_scope(school, life, path):
-    uniform = None
-    for student, klass in (("s_6e", "cls_6e"), ("s_cp", "cls_6e"), ("s_6e", "cls_cp"), ("s_none", "cls_cp"),
-                           ("s_foreign", "cls_cp"), ("s_cp", "foreign_class")):
-        response = call(school, "director", "POST", path, json=report_body(life, school, student, klass))
-        assert response.status_code == 404, (student, klass)
-        uniform = uniform or _error_body(response)
-        assert _error_body(response) == uniform  # même message pour tous les refus
-    if IS_SQLITE:  # SQL brut sur UUID en texte : le bulletin lui-même ne se génère que sur PostgreSQL
-        return
-    # Élève et classe du périmètre : le bulletin est produit.
-    ok = call(school, "director", "POST", path, json=report_body(life, school))
-    assert ok.status_code == 200, ok.text
+def test_student_card_issue_and_revoke_need_the_students_in_scope_without_effect(school, …722 tokens truncated…us_code == 200, ok.text
 
 
 @needs_postgres
@@ -814,12 +773,37 @@ def test_incident_create_needs_every_student_in_scope_without_effect(school, lif
         response = call(school, "director", "POST", "/incidents/", json=payload)
         assert response.status_code in (404, 422), students
         assert raw_count("incidents", t) == before
-    # Élèves du périmètre : la garde passe ; la table ``incident_parties`` n'existe dans aucune
-    # migration, l'insertion échoue donc (400, constat préexistant) et rien n'est écrit.
+    # Élève du périmètre : l'incident et son lien sont créés atomiquement.
     response = call(school, "director", "POST", "/incidents/", json={**base, "student_ids": [str(life["s_cp"])]})
-    assert response.status_code != 404 and raw_count("incidents", t) == before
+    assert response.status_code == 201, response.text
+    assert raw_count("incidents", t) == before + 1
+    assert response.json()["parties"] == [str(life["s_cp"])]
+    assert raw_value(
+        "SELECT COUNT(*) FROM incident_parties WHERE incident_id = CAST(:i AS uuid)",
+        i=response.json()["id"],
+    ) == 1
+
+    # Un administrateur non restreint peut déclarer plusieurs élèves, même de
+    # cycles différents, sans perdre le lien historique ``incidents.student_id``.
+    multi = call(
+        school,
+        "admin_residual",
+        "POST",
+        "/incidents/",
+        json={**base, "student_ids": [str(life["s_cp"]), str(life["s_6e"])]},
+    )
+    assert multi.status_code == 201, multi.text
+    assert set(multi.json()["parties"]) == {str(life["s_cp"]), str(life["s_6e"])}
+    assert raw_value(
+        "SELECT COUNT(*) FROM incident_parties WHERE incident_id = CAST(:i AS uuid)",
+        i=multi.json()["id"],
+    ) == 2
+    restricted_ids = ids(call(school, "director", "GET", "/incidents/"))
+    assert str(response.json()["id"]) in restricted_ids
+    assert str(multi.json()["id"]) not in restricted_ids
+    assert str(multi.json()["id"]) in ids(call(school, "admin_residual", "GET", "/incidents/"))
     free = call(school, "admin_residual", "POST", "/incidents/", json=base)
-    assert free.status_code == 201 and raw_count("incidents", t) == before + 1
+    assert free.status_code == 201 and raw_count("incidents", t) == before + 3
 
 
 @needs_postgres
@@ -843,12 +827,140 @@ def test_incident_update_assign_resolve_need_the_incident_in_scope_without_effec
     assert call(school, "director", "PUT", f"/incidents/{life['inc_cp']}/", json={"title": "Renommé"}).status_code == 200
     assert call(school, "director", "PUT", f"/incidents/{life['inc_cp']}/assign/",
                 json={"resolver_id": str(school["people"]["director"])}).status_code == 200
-    # Défaut préexistant, hors lot : ``resolve_incident`` écrit ``resolved_at``, colonne absente de la
-    # table ``incidents`` (400 pour tout le monde). La garde de périmètre laisse passer : pas de 404.
     in_scope = call(school, "director", "PUT", f"/incidents/{life['inc_cp']}/resolve/", json={"resolution": "ok"})
-    assert in_scope.status_code != 404
+    assert in_scope.status_code == 200, in_scope.text
+    assert in_scope.json()["status"] == "RESOLVED"
+    assert raw_value(
+        "SELECT resolved_at IS NOT NULL FROM incidents WHERE id = CAST(:i AS uuid)",
+        i=life["inc_cp"],
+    ) is True
     assert call(school, "admin_residual", "PUT", f"/incidents/{life['inc_6e']}/", json={"title": "Libre"}).status_code == 200
-    assert call(school, "admin_residual", "PUT", f"/incidents/{life['inc_none']}/resolve/", json={"resolution": "ok"}).status_code != 404
+    assert call(school, "admin_residual", "PUT", f"/incidents/{life['inc_none']}/resolve/", json={"resolution": "ok"}).status_code == 200
+
+
+@needs_postgres
+def test_incident_migration_reentry_and_downgrade_preserve_history(school, life):
+    """The additive migration is re-entrant and rollback never destroys history."""
+    import runpy
+    from pathlib import Path
+
+    from alembic.migration import MigrationContext
+    from alembic.operations import Operations
+
+    created = call(
+        school,
+        "admin_residual",
+        "POST",
+        "/incidents/",
+        json={
+            "title": "Historique à préserver",
+            "description": "Preuve de non-destruction",
+            "incident_type": "DISCIPLINE",
+            "severity": "MEDIUM",
+            "occurred_at": "2026-11-22T08:00:00Z",
+            "student_ids": [str(life["s_cp"]), str(life["s_6e"])],
+        },
+    )
+    assert created.status_code == 201, created.text
+    incident_id = created.json()["id"]
+    migration = runpy.run_path(
+        str(
+            Path(__file__).parents[1]
+            / "alembic/versions/20261122_0001_incident_parties_resolution.py"
+        )
+    )
+    with engine.begin() as connection:
+        with Operations.context(MigrationContext.configure(connection)):
+            migration["upgrade"]()
+            migration["downgrade"]()
+            migration["upgrade"]()
+    assert raw_value(
+        "SELECT COUNT(*) FROM incident_parties WHERE incident_id = CAST(:i AS uuid)",
+        i=incident_id,
+    ) == 2
+    assert str(incident_id) in ids(call(school, "admin_residual", "GET", "/incidents/"))
+
+
+@needs_postgres
+def test_incident_parties_force_rls_hides_other_tenants(school, life):
+    """Prove isolation with a real NOSUPERUSER/NOBYPASSRLS connection."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.engine import make_url
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.pool import StaticPool
+
+    import app.core.database as database
+
+    own_party, foreign_party = uuid4(), uuid4()
+    with SessionLocal() as db:
+        switch_tenant_context(db, str(school["tenant"]))
+        db.execute(
+            text(
+                "INSERT INTO incident_parties "
+                "(id, tenant_id, incident_id, student_id, party_type) "
+                "VALUES (:id, :tid, :incident, :student, 'INVOLVED')"
+            ),
+            {
+                "id": str(own_party),
+                "tid": str(school["tenant"]),
+                "incident": str(life["inc_cp"]),
+                "student": str(life["s_cp"]),
+            },
+        )
+        db.commit()
+        switch_tenant_context(db, str(school["other"]))
+        db.execute(
+            text(
+                "INSERT INTO incident_parties "
+                "(id, tenant_id, incident_id, student_id, party_type) "
+                "VALUES (:id, :tid, :incident, :student, 'INVOLVED')"
+            ),
+            {
+                "id": str(foreign_party),
+                "tid": str(school["other"]),
+                "incident": str(life["inc_foreign"]),
+                "student": str(life["s_foreign"]),
+            },
+        )
+        db.commit()
+
+    role = "incident_parties_" + uuid4().hex
+    password = "test-only-incident-parties-password"
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                f'CREATE ROLE "{role}" LOGIN PASSWORD \'{password}\' '
+                "NOSUPERUSER NOBYPASSRLS"
+            )
+        )
+        connection.execute(text(f'GRANT USAGE ON SCHEMA public TO "{role}"'))
+        connection.execute(text(f'GRANT SELECT ON incident_parties TO "{role}"'))
+
+    restricted_url = make_url(
+        engine.url.render_as_string(hide_password=False)
+    ).set(username=role, password=password)
+    restricted_engine = create_engine(restricted_url, poolclass=StaticPool)
+    RestrictedSession = sessionmaker(bind=restricted_engine)
+    try:
+        with RestrictedSession() as db:
+            flags = db.execute(
+                text(
+                    "SELECT relrowsecurity, relforcerowsecurity FROM pg_class "
+                    "WHERE oid = 'incident_parties'::regclass"
+                )
+            ).one()
+            assert flags == (True, True)
+            assert db.execute(text("SELECT COUNT(*) FROM incident_parties")).scalar() == 0
+            database.switch_tenant_context(db, str(school["tenant"]))
+            visible = db.execute(
+                text("SELECT id::text FROM incident_parties ORDER BY id")
+            ).scalars().all()
+            assert visible == [str(own_party)]
+    finally:
+        restricted_engine.dispose()
+        with engine.begin() as connection:
+            connection.execute(text(f'DROP OWNED BY "{role}"'))
+            connection.execute(text(f'DROP ROLE "{role}"'))
 
 
 # --- Rendez-vous parents-enseignants -------------------------------------------------------------

@@ -1,42 +1,40 @@
-﻿import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiClient } from "@/api/client";
-import { useAuth } from "@/contexts/AuthContext";
-import { useTenant } from "@/contexts/TenantContext";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { toast } from "sonner";
-import { adminQueries } from "@/queries/admin";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
+
+import { apiClient } from "@/api/client";
+import { IncidentDialog } from "@/components/admin/incidents/IncidentDialog";
 import { IncidentHeader } from "@/components/admin/incidents/IncidentHeader";
+import {
+  IncidentResolveDialog,
+  type IncidentResolution,
+} from "@/components/admin/incidents/IncidentResolveDialog";
 import { IncidentStats } from "@/components/admin/incidents/IncidentStats";
 import { IncidentTable } from "@/components/admin/incidents/IncidentTable";
-import { IncidentDialog } from "@/components/admin/incidents/IncidentDialog";
+import {
+  type IncidentFormData,
+  type IncidentRecord,
+  normalizeIncidentStatus,
+} from "@/components/admin/incidents/incidentTypes";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useTenant } from "@/contexts/TenantContext";
+import { adminQueries } from "@/queries/admin";
 
 export default function Incidents() {
   const { t } = useTranslation();
-  const { user } = useAuth();
   const { tenant } = useTenant();
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
+  const [resolvingIncidentId, setResolvingIncidentId] = useState<string | null>(null);
 
-  // Query
-  const { data: incidents = [], isLoading } = useQuery(adminQueries.adminIncidents(tenant?.id || ""));
+  const { data: incidents = [] } = useQuery(
+    adminQueries.adminIncidents(tenant?.id || ""),
+  );
 
-  // Mutations
   const createMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const incidentNumber = `INC-${Date.now().toString(36).toUpperCase()}`;
-      await apiClient.post("/incidents/", {
-        tenant_id: tenant?.id,
-        incident_number: incidentNumber,
-        incident_type: data.incident_type,
-        severity: data.severity,
-        title: data.title,
-        description: data.description,
-        location: data.location,
-        occurred_at: data.occurred_at,
-        reported_by: user?.id,
-      });
+    mutationFn: async (data: IncidentFormData) => {
+      await apiClient.post("/incidents/", data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-incidents"] });
@@ -48,28 +46,43 @@ export default function Incidents() {
 
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const updates: any = { status };
-      if (status === "resolved" || status === "closed") {
-        updates.resolved_by = user?.id;
-        updates.resolved_at = new Date().toISOString();
-      }
-      await apiClient.put(`/incidents/${id}/`, updates);
+      await apiClient.put(`/incidents/${id}/`, { status });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-incidents"] });
       toast.success(t("incidents.statusUpdateSuccess"));
     },
+    onError: () => toast.error(t("incidents.reportError")),
   });
 
-  const openIncidents = incidents.filter((i: any) => ["reported", "investigating", "action_taken"].includes(i.status));
-  const closedIncidents = incidents.filter((i: any) => ["resolved", "closed"].includes(i.status));
+  const resolveMutation = useMutation({
+    mutationFn: async ({ id, payload }: { id: string; payload: IncidentResolution }) => {
+      await apiClient.put(`/incidents/${id}/resolve/`, payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-incidents"] });
+      setResolvingIncidentId(null);
+      toast.success(t("incidents.statusUpdateSuccess"));
+    },
+    onError: () => toast.error(t("incidents.reportError")),
+  });
+
+  const incidentList = incidents as IncidentRecord[];
+  const openIncidents = incidentList.filter((incident) =>
+    ["open", "reported", "investigating", "assigned", "action_taken"].includes(
+      normalizeIncidentStatus(incident.status),
+    ));
+  const closedIncidents = incidentList.filter((incident) =>
+    ["resolved", "closed"].includes(normalizeIncidentStatus(incident.status)));
 
   const stats = {
-    total: incidents.length,
+    total: incidentList.length,
     open: openIncidents.length,
-    critical: incidents.filter((i: any) => i.severity === "critical" && !["resolved", "closed"].includes(i.status)).length,
-    thisWeek: incidents.filter((i: any) => {
-      const date = new Date(i.occurred_at);
+    critical: incidentList.filter((incident) =>
+      String(incident.severity).toLowerCase() === "critical"
+      && !["resolved", "closed"].includes(normalizeIncidentStatus(incident.status))).length,
+    thisWeek: incidentList.filter((incident) => {
+      const date = new Date(incident.occurred_at);
       const weekAgo = new Date();
       weekAgo.setDate(weekAgo.getDate() - 7);
       return date > weekAgo;
@@ -79,7 +92,6 @@ export default function Incidents() {
   return (
     <div className="space-y-6">
       <IncidentHeader onReportIncident={() => setIsOpen(true)} />
-
       <IncidentStats {...stats} />
 
       <Tabs defaultValue="open" className="space-y-4">
@@ -92,6 +104,7 @@ export default function Incidents() {
           <IncidentTable
             incidents={openIncidents}
             onUpdateStatus={(id, status) => updateStatusMutation.mutate({ id, status })}
+            onResolve={setResolvingIncidentId}
           />
         </TabsContent>
 
@@ -109,8 +122,18 @@ export default function Incidents() {
         onOpenChange={setIsOpen}
         onSubmit={(data) => createMutation.mutate(data)}
         isPending={createMutation.isPending}
+        tenantId={tenant?.id || ""}
+      />
+      <IncidentResolveDialog
+        open={Boolean(resolvingIncidentId)}
+        onOpenChange={(open) => !open && setResolvingIncidentId(null)}
+        onSubmit={(payload) => {
+          if (resolvingIncidentId) {
+            resolveMutation.mutate({ id: resolvingIncidentId, payload });
+          }
+        }}
+        isPending={resolveMutation.isPending}
       />
     </div>
   );
 }
-

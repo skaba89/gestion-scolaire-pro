@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 21683)
+Total output lines: 1340
+
 # Matrice des permissions — Onboarding, Settings, Levels, Subjects
 
 Ce document existe parce que le backend et le frontend utilisent deux
@@ -643,119 +646,7 @@ une vraie permission — 3 fichiers concernés :
   renvoyait en plus l'historique d'achats de chaque élève (nom, matricule,
   montant) sur tout le tenant. Corrigé avec `inventory:read` (détenu par
   `TENANT_ADMIN`/`DIRECTOR`/`STAFF`/`ACCOUNTANT`/`SECRETARY` — aucun rôle
-  restreint STUDENT/PARENT/TEACHER/ALUMNI ne le détient).
-
-Testé : `backend/tests/test_no_permission_listing_endpoints_2026_09_27.py`
-(9 tests — 6 négatifs confirmés en échec avant le correctif, en succès
-après, via `git stash`) ; suite complète (`alembic upgrade head`
-appliqué) et suite SQLite par défaut inchangées, aucune régression.
-
-## Endpoints de listage sans aucun contrôle de permission — 3e balayage (2026-09-27)
-
-Même famille de bug que la section "Balayage complet de la navigation
-admin" ci-dessus et que la section homonyme déjà présente dans une PR
-sœur ouverte le même jour (`fix/no-permission-listing-endpoints`) : un
-`GET` de listage n'avait *aucune* dépendance de permission
-(`Depends(get_current_user)` seul), alors que des routes sœurs sur la
-même ressource exigent une vraie permission. Trouvé par un 3e balayage
-systématique ciblant les fichiers d'endpoints jamais encore audités
-cette session.
-
-- `operational/incidents.py::list_incidents` (`GET /incidents/`) —
-  aucun contrôle, alors que `create_incident`/`update_incident`/
-  `resolve_incident`/`assign_incident` sur le même routeur exigent tous
-  `settings:write`. N'importe quel utilisateur authentifié du tenant
-  pouvait lire tout l'historique d'incidents en clair (titre,
-  description, notes, `student_ids`, localisation, identité du
-  rapporteur/résolveur), tenant-wide, paginé mais sans aucune
-  restriction. Corrigé en alignant sur `settings:write`, exactement
-  comme ses routes sœurs — `DIRECTOR` détient déjà `settings:write`
-  (`backend/app/core/security.py`), donc aucune régression pour ce rôle.
-- `operational/infrastructure.py::read_enrollments`
-  (`GET /infrastructure/enrollments/`) — aucun contrôle, alors que sa
-  propre route alias `aliases.py::list_enrollments_alias`
-  (`GET /enrollments/`, qui sert les mêmes données) exige déjà
-  `enrollments:read`. Corrigé en alignant sur `enrollments:read`, pour
-  faire correspondre les deux chemins d'accès à la même ressource.
-- `operational/communication.py::get_messaging_users`
-  (`GET /communication/messaging/users/`) — aucun contrôle. N'importe
-  quel utilisateur authentifié (STUDENT/PARENT/ALUMNI compris) pouvait
-  énumérer id/nom/email/rôles de tous les utilisateurs du tenant. Le
-  frontend n'appelle cette route que depuis des composants de
-  composition de message réservés à l'admin
-  (`AdminMessageComposer`/`ExternalMessageComposer`, rendus uniquement
-  sur `/admin/messages` et `/admin/users`) ; corrigé en exigeant
-  `users:read`, qui correspond à la sémantique réelle de la route
-  ("lister tous les utilisateurs") et aux rôles déjà censés y accéder
-  (`TEACHER` le détient déjà, par exemple).
-
-Testé :
-`backend/tests/test_incidents_enrollments_messaging_permissions_2026_09_27.py`
-(10 tests — STUDENT/PARENT refusés sur les 3 routes, DIRECTOR/TEACHER
-acceptés selon leurs permissions existantes ; PostgreSQL réel pour la
-partie `incidents` (table opérationnelle SQL brute), les 6 tests
-négatifs confirmés en échec avant le correctif puis en succès après) ;
-suite complète (`alembic upgrade head` appliqué) et suite SQLite par
-défaut, aucune régression.
-
-## Fuite de secrets tenant via `GET /tenants/INFOS/` — 4e balayage (2026-09-27)
-
-Trouvé par un 4e balayage systématique des fichiers d'endpoints jamais
-encore couverts par les 3 précédents. Bug différent des sections
-ci-dessus (pas une absence de permission sur une route de listage, mais
-une seconde route qui re-expose un champ déjà identifié comme sensible
-et déjà protégé ailleurs) mais avec le même niveau de gravité.
-
-`tenant.settings` est un blob JSON plat partagé par tous les écrans de
-paramétrage — il contient aussi de vrais secrets tiers (clés API
-CinetPay/PayTech, mot de passe SMTP, jetons WhatsApp Cloud API, clé
-Resend), lus directement par `app/services/payment_gateways.py`,
-`app/services/notifications.py` et `operational/parents.py`.
-`GET /tenants/settings/` avait déjà été corrigé pour retirer ces clés du
-retour à quiconque ne détient pas `settings:write`
-(`_TENANT_SETTINGS_SECRET_KEYS`, voir plus haut dans ce document). Mais
-`GET /tenants/INFOS/` (`core/tenants.py::get_tenant_infos`) est une
-seconde route, apparemment oubliée lors de ce premier correctif, qui
-renvoie le même `tenant.settings` **sans aucune redaction ni aucun
-contrôle de permission** (`Depends(get_current_user)` seul) — n'importe
-quel utilisateur authentifié du tenant (STUDENT, PARENT, TEACHER…)
-pouvait donc lire ces secrets en clair via cette route alternative.
-
-Corrigé en appliquant exactement la même redaction que
-`get_tenant_settings` : `_TENANT_SETTINGS_SECRET_KEYS` a été déplacé
-avant les deux fonctions (au lieu d'être défini juste avant
-`get_tenant_settings` seul) et est maintenant réutilisé par
-`get_tenant_infos`, qui retire les clés secrètes du sous-objet
-`settings` pour tout appelant qui ne détient pas `settings:write`. Pas
-de nouveau contrôle `require_permission` ajouté (le frontend appelle
-cette route pour tout utilisateur authentifié afin de lire des métadonnées
-non sensibles comme le nom du tenant, la devise, etc. — `QuickEnrollmentDialog`
-et d'autres composants), exactement la même approche que le correctif
-précédent sur `/tenants/settings/`.
-
-Testé : `backend/tests/test_tenant_settings_secret_redaction.py` étendu
-avec une nouvelle classe `TestTenantInfosSecretRedaction` (12 tests au
-total dans le fichier après extension) — mêmes rôles/scénarios que la
-classe existante pour `/tenants/settings/`, adaptés à la structure
-imbriquée (`body["settings"]`) de `/tenants/INFOS/` ; les 4 tests
-négatifs confirmés en échec avant le correctif (`git stash` du
-correctif) puis en succès après. Suite complète exécutée sur PostgreSQL
-16 réel (`alembic upgrade head` appliqué) : 1701 passed/18 skipped ;
-suite SQLite par défaut : 1218 passed/501 skipped ; aucune régression.
-
-## Injection de FK inter-tenant sur les associations matière↔niveau/département/prérequis — 5e balayage (2026-09-28)
-
-Trouvé par un 5e balayage systématique combinant recherche de fuites de
-secrets (rien de nouveau trouvé — `billing.py`, `mfa.py`, `webhooks.py`,
-`saas_enterprise.py`, `imports.py`, `kiosk.py` sont déjà correctement
-scopés) et recherche d'IDOR/BOLA sur les endpoints à paramètre `{id}`
-non encore couverts. Bug différent des sections précédentes : pas une
-absence de permission ni une fuite de secret, mais l'absence de
-vérification qu'un identifiant fourni par l'appelant appartient bien à
-son propre tenant avant de l'utiliser comme clé étrangère.
-
-`crud/academic.py::create_subject`/`update_subject` inséraient
-`department_ids`/`level_ids`/`prerequisite_subject_ids` (fournis dans le
+  restreint STUDENT/PARENT/TEACHER/AL…1683 tokens truncated…evel_ids`/`prerequisite_subject_ids` (fournis dans le
 corps de la requête) tels quels dans les tables d'association
 `subject_departments`/`subject_levels`/`subject_prerequisites`, et
 `academic/subjects.py::assign_subject_to_level` insérait `subject_id`/
@@ -1252,11 +1143,11 @@ ou résolvable **seulement si TOUS ses élèves sont dans le périmètre** (et s
 a au moins un ; création : au moins un élève, tous dans le périmètre). Le titre,
 la description et les notes sont communs à toutes les parties : montrer un
 incident dont un élève est hors périmètre divulguerait son contenu, et ne masquer
-que les élèves ne protégerait pas le texte libre. Constat : le lien actuel est la
-seule colonne `incidents.student_id` ; la table `incident_parties`, que
-`create_incident` alimente, n'existe dans aucune migration ni dans
-`operational_tables` (voir « Limites »). Un futur lien multi-élèves devra être
-ajouté au filtre.
+que les élèves ne protégerait pas le texte libre. Le lien historique
+`incidents.student_id` reste lu pour les données existantes. Depuis la migration
+`20261122_0001`, `incident_parties` porte tous les élèves d'un nouvel incident
+avec sa propre policy RLS. Le filtre combine les deux représentations et applique
+la règle « tous les participants » avant pagination.
 
 **Tâches (choix).** `jobs.payload.user_id` enregistre le créateur : les tâches
 sont donc filtrées par créateur (et par classe encore dans le périmètre). Les
@@ -1306,19 +1197,16 @@ sont absents des listes (pointages, `/school-life/grades/`).
 `DELETE /parents/link/{id}/`) ; `Gamification.tsx`
 (`/school-life/gamification/stats/`) ; `SchoolCalendar` et `admin.ts` (création,
 modification, suppression d'événement) ; `Bookings.tsx` (réservations, y compris
-réserver une salle). `Incidents.tsx` n'envoie jamais `student_ids` : la création
-est impossible pour un compte restreint et les incidents sans élève lui sont
-invisibles (compteurs partiels). Inscriptions aux événements : compteurs partiels
+réserver une salle). `Incidents.tsx` permet désormais de sélectionner plusieurs
+élèves ; un incident sans élève reste volontairement invisible à un compte
+restreint. Inscriptions aux événements : compteurs partiels
 (seules les inscriptions d'élèves du périmètre).
 
-**Défauts préexistants hors lot, non corrigés** : `PUT /school-life/grades/{id}/`
-(500 systématique), `PUT /incidents/{id}/resolve/` (colonne `resolved_at`
-absente), `POST /incidents/` avec `student_ids` (table `incident_parties`
-absente), `POST /school-life/check-ins/` ouvert à un élève ou un parent pour
-lui-même ou son enfant (à confirmer côté métier). `/student-badges/`,
-`GET /school-life/assessments/` (permission), `gamification/stats` et
-`GET /school-life/check-ins/` (périmètre enseignant) sont traités par une PR
-séparée ; le filtre de cycle de ce lot y reste tel quel. Tests :
+**Défaut métier restant à confirmer** : `POST /school-life/check-ins/` reste
+ouvert à un élève ou un parent pour lui-même ou son enfant. Les accès
+`/student-badges/`, `GET /school-life/assessments/`, `gamification/stats` et le
+périmètre enseignant des pointages ont été traités dans des lots séparés ; le
+filtre de cycle reste inchangé. Tests :
 `backend/tests/test_cycle_scope_school_life.py`.
 
 ### Borne de classe et diffusion du pointage (2026-11-21)
