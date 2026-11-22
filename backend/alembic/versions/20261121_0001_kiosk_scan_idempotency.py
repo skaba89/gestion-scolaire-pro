@@ -18,6 +18,11 @@ down_revision = "20261116_0001"
 branch_labels = None
 depends_on = None
 
+# Deployment applies migrations before the new API image. Both columns are
+# nullable and the constraint ignores historical NULL values, so the code at
+# down_revision keeps working while the database is one revision ahead.
+backward_compatible = True
+
 
 def upgrade():
     op.add_column(
