@@ -22,6 +22,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status, Request
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from uuid import UUID
 
@@ -255,11 +256,35 @@ def _find_overdue_library_loans(db: Session, *, tenant_id, student: Student) -> 
     return [r[0] for r in rows]
 
 
+def _replayed_scan_response(*, check_in: StudentCheckIn, student: Student) -> dict:
+    """Stable response for a kiosk event already committed earlier.
+
+    Course and library notices are deliberately not recomputed on a retry:
+    replaying a network request must not repeat a transient notice or create
+    another side effect. The movement identity and original server time are
+    the authoritative acknowledgement required by the offline tablet.
+    """
+    return {
+        "status": "ok",
+        "student_first_name": student.first_name,
+        "student_last_name": student.last_name,
+        "direction": check_in.direction,
+        "checked_at": check_in.checked_at,
+        "session_id": check_in.session_id,
+        "attendance_marked": False,
+        "course_name": None,
+        "library_overdue": False,
+        "library_overdue_titles": [],
+        "replayed": True,
+    }
+
+
 @router.post("/scan/")
 def kiosk_scan(
     body: KioskScanRequest,
     db: Session = Depends(get_db),
     x_kiosk_token: str = Header(None, alias="X-Kiosk-Token"),
+    x_idempotency_key: str = Header(None, alias="X-Idempotency-Key"),
 ):
     if not x_kiosk_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token d'appareil manquant")
@@ -272,6 +297,10 @@ def kiosk_scan(
     device = db.query(KioskDevice).filter(KioskDevice.token_hash == token_hash).first()
     if not device or not device.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Appareil inconnu ou désactivé")
+    # Primitive identifiers survive a transaction rollback in the rare
+    # concurrent-retry path; ORM instances may be expired by that rollback.
+    device_id = device.id
+    device_tenant_id = device.tenant_id
 
     tenant = db.query(Tenant).filter(Tenant.id == device.tenant_id).first()
     if not tenant or not tenant.is_active:
@@ -286,6 +315,16 @@ def kiosk_scan(
     direction = body.direction.upper() if body.direction else "IN"
     if direction not in ("IN", "OUT"):
         direction = "IN"
+
+    client_event_id = None
+    if x_idempotency_key:
+        try:
+            client_event_id = UUID(x_idempotency_key)
+        except (TypeError, ValueError):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="X-Idempotency-Key doit être un UUID",
+            )
 
     # qr_payload doubles as the card body for an NFC/RFID reader (the
     # reader sends the card's UID here instead of a decoded QR string) —
@@ -310,6 +349,22 @@ def kiosk_scan(
     if not student:
         db.commit()
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Élève introuvable")
+    requested_student_id = student.id
+
+    if client_event_id is not None:
+        existing_event = db.query(StudentCheckIn).filter(
+            StudentCheckIn.tenant_id == device.tenant_id,
+            StudentCheckIn.kiosk_device_id == device.id,
+            StudentCheckIn.client_event_id == client_event_id,
+        ).first()
+        if existing_event is not None:
+            if str(existing_event.student_id) != str(student.id) or existing_event.direction != direction:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Clé d'événement déjà utilisée avec un autre pointage",
+                )
+            db.commit()
+            return _replayed_scan_response(check_in=existing_event, student=student)
 
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     slot = (
@@ -333,8 +388,39 @@ def kiosk_scan(
         direction=direction,
         source="KIOSK",
         session_id=session_id,
+        kiosk_device_id=device.id,
+        client_event_id=client_event_id,
     )
     db.add(check_in)
+    try:
+        # Force the kiosk-event uniqueness check before attendance/library
+        # side effects. Normal sequential retries are returned above; this
+        # path also closes the race between two simultaneous retries.
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        if client_event_id is None:
+            raise
+        enter_tenant_context_or_404(db, device_tenant_id)
+        existing_event = db.query(StudentCheckIn).filter(
+            StudentCheckIn.tenant_id == device_tenant_id,
+            StudentCheckIn.kiosk_device_id == device_id,
+            StudentCheckIn.client_event_id == client_event_id,
+        ).first()
+        if existing_event is None:
+            raise
+        replay_student = db.query(Student).filter(
+            Student.tenant_id == device_tenant_id,
+            Student.id == existing_event.student_id,
+        ).first()
+        if replay_student is None:
+            raise
+        if str(existing_event.student_id) != str(requested_student_id) or existing_event.direction != direction:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Clé d'événement déjà utilisée avec un autre pointage",
+            )
+        return _replayed_scan_response(check_in=existing_event, student=replay_student)
 
     # Classroom badge-in feature (institutional-readiness audit, 2026-09):
     # only for an "IN" scan at a room-bound device, and only if a course
@@ -366,6 +452,7 @@ def kiosk_scan(
         "course_name": course_name,
         "library_overdue": bool(library_overdue_titles),
         "library_overdue_titles": library_overdue_titles,
+        "replayed": False,
     }
 
 

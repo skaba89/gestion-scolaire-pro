@@ -1380,3 +1380,15 @@ La règle métier de l’auto-pointage reste à valider.
   actualisation automatique bornée à cinq secondes, pas encore d’un flux WebSocket.
   La file hors ligne et l’anti-double-scan de la borne restent à livrer dans un lot
   séparé avant un pilote avec connexion instable. REC et PROD non déployées.
+
+- **2026-11-22 — borne de classe hors ligne et rejeu sans doublon.** La page
+  kiosque place chaque scan dans la file IndexedDB existante avant l’envoi. Une
+  coupure conserve le code scanné, la direction, l’établissement logique et une
+  clé d’événement stable, mais jamais le jeton de l’appareil. Au retour du réseau,
+  la file est rejouée automatiquement avec le même identifiant et l’écran indique
+  le nombre restant. Le backend enregistre l’appareil et la clé sur le mouvement ;
+  la contrainte unique `(tenant_id, kiosk_device_id, client_event_id)` garantit
+  qu’un accusé perdu ou deux requêtes concurrentes ne créent pas deux pointages.
+  Une même clé avec un autre élève ou une autre direction répond 409 ; la même clé
+  générée par deux tablettes reste isolée. Migration additive `20261121_0001`,
+  aucun pointage existant transformé. Vérifié en DEV ; REC et PROD non déployées.
