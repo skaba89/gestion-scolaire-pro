@@ -1,12 +1,13 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Star, Award, Users, TrendingUp } from "lucide-react";
+import { Award, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 interface GamificationStatsProps {
     stats: {
-        totalPoints: number;
+        /** null : aucun système de points n'existe (ANALYTICS-MOCK-01). */
+        totalPoints: number | null;
         totalAchievements: number;
         totalStudents: number;
     } | null;
@@ -32,14 +33,6 @@ export const GamificationStats = ({ stats }: GamificationStatsProps) => {
 
     const statCards = [
         {
-            title: t("gamification.totalPoints", "Points Distribués"),
-            value: stats?.totalPoints?.toLocaleString() || 0,
-            icon: Star,
-            colorClass: "text-amber-500",
-            bgClass: "bg-amber-500/10",
-            borderClass: "border-amber-500/20"
-        },
-        {
             title: t("gamification.achievementsEarned", "Badges Obtenus"),
             value: stats?.totalAchievements || 0,
             icon: Award,
@@ -55,14 +48,6 @@ export const GamificationStats = ({ stats }: GamificationStatsProps) => {
             bgClass: "bg-blue-500/10",
             borderClass: "border-blue-500/20"
         },
-        {
-            title: t("gamification.avgPoints", "Moyenne/Étudiant"),
-            value: stats?.totalStudents ? Math.round((stats?.totalPoints || 0) / stats.totalStudents) : 0,
-            icon: TrendingUp,
-            colorClass: "text-emerald-500",
-            bgClass: "bg-emerald-500/10",
-            borderClass: "border-emerald-500/20"
-        }
     ];
 
     return (
@@ -70,7 +55,7 @@ export const GamificationStats = ({ stats }: GamificationStatsProps) => {
             variants={containerVariants}
             initial="hidden"
             animate="show"
-            className="grid gap-4 md:grid-cols-4 mb-6"
+            className="grid gap-4 md:grid-cols-2 mb-6"
         >
             {statCards.map((card, index) => (
                 <motion.div key={index} variants={itemVariants}>

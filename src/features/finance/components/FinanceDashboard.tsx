@@ -3,15 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { RevenueCharts } from "@/components/finances/RevenueCharts";
 import { useCurrency } from "@/hooks/useCurrency";
-import { DollarSign, Clock, CheckCircle, AlertCircle, Sparkles, RefreshCw } from "lucide-react";
+import { DollarSign, Clock, CheckCircle, AlertCircle } from "lucide-react";
 import { Invoice, Payment } from "../types";
 import type { FinanceOverview } from "../utils/financeOverviewApi";
 import { RevenueTrendChart } from "@/components/dashboard/widgets/RevenueTrendChart";
 import { DebtAgingChart } from "@/components/dashboard/widgets/DebtAgingChart";
 import { RevenueByCategoryChart } from "@/components/dashboard/widgets/RevenueByCategoryChart";
-import { useTenant } from "@/contexts/TenantContext";
-import { useCashFlowForecast } from "@/hooks/useCashFlowForecast";
-import { CashFlowForecastChart } from "@/components/admin/dashboard/CashFlowForecastChart";
 
 interface FinanceDashboardProps {
     invoices: Invoice[];
@@ -20,9 +17,7 @@ interface FinanceDashboardProps {
 }
 
 export const FinanceDashboard = ({ invoices, payments, overview }: FinanceDashboardProps) => {
-    const { tenant } = useTenant();
-    const { currencyCode, formatCurrency } = useCurrency();
-    const { forecasts, isLoading: isForecastLoading, generateForecast } = useCashFlowForecast(tenant?.id || "");
+    const { formatCurrency } = useCurrency();
 
     // Totals come from the full tenant-scoped backend aggregate, never from
     // the paginated invoice or payment lists visible in the tables.
@@ -94,44 +89,10 @@ export const FinanceDashboard = ({ invoices, payments, overview }: FinanceDashbo
                 </Card>
             </div>
 
-            {/* AI Financial Forecast Section */}
-            <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold flex items-center gap-2">
-                        <Sparkles className="h-5 w-5 text-purple-500" />
-                        Prévisions de Trésorerie (IA)
-                    </h3>
-                    <div className="flex gap-2">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => generateForecast.mutate()}
-                            disabled={generateForecast.isPending}
-                        >
-                            <RefreshCw className={`h-4 w-4 mr-2 ${generateForecast.isPending ? 'animate-spin' : ''}`} />
-                            {generateForecast.isPending ? 'Calcul en cours...' : 'Actualiser les prévisions'}
-                        </Button>
-                    </div>
-                </div>
-
-                {forecasts && forecasts.length > 0 ? (
-                    <CashFlowForecastChart forecasts={forecasts} currency={currencyCode} />
-                ) : (
-                    <Card className="bg-muted/50 border-dashed">
-                        <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                            <Sparkles className="h-12 w-12 text-muted-foreground/20 mb-4" />
-                            <h4 className="text-lg font-medium text-muted-foreground">Aucune prévision disponible</h4>
-                            <p className="text-sm text-muted-foreground/80 max-w-md mt-2 mb-6">
-                                L'intelligence artificielle peut analyser votre historique de facturation pour projeter votre trésorerie sur les 3 prochains mois.
-                            </p>
-                            <Button onClick={() => generateForecast.mutate()} disabled={generateForecast.isPending}>
-                                {generateForecast.isPending ? 'Analyse en cours...' : 'Générer les prévisions'}
-                            </Button>
-                        </CardContent>
-                    </Card>
-                )}
-            </div>
-
+            {/* Pas de « prévision de trésorerie (IA) » : l'ancienne section projetait la trésorerie avec
+                des constantes inventées (+2 % de croissance par mois, dépenses = 60 % des recettes alors
+                qu'aucun module de dépenses n'existe, indice de confiance arbitraire) — ANALYTICS-MOCK-01.
+                Les graphiques ci-dessus ne montrent que des données réelles. */}
             <div className="flex justify-end gap-2">
                 <Button
                     variant="destructive"

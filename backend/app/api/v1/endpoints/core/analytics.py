@@ -307,7 +307,20 @@ def get_academic_stats(
                 COUNT(g.id) AS total,
                 SUM(CASE WHEN g.score >= (g.max_score / 2.0) THEN 1 ELSE 0 END) AS passing
             FROM grades g
-            JOIN enrollments ce ON ce.student_id = g.student_id
+            -- ACADEMIC-STATS-01 : une note compte dans UNE classe, celle où l'élève était inscrit
+            -- l'année de la note (inscription non transférée) ; note sans année : inscription
+            -- ACTIVE de l'année en cours (règle Q1). Auparavant : jointure sur toutes les
+            -- inscriptions, la note comptait aussi dans les anciennes classes de l'élève.
+            JOIN enrollments ce ON ce.student_id = g.student_id AND ce.tenant_id = g.tenant_id
+                AND (
+                    (g.academic_year_id IS NOT NULL AND ce.academic_year_id = g.academic_year_id
+                     AND UPPER(ce.status) <> 'TRANSFERRED')
+                    OR (g.academic_year_id IS NULL AND UPPER(ce.status) = 'ACTIVE' AND (
+                        ce.academic_year_id IN (SELECT ay.id FROM academic_years ay
+                                                WHERE ay.tenant_id = g.tenant_id AND ay.is_current = TRUE)
+                        OR NOT EXISTS (SELECT 1 FROM academic_years ay
+                                       WHERE ay.tenant_id = g.tenant_id AND ay.is_current = TRUE)))
+                )
             JOIN classes c ON c.id = ce.class_id
             WHERE g.tenant_id = :tenant_id {ay_filter}{cls_g_scope}{cls_scope}
             GROUP BY c.id, c.name
@@ -435,15 +448,18 @@ def get_operational_kpis(
     # en indicateur vide. Compte non restreint : fragments vides, requêtes inchangées.
     att_scope, att_binds = student_scope_and(db, tenant_id, current_user, "attendance.student_id", tag="aoka")
     enr_scope, enr_binds = student_scope_and(db, tenant_id, current_user, "enrollments.student_id", tag="aoke")
-    teacher_sql = _teacher_count_sql(db, tenant_id, current_user, tag="aokt")
+    hours_scope, hours_binds = class_scope_and(db, tenant_id, current_user, "twh.class_id", tag="aokh")
     try:
         # Build optional filters
         att_filter = ""
+        hours_filter = ""
         if start_date:
             att_filter += " AND date >= :start_date"
+            hours_filter += " AND twh.work_date >= :start_date"
             params["start_date"] = start_date
         if end_date:
             att_filter += " AND date <= :end_date"
+            hours_filter += " AND twh.work_date <= :end_date"
             params["end_date"] = end_date
 
         ay_id = _resolve_academic_year(db, tenant_id, academic_year_id)
@@ -477,18 +493,20 @@ def get_operational_kpis(
         dropout_count = int(enroll.dropped or 0) if enroll else 0
         dropout_rate = round((dropout_count / total_enrollments * 100) if total_enrollments > 0 else 0.0, 2)
 
-        # Teacher hours & active teacher count (mocked because teacher_work_hours table doesn't exist)
-        total_teacher_hours = 0.0
-        active_teachers = 0
-
-        # Total teachers (to compute rate)
-        tc = db.execute(teacher_sql, {"tenant_id": tenant_id}).fetchone()
-        total_teachers = int(tc.total or 0) if tc else 0
-        teacher_att_rate = round((active_teachers / total_teachers * 100) if total_teachers > 0 else 0.0, 2)
+        # ANALYTICS-MOCK-01 : heures réellement saisies dans teacher_work_hours (la table existe ;
+        # l'ancien code renvoyait 0 en la croyant absente). Compte restreint : heures des classes
+        # de son périmètre uniquement.
+        hours_sql = text(f"""
+            SELECT COALESCE(SUM(twh.hours_worked), 0) AS total
+            FROM teacher_work_hours twh
+            WHERE twh.tenant_id = :tenant_id {hours_filter}{hours_scope}
+        """).bindparams(*hours_binds)
+        total_teacher_hours = float(db.execute(hours_sql, params).scalar() or 0)
 
         return {
             "studentAttendanceRate": student_att_rate,
-            "teacherAttendanceRate": min(teacher_att_rate, 100.0),
+            # Aucune donnée de présence des enseignants n'existe : null (« non mesuré »), jamais 0 %.
+            "teacherAttendanceRate": None,
             "totalEnrollments": total_enrollments,
             "dropoutRate": dropout_rate,
             "dropoutCount": dropout_count,
@@ -1045,26 +1063,10 @@ def export_ministry_csv(
     )
 
 
-@router.post("/cash-flow-forecast/")
-def get_cash_flow_forecast(
-    body: dict,
-    request: Request,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission("analytics:read")),
-):
-    """
-    Cash-flow forecast: projections of revenue and expenses.
-    """
-    tenant_id = str(resolve_current_tenant_id(request, current_user, db))
-    months_ahead = body.get("months_ahead", 3)
-    months_ahead = max(1, min(24, int(months_ahead)))  # clamp to 1-24
-    # Mock response for now
-    return {
-        "labels": ["M+1", "M+2", "M+3"],
-        "revenue": [5000, 5200, 5500],
-        "expenses": [3000, 3100, 3200],
-        "net": [2000, 2100, 2300]
-    }
+# ANALYTICS-MOCK-01 (2026-11-23) : POST /analytics/cash-flow-forecast/ retirée. Elle renvoyait une
+# projection codée en dur (5000 / 5200 / 5500…) présentée comme une prévision, et plus aucun écran
+# ne l'appelle. Aucun modèle de prévision ni module de dépenses n'existe ; une route qui ne
+# répondrait que 501 n'a pas sa place dans l'API (même traitement que /ai/generate/, #530).
 
 
 # =============================================================================

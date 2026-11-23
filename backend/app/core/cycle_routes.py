@@ -215,7 +215,7 @@ ROUTE_POLICIES: dict[tuple[str, str], Policy] = {
     # --- Lot B2e-1 : indicateurs académiques et tableau de bord ---------------------------------
     # Agrégats, moyennes, taux et listes calculés sur les seuls élèves du périmètre (notes, présences,
     # inscriptions, factures, scores de risque) ; classes et enseignants comptés dans les classes du
-    # périmètre. cash-flow-forecast (projection fictive), ministry-* et elearning restent DENY.
+    # périmètre. ministry-* et elearning restent DENY ; cash-flow-forecast (projection fictive) est retirée.
     **_routes(Policy.FILTERED, "GET", "/analytics/academic-kpis/", "/analytics/academic-stats/",
               "/analytics/students-at-risk/", "/analytics/operational-kpis/",
               "/analytics/attendance-trend/", "/analytics/grades-distribution/",

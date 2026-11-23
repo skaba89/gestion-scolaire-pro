@@ -56,7 +56,8 @@ export interface TeacherWorkload {
 
 export interface OperationalKPIs {
     studentAttendanceRate: number;
-    teacherAttendanceRate: number;
+    /** null : non mesuré (aucune donnée de présence des enseignants n'existe). */
+    teacherAttendanceRate: number | null;
     totalEnrollments: number;
     dropoutRate: number;
     dropoutCount: number;
@@ -171,7 +172,7 @@ export const operationalKPIs = {
         _tenantId: string,
         startDate?: string,
         endDate?: string
-    ): Promise<number> => {
+    ): Promise<number | null> => {
         const params: Record<string, string> = {};
         if (startDate) params.start_date = startDate;
         if (endDate) params.end_date = endDate;
