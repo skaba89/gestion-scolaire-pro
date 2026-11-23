@@ -1063,23 +1063,10 @@ def export_ministry_csv(
     )
 
 
-@router.post("/cash-flow-forecast/")
-def get_cash_flow_forecast(
-    body: dict,
-    request: Request,
-    db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission("analytics:read")),
-):
-    """Prévision de trésorerie : **non disponible** (ANALYTICS-MOCK-01, 2026-11-23).
-
-    La route renvoyait une projection codée en dur (recettes 5000 / 5200 / 5500…) présentée comme
-    une prévision. Aucun modèle de prévision ni module de dépenses n'existe : 501 honnête plutôt
-    que des chiffres inventés. L'appartenance au tenant est vérifiée avant la réponse."""
-    resolve_current_tenant_id(request, current_user, db)
-    raise HTTPException(
-        status_code=501,
-        detail="La prévision de trésorerie n'est pas disponible.",
-    )
+# ANALYTICS-MOCK-01 (2026-11-23) : POST /analytics/cash-flow-forecast/ retirée. Elle renvoyait une
+# projection codée en dur (5000 / 5200 / 5500…) présentée comme une prévision, et plus aucun écran
+# ne l'appelle. Aucun modèle de prévision ni module de dépenses n'existe ; une route qui ne
+# répondrait que 501 n'a pas sa place dans l'API (même traitement que /ai/generate/, #530).
 
 
 # =============================================================================

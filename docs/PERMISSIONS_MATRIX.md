@@ -1423,5 +1423,5 @@ jusque-là refusées à un compte restreint passent `FILTERED` : `/analytics/aca
 
 Le périmètre est résolu hors des blocs `try` : une erreur de périmètre n'est jamais convertie en
 indicateur vide. Comptes non restreints : requêtes inchangées. Restent DENY :
-`cash-flow-forecast` (projection fictive, ANALYTICS-MOCK-01), `ministry-*`, `elearning/*`.
+`cash-flow-forecast` (projection fictive, ANALYTICS-MOCK-01 — route retirée le 2026-11-23, lot S1), `ministry-*`, `elearning/*`.
 Tests : `backend/tests/test_cycle_scope_analytics.py` (10 rouges sans le filtrage).

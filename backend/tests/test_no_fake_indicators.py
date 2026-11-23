@@ -1,6 +1,6 @@
 """Indicateurs fictifs retirés (lot S1, 2026-11-23) : ANALYTICS-MOCK-01, ACADEMIC-STATS-01.
 
-- ``POST /analytics/cash-flow-forecast/`` renvoyait une projection codée en dur (5000, 5200…) ;
+- ``POST /analytics/cash-flow-forecast/`` renvoyait une projection codée en dur (5000, 5200…) : retirée ;
 - ``operational-kpis`` : heures d'enseignants toujours 0 (table jugée à tort absente) et taux de
   présence des enseignants toujours 0 % alors qu'aucune donnée ne le mesure ;
 - ``gamification/stats`` : « 0 point » et « 0 élève » codés en dur ;
@@ -62,9 +62,10 @@ def _student(tenant_id: str) -> str:
     return sid
 
 
-def test_cash_flow_forecast_answers_501_instead_of_invented_figures(tenant):
+def test_the_invented_cash_flow_forecast_route_no_longer_exists(tenant):
+    assert "/api/v1/analytics/cash-flow-forecast/" not in app.openapi()["paths"]
     response = client.post("/api/v1/analytics/cash-flow-forecast/", json={"months_ahead": 3}, headers=HEADERS)
-    assert response.status_code == 501, response.text
+    assert response.status_code in (404, 405), response.text
     assert "5000" not in response.text and "revenue" not in response.text
 
 

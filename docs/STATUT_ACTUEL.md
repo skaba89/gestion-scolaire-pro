@@ -1501,7 +1501,7 @@ La règle métier de l’auto-pointage reste à valider.
   ANALYTICS-MOCK-01, ACADEMIC-STATS-01, EXPORT-NOOP-01, DECISION-FAKE-01). Non déployé.**
   Retirés : la « prévision de trésorerie (IA) » de l'écran Finances (constantes inventées :
   +2 % de croissance par mois, dépenses = 60 % des recettes sans module de dépenses) et sa
-  route serveur codée en dur (désormais 501) ; le panneau « Aide à la décision » du tableau
+  route serveur codée en dur (retirée) ; le panneau « Aide à la décision » du tableau
   décisionnel (constats fictifs : 25 % d'impayés, −15 % en mathématiques, 98 % d'assiduité
   des enseignants) ; les boutons d'export qui n'exportaient rien. Corrigés : heures des
   enseignants lues dans `teacher_work_hours` (auparavant 0) ; présence des enseignants

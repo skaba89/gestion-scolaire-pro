@@ -18,7 +18,7 @@ mature que ce que l'audit de départ laissait supposer.
 | Recettes du mois | ✅ | `GET /analytics/dashboard-kpis/` (revenu total/collecté/en attente), tendance sur `GET /analytics/revenue-trend/`, par catégorie sur `GET /analytics/revenue-by-category/` |
 | KPIs académiques détaillés | ✅ | `GET /analytics/academic-kpis/`, `GET /analytics/academic-stats/` |
 | KPIs opérationnels | ✅ | `GET /analytics/operational-kpis/` |
-| Prévision de trésorerie | ✅ (bonus, non demandé explicitement) | `POST /analytics/cash-flow-forecast/` |
+| Prévision de trésorerie | ❌ retirée le 2026-11-23 (ANALYTICS-MOCK-01) : la route renvoyait une projection codée en dur et l'écran des constantes inventées | — |
 | Nouveaux élèves (période) | ⚠️ partiel | pas de compteur dédié "nouveaux ce mois", mais `totalStudents` et les tendances existent — filtrage par date à ajouter côté requête si besoin précis |
 | Dépenses | ❌ | aucun module dépenses trouvé dans le code — seul le volet recettes existe |
 | Incidents récents | ⚠️ module existe séparément | `operational/incidents.py` (audité en Phase 3 d'un audit antérieur, pagination + index déjà en place) — **pas encore agrégé dans le dashboard-kpis principal** |
@@ -65,7 +65,7 @@ GET  /analytics/revenue-trend/        tendance de revenus
 GET  /analytics/revenue-by-category/  revenus par catégorie
 GET  /analytics/attendance-trend/     tendance de présence
 GET  /analytics/grades-distribution/  distribution des notes
-POST /analytics/cash-flow-forecast/   prévision de trésorerie
+POST /analytics/cash-flow-forecast/   (retirée le 2026-11-23 : projection fictive)
 ```
 
 ## Risques performance
