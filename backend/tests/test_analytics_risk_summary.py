@@ -28,7 +28,7 @@ def test_risk_summary_counts_all_tenant_rows_without_limit():
     with patch.object(analytics, "resolve_current_tenant_id", return_value=tenant_id):
         data = analytics.get_analytics_risk_summary(
             request=_request(), db=db,
-            current_user={"id": str(uuid4()), "tenant_id": str(tenant_id)},
+            current_user={"id": str(uuid4()), "tenant_id": str(tenant_id), "_cycle_ids": None},
         )
     assert data == {
         "total": 238, "critical": 12, "high": 16, "moderate": 21,
@@ -51,7 +51,7 @@ def test_risk_summary_unknown_includes_unrated_and_invalid_levels():
     tenant_id = uuid4()
     with patch.object(analytics, "resolve_current_tenant_id", return_value=tenant_id):
         data = analytics.get_analytics_risk_summary(
-            request=_request(), db=db, current_user={"id": str(uuid4())},
+            request=_request(), db=db, current_user={"id": str(uuid4()), "_cycle_ids": None},
         )
     assert data["low"] == 2
     assert data["unknown"] == 2
