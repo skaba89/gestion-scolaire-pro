@@ -1450,6 +1450,13 @@ La règle métier de l’auto-pointage reste à valider.
   `outstandingByClass` compte une facture dans chaque classe où l'élève a
   eu une inscription, quel qu'en soit le statut (double comptage).
 
+- **2026-11-23 — CHECKINS-SELF-01 : pointage réservé au personnel et aux bornes. Non
+  déployé.** Décision humaine du 2026-11-23 : `POST /school-life/check-ins/` exige
+  `school_life:write`. Un élève (pour lui-même) ou un parent (pour son enfant) recevait 200 et
+  pouvait ainsi apparaître présent dans la vue en direct du professeur ; il reçoit désormais
+  403, sans écriture. Badges, scan QR, séance de l'enseignant et bornes inchangés. Tests :
+  2 rouges avant correctif, verts après.
+
 - **2026-11-23 — défauts finance préexistants corrigés (FIN-IDOR-01, FIN-PUT-01,
   FIN-REMIND-01, FIN-EMAIL-01, FIN-KPI-01). Non déployé.** Relevés pendant B2d (entrée
   ci-dessus) : une facture ne peut plus viser l'élève d'un autre établissement ; un `PUT`

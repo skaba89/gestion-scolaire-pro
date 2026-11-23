@@ -1387,6 +1387,16 @@ routes (`/dashboard-kpis/`, `/parents/...`) restées `DENY` jusqu'au lot B2e.
 Défauts préexistants relevés, **non corrigés** : voir `docs/STATUT_ACTUEL.md`
 (2026-11-18, B2d). Tests : `backend/tests/test_cycle_scope_finance.py`.
 
+### CHECKINS-SELF-01 tranché (2026-11-23)
+
+`POST /school-life/check-ins/` exige **`school_life:write`** (TENANT_ADMIN, DIRECTOR,
+DEPARTMENT_HEAD, TEACHER, STAFF, SECRETARY) : un pointage est saisi par le personnel ou par une
+borne (`/kiosk/scan/`, jeton d'appareil). Élève et parent (auparavant autorisés pour eux-mêmes /
+leurs enfants) reçoivent 403 : un élève ne peut plus se déclarer présent à distance. Aucun écran
+élève ou parent n'appelait cette route. Les règles d'enseignant (ses classes) et de périmètre par
+cycle sont inchangées. Le « défaut métier restant à confirmer » ci-dessus est donc clos.
+Tests : `backend/tests/test_school_life_checkins_and_event_registrations_idor.py`.
+
 ### Correctifs finance préexistants (2026-11-23)
 
 - `POST /payments/send-invoice-email/` : **`payments:write`** (auparavant `payments:read`, donc

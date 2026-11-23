@@ -35,6 +35,7 @@ from app.core.security import create_access_token, get_current_user  # noqa: E40
 from app.main import app  # noqa: E402
 from app.models.parent_student import ParentStudent  # noqa: E402
 from app.models.student import Gender, Student, StudentStatus  # noqa: E402
+from app.models.student_check_in import StudentCheckIn  # noqa: E402
 from app.models.tenant import Tenant  # noqa: E402
 from app.models.user import User  # noqa: E402
 
@@ -95,6 +96,11 @@ def _make_student(tenant_id: str, *, user_id: str = None) -> str:
     return student_id
 
 
+def _check_in_count(tenant_id: str) -> int:
+    with SessionLocal() as db:
+        return db.query(StudentCheckIn).filter(StudentCheckIn.tenant_id == tenant_id).count()
+
+
 def _link_parent(tenant_id: str, *, parent_id: str, student_id: str) -> None:
     with SessionLocal() as db:
         db.add(ParentStudent(
@@ -115,7 +121,9 @@ class TestCheckInIdor:
         }), json={"student_id": victim_student_id, "direction": "IN"})
         assert resp.status_code == 403, resp.text
 
-    def test_student_can_check_in_self(self):
+    # CHECKINS-SELF-01 (décision du 2026-11-23) : l'élève ne peut plus se pointer lui-même —
+    # ce test vérifiait l'ancien comportement voulu (« test_student_can_check_in_self »).
+    def test_student_cannot_check_in_self(self):
         tenant_id = _make_tenant()
         user_id = _make_user(tenant_id)
         student_id = _make_student(tenant_id, user_id=user_id)
@@ -123,7 +131,31 @@ class TestCheckInIdor:
         resp = client.post(CHECKINS_URL, headers=_as({
             "id": user_id, "roles": ["STUDENT"], "tenant_id": tenant_id,
         }), json={"student_id": student_id, "direction": "IN"})
+        assert resp.status_code == 403, resp.text
+        assert _check_in_count(tenant_id) == 0
+
+    def test_parent_cannot_check_in_own_child(self):
+        tenant_id = _make_tenant()
+        parent_user_id = _make_user(tenant_id)
+        child_id = _make_student(tenant_id)
+        _link_parent(tenant_id, parent_id=parent_user_id, student_id=child_id)
+
+        resp = client.post(CHECKINS_URL, headers=_as({
+            "id": parent_user_id, "roles": ["PARENT"], "tenant_id": tenant_id,
+        }), json={"student_id": child_id, "direction": "IN"})
+        assert resp.status_code == 403, resp.text
+        assert _check_in_count(tenant_id) == 0
+
+    @pytest.mark.parametrize("role", ["SECRETARY", "STAFF", "DIRECTOR", "TENANT_ADMIN"])
+    def test_school_staff_can_still_check_in_a_student(self, role):
+        tenant_id = _make_tenant()
+        student_id = _make_student(tenant_id)
+
+        resp = client.post(CHECKINS_URL, headers=_as({
+            "id": str(uuid.uuid4()), "roles": [role], "tenant_id": tenant_id,
+        }), json={"student_id": student_id, "direction": "IN"})
         assert resp.status_code == 200, resp.text
+        assert _check_in_count(tenant_id) == 1
 
     def test_teacher_can_check_in_any_student(self):
         tenant_id = _make_tenant()
