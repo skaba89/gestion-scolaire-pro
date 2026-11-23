@@ -1449,3 +1449,15 @@ La règle métier de l’auto-pointage reste à valider.
   renvoient des zéros sur toute erreur (`except Exception`) et
   `outstandingByClass` compte une facture dans chaque classe où l'élève a
   eu une inscription, quel qu'en soit le statut (double comptage).
+
+- **2026-11-23 — défauts finance préexistants corrigés (FIN-IDOR-01, FIN-PUT-01,
+  FIN-REMIND-01, FIN-EMAIL-01, FIN-KPI-01). Non déployé.** Relevés pendant B2d (entrée
+  ci-dessus) : une facture ne peut plus viser l'élève d'un autre établissement ; un `PUT`
+  sans échéance ni numéro garde les valeurs existantes au lieu d'un 500 ; les relances ne
+  lisent que les liens parent-élève de l'établissement et un échec de notification est
+  journalisé et compté sans invalider la transaction ; l'envoi de facture par courriel, qui
+  n'envoyait rien en annonçant « envoyée », répond 501 (`payments:write`) et disparaît de
+  l'écran ; `outstandingByClass` compte le reste à payer une seule fois, dans la classe de
+  l'inscription active. Tests : `test_finance_preexisting_defects.py` (12 rouges avant,
+  verts après, PostgreSQL), `InvoiceActions.test.tsx` (2 rouges avant). Reste ouvert
+  (B2e) : indicateurs financiers à zéro en cas d'erreur (ANALYTICS-ZERO-01).

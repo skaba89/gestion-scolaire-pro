@@ -592,12 +592,13 @@ def test_send_invoice_email_needs_the_invoice_in_scope_without_trace(school, fin
                        json={"invoiceId": str(target), "recipientEmail": "parent@example.gn"})
         assert refused.status_code == 404, (target, refused.text)
     assert audit_count(t, "EMAIL_INVOICE") == before
+    # FIN-EMAIL-01 : facture du périmètre → 501 honnête (aucun envoi n'existe), aucune trace.
     done = call(school, "accountant", "POST", "/payments/send-invoice-email/",
                 json={"invoiceId": str(finance["inv_cp1"]), "recipientEmail": "parent@example.gn"})
-    assert done.status_code == 200 and audit_count(t, "EMAIL_INVOICE") == before + 1
+    assert done.status_code == 501 and audit_count(t, "EMAIL_INVOICE") == before
     free = call(school, "accountant_free", "POST", "/payments/send-invoice-email/",
                 json={"invoice_id": str(finance["inv_6e"])})
-    assert free.status_code == 200
+    assert free.status_code == 501
 
 
 # --- Relances -------------------------------------------------------------------------------
@@ -767,12 +768,15 @@ def test_financial_kpis_are_computed_on_the_scope_only(school, finance):
         assert (body["totalRevenue"], body["paidRevenue"], body["pendingRevenue"]) == (180000.0, 30000.0, 150000.0), who
         assert body["collectionRate"] == 16.67
         # Seule la classe du périmètre est ventilée (s_cp a une ancienne inscription au collège).
-        assert [(row["class_name"], row["outstanding_amount"]) for row in body["outstandingByClass"]] == [("cls_cp", 150000.0)]
+        # FIN-KPI-01 : reste à payer (100 000 + 50 000 − 20 000), plus le total facturé.
+        assert [(row["class_name"], row["outstanding_amount"]) for row in body["outstandingByClass"]] == [("cls_cp", 130000.0)]
     for who in ("accountant_free", "admin_residual"):
         body = call(school, who, "GET", "/analytics/financial-kpis/").json()
         assert (body["totalRevenue"], body["paidRevenue"], body["pendingRevenue"]) == (280000.0, 30000.0, 250000.0)
         classes = {row["class_name"]: row["outstanding_amount"] for row in body["outstandingByClass"]}
-        assert classes["cls_cp"] == 150000.0 and classes["cls_6e"] == 220000.0
+        # FIN-KPI-01 : l'ancienne inscription de s_cp au collège ne compte plus ses factures en 6e
+        # (220 000 auparavant = double comptage) ; reste à payer de inv_6e = 70 000 − 10 000.
+        assert classes["cls_cp"] == 130000.0 and classes["cls_6e"] == 60000.0
 
 
 @needs_postgres

@@ -1386,3 +1386,13 @@ les écrans financiers de `StudentDetail` et du tableau de bord appellent d'autr
 routes (`/dashboard-kpis/`, `/parents/...`) restées `DENY` jusqu'au lot B2e.
 Défauts préexistants relevés, **non corrigés** : voir `docs/STATUT_ACTUEL.md`
 (2026-11-18, B2d). Tests : `backend/tests/test_cycle_scope_finance.py`.
+
+### Correctifs finance préexistants (2026-11-23)
+
+- `POST /payments/send-invoice-email/` : **`payments:write`** (auparavant `payments:read`, donc
+  parent et directeur lecture). La route répond **501** : aucun envoi de facture par courriel
+  n'existe (elle annonçait un faux succès) ; facture vérifiée (établissement, cycle) avant la
+  réponse, aucune trace d'audit. L'action est retirée de `InvoiceActions`.
+- `POST /payments/invoices/` et `POST /invoices/` : élève vérifié dans l'établissement pour tout
+  compte (404), en plus du périmètre par cycle. Aucun changement de `ROLE_PERMISSIONS`.
+  Tests : `backend/tests/test_finance_preexisting_defects.py`.

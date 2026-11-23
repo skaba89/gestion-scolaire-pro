@@ -81,16 +81,28 @@ def get_financial_kpis(
         # Compte restreint : seules les classes du périmètre sont ventilées (un élève du périmètre
         # peut avoir une inscription passée dans une classe d'un autre cycle).
         class_filter = " AND ce.class_id IN :akp_classes" if scope_classes is not None else ""
+        # FIN-KPI-01 : une facture n'est ventilée que dans la classe de l'inscription ACTIVE de
+        # l'année en cours (toute inscription ACTIVE s'il n'y a pas d'année en cours — même règle
+        # que le périmètre par cycle) ; montant = reste à payer ; factures annulées et brouillons exclus.
+        # Auparavant : une ligne par inscription passée (double comptage) et total facturé.
         class_sql = text(f"""
             SELECT
                 c.id   AS class_id,
                 c.name AS class_name,
-                COALESCE(SUM(i.total_amount), 0) AS outstanding_amount
+                COALESCE(SUM(i.total_amount - COALESCE(i.paid_amount, 0)), 0) AS outstanding_amount
             FROM invoices i
             JOIN students s ON s.id = i.student_id
-            JOIN enrollments ce ON ce.student_id = s.id
+            JOIN enrollments ce ON ce.student_id = s.id AND ce.tenant_id = i.tenant_id
+                AND UPPER(ce.status) = 'ACTIVE'
+                AND (
+                    ce.academic_year_id IN (SELECT ay.id FROM academic_years ay
+                                            WHERE ay.tenant_id = i.tenant_id AND ay.is_current = TRUE)
+                    OR NOT EXISTS (SELECT 1 FROM academic_years ay
+                                   WHERE ay.tenant_id = i.tenant_id AND ay.is_current = TRUE)
+                )
             JOIN classes c ON c.id = ce.class_id
-            WHERE i.tenant_id = :tenant_id AND i.status <> 'PAID'{class_scope_sql}{class_filter}
+            WHERE i.tenant_id = :tenant_id AND i.status NOT IN ('PAID', 'CANCELLED', 'DRAFT')
+              AND i.total_amount > COALESCE(i.paid_amount, 0){class_scope_sql}{class_filter}
             GROUP BY c.id, c.name
             ORDER BY outstanding_amount DESC
             LIMIT 10
