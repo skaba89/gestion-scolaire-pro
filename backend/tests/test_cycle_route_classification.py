@@ -74,6 +74,9 @@ SCOPE_HELPERS = (
     "class_scope_and", "_teacher_count_sql",
     # Lot B2e-3 : données rattachées à un niveau (candidatures).
     "level_scope_and",
+    # CYCLE-PORTAL-GAP-01 : portail de département (point unique d'intersection).
+    "_get_department_classroom_ids", "_validate_exam_fks", "_require_exam_writable",
+    "_require_alert_classes_in_scope",
 )
 
 

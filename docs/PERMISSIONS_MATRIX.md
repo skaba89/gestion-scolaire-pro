@@ -1436,6 +1436,19 @@ compatible : le portail de département (`/department-portal/*`, limité au dép
 cycle) et l'e-learning (`/analytics/elearning/*`, gestion des cours) — voir CYCLE-PORTAL-GAP-01.
 Tests : `backend/tests/test_cycle_scope_admission_stats.py`.
 
+### CYCLE-PORTAL-GAP-01 (2026-11-23) : portail de département × cycle
+
+Un chef de département limité à des cycles accède désormais à son portail, réduit à
+l'intersection **classes du département ∩ classes de son périmètre** (point unique
+`_get_department_classroom_ids`, compte obligatoire en argument). `GET /my-department/` et
+`/members/` : INDEPENDENT (aucune donnée d'élève). 15 routes FILTERED : tableau de bord, classes,
+élèves, enseignants, présences, emploi du temps, rapports, examens (lecture et écriture), alertes.
+Examens sans classe : visibles, mais création et modification réservées aux comptes non
+restreints (Q-P1). Alertes : enregistrées, envoyées et visibles seulement si toutes leurs classes
+sont dans le périmètre (Q-P2). Pour **tous** les comptes : un `classroom_id` hors du département
+répond 404 (DEPT-CLASS-IDOR-01). Aucune permission ni migration.
+Tests : `backend/tests/test_cycle_scope_department_portal.py`.
+
 ### Lot B3 (2026-11-23) : écrans selon le périmètre par cycle, indicateur activé
 
 `GET /education/my-scope/` (INDEPENDENT, tout compte connecté) : `restricted`, `cycles` du compte

@@ -6,7 +6,9 @@ from sqlalchemy import text
 from typing import Optional, Any
 from pydantic import BaseModel
 import datetime
+import html as _html
 
+from app.core.cycle_scope import is_cycle_restricted, scoped_class_ids
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.core.tenant_resolution import resolve_current_tenant_id
@@ -80,15 +82,47 @@ def _get_user_department(db: Session, user_id: str, tenant_id: str) -> Optional[
     return dict(row) if row else None
 
 
-def _get_department_classroom_ids(db: Session, department_id: str, tenant_id: str) -> list:
+def _get_department_classroom_ids(db: Session, department_id: str, tenant_id: str, user: dict) -> list:
+    """Classes du département visibles par ``user`` : toutes les classes du département, et, pour
+    un compte limité à des cycles (CYCLE-PORTAL-GAP-01), seulement celles qui sont aussi dans son
+    périmètre. Point de passage unique de toutes les routes du portail ; ``user`` est obligatoire
+    pour qu'aucun appelant ne puisse oublier le périmètre."""
     rows = db.execute(text("""
         SELECT class_id FROM classroom_departments
         WHERE department_id = :dept_id AND tenant_id = :tenant_id
     """), {"dept_id": department_id, "tenant_id": tenant_id}).fetchall()
-    return [str(r.class_id) for r in rows]
+    class_ids = [str(r.class_id) for r in rows]
+    if is_cycle_restricted(user):
+        allowed = {str(c) for c in scoped_class_ids(db, tenant_id, user)}
+        class_ids = [c for c in class_ids if c in allowed]
+    return class_ids
 
 
-def _validate_exam_fks(db: Session, *, tenant_id: str, department_id: str,
+def _require_department_class(class_id: Optional[str], class_ids: list) -> None:
+    """DEPT-CLASS-IDOR-01 : une classe demandée en filtre doit être une classe visible du
+    département (et du périmètre par cycle) ; sinon 404, jamais les élèves d'une autre classe."""
+    if class_id and str(class_id) not in class_ids:
+        raise HTTPException(status_code=404, detail="Classe introuvable dans ce département")
+
+
+def _department_class_names(db: Session, class_ids: list) -> set:
+    if not class_ids:
+        return set()
+    rows = db.execute(text("SELECT name FROM classrooms WHERE id = ANY(:ids)"), {"ids": class_ids}).fetchall()
+    return {r.name for r in rows}
+
+
+def _require_alert_classes_in_scope(db: Session, dept_id: str, tenant_id: str, user: dict, names) -> None:
+    """Q-P2 : un compte restreint n'envoie ni n'enregistre d'alerte citant une classe hors de son
+    périmètre (les alertes ne portent que le nom de la classe)."""
+    if not is_cycle_restricted(user):
+        return
+    allowed = _department_class_names(db, _get_department_classroom_ids(db, dept_id, tenant_id, user))
+    if any(name not in allowed for name in names):
+        raise HTTPException(status_code=404, detail="Classe introuvable dans ce département")
+
+
+def _validate_exam_fks(db: Session, *, tenant_id: str, department_id: str, user: dict,
                         class_id: Optional[str], subject_id: str, term_id: str) -> None:
     """DATA-INTEGRITY FIX (institutional-readiness audit, 2026-09):
     create_exam/update_exam inserted class_id/subject_id/term_id verbatim
@@ -102,8 +136,12 @@ def _validate_exam_fks(db: Session, *, tenant_id: str, department_id: str,
     classrooms (classroom_departments), matching this portal's own
     dashboard/exam-list scoping.
     """
-    if class_id and class_id not in _get_department_classroom_ids(db, department_id, tenant_id):
+    if class_id and class_id not in _get_department_classroom_ids(db, department_id, tenant_id, user):
         raise HTTPException(status_code=404, detail="Classe introuvable dans ce département")
+    if not class_id and is_cycle_restricted(user):
+        # Q-P1 : un examen sans classe engage tout le département, donc d'autres cycles.
+        raise HTTPException(status_code=403, detail=(
+            "Un examen sans classe concerne tout le département : choisissez une classe de votre périmètre."))
     subject = db.execute(text(
         "SELECT id FROM subjects WHERE id = :id AND tenant_id = :tenant_id"
     ), {"id": subject_id, "tenant_id": tenant_id}).first()
@@ -114,6 +152,20 @@ def _validate_exam_fks(db: Session, *, tenant_id: str, department_id: str,
     ), {"id": term_id, "tenant_id": tenant_id}).first()
     if not term:
         raise HTTPException(status_code=404, detail="Période introuvable dans cet établissement")
+
+
+def _require_exam_writable(db: Session, exam_id: str, dept_id: str, tenant_id: str, user: dict) -> None:
+    """Compte restreint : l'examen existant doit porter sur une classe de son périmètre (404
+    identique à un examen inexistant) ; un examen sans classe (tout le département) n'est
+    modifiable que par un compte non restreint (Q-P1)."""
+    if not is_cycle_restricted(user):
+        return
+    row = db.execute(text(
+        "SELECT class_id FROM exams WHERE id = :id AND tenant_id = :tid AND department_id = :dept"
+    ), {"id": exam_id, "tid": tenant_id, "dept": dept_id}).first()
+    class_ids = _get_department_classroom_ids(db, dept_id, tenant_id, user)
+    if row is None or row.class_id is None or str(row.class_id) not in class_ids:
+        raise HTTPException(status_code=404, detail="Examen introuvable")
 
 
 # ─── My Department ────────────────────────────────────────────────────────────
@@ -201,7 +253,7 @@ def department_dashboard(
             raise HTTPException(status_code=404, detail="Aucun département assigné")
 
         department_id = dept["id"]
-        class_ids = _get_department_classroom_ids(db, department_id, tenant_id)
+        class_ids = _get_department_classroom_ids(db, department_id, tenant_id, current_user)
 
         stats = {
             "totalStudents": 0,
@@ -246,11 +298,13 @@ def department_dashboard(
             stats["attendanceRate"] = round((present / total_att) * 100) if total_att else 0
 
             # Upcoming exams
+            # Q-P1 : examens d'une classe visible, ou sans classe (portée département).
             stats["upcomingExams"] = db.execute(text("""
                 SELECT COUNT(*) FROM exams
                 WHERE department_id = :dept_id AND tenant_id = :tenant_id
                   AND exam_date >= CURRENT_DATE AND status = 'scheduled'
-            """), {"dept_id": department_id, "tenant_id": tenant_id}).scalar() or 0
+                  AND (class_id IS NULL OR class_id = ANY(:class_ids))
+            """), {"dept_id": department_id, "tenant_id": tenant_id, "class_ids": class_ids}).scalar() or 0
 
             # Recent grades (last 5) — limitées aux élèves inscrits dans les
             # classes du département (auparavant : tout l'établissement).
@@ -311,6 +365,9 @@ def department_classrooms(
         if not dept:
             raise HTTPException(status_code=404, detail="Aucun département assigné")
 
+        class_ids = _get_department_classroom_ids(db, dept["id"], tenant_id, current_user)
+        if not class_ids:
+            return []
         rows = db.execute(text("""
             SELECT c.id, c.name, c.level_id, c.capacity,
                    l.name AS level_name
@@ -318,8 +375,9 @@ def department_classrooms(
             JOIN classes c ON c.id = cd.class_id AND c.tenant_id = cd.tenant_id
             LEFT JOIN levels l ON l.id = c.level_id
             WHERE cd.department_id = :dept_id AND cd.tenant_id = :tenant_id
+              AND cd.class_id = ANY(:class_ids)
             ORDER BY c.name
-        """), {"dept_id": dept["id"], "tenant_id": tenant_id}).fetchall()
+        """), {"dept_id": dept["id"], "tenant_id": tenant_id, "class_ids": class_ids}).fetchall()
 
         return [{
             "id": str(r.id), "name": r.name, "level_id": str(r.level_id) if r.level_id else None,
@@ -355,7 +413,7 @@ def department_students(
         if not dept:
             raise HTTPException(status_code=404, detail="Aucun département assigné")
 
-        class_ids = _get_department_classroom_ids(db, dept["id"], tenant_id)
+        class_ids = _get_department_classroom_ids(db, dept["id"], tenant_id, current_user)
         if not class_ids:
             return {"students": [], "classrooms": []}
 
@@ -369,6 +427,7 @@ def department_students(
         params: dict = {"tenant_id": tenant_id, "class_ids": class_ids}
 
         if classroom_id:
+            _require_department_class(classroom_id, class_ids)
             filters = "AND e.class_id = :classroom_id"
             params["classroom_id"] = classroom_id
 
@@ -425,7 +484,7 @@ def department_teachers(
         if not dept:
             raise HTTPException(status_code=404, detail="Aucun département assigné")
 
-        class_ids = _get_department_classroom_ids(db, dept["id"], tenant_id)
+        class_ids = _get_department_classroom_ids(db, dept["id"], tenant_id, current_user)
         if not class_ids:
             return {"teachers": [], "department": dept}
 
@@ -499,7 +558,7 @@ def department_attendance(
         if not dept:
             raise HTTPException(status_code=404, detail="Aucun département assigné")
 
-        class_ids = _get_department_classroom_ids(db, dept["id"], tenant_id)
+        class_ids = _get_department_classroom_ids(db, dept["id"], tenant_id, current_user)
         if not class_ids:
             return {"records": [], "stats": {}, "classrooms": []}
 
@@ -522,6 +581,7 @@ def department_attendance(
         }
 
         if classroom_id:
+            _require_department_class(classroom_id, class_ids)
             class_filter = "AND a.classroom_id = :classroom_id"
             params["classroom_id"] = classroom_id
         else:
@@ -592,7 +652,7 @@ def department_exams(
         if not dept:
             raise HTTPException(status_code=404, detail="Aucun département assigné")
 
-        class_ids = _get_department_classroom_ids(db, dept["id"], tenant_id)
+        class_ids = _get_department_classroom_ids(db, dept["id"], tenant_id, current_user)
 
         exams = db.execute(text("""
             SELECT e.id, e.name, e.description, e.exam_date, e.start_time, e.end_time,
@@ -606,8 +666,9 @@ def department_exams(
             LEFT JOIN subjects sub ON sub.id = e.subject_id
             LEFT JOIN terms t ON t.id = e.term_id
             WHERE e.tenant_id = :tenant_id AND e.department_id = :dept_id
+              AND (e.class_id IS NULL OR e.class_id = ANY(:class_ids))
             ORDER BY e.exam_date ASC
-        """), {"tenant_id": tenant_id, "dept_id": dept["id"]}).fetchall()
+        """), {"tenant_id": tenant_id, "dept_id": dept["id"], "class_ids": class_ids}).fetchall()
 
         classrooms = db.execute(text("""
             SELECT c.id, c.name FROM classrooms c
@@ -667,7 +728,7 @@ def create_exam(
         dept = _get_user_department(db, user_id, tenant_id)
         if not dept:
             raise HTTPException(status_code=404, detail="Aucun département assigné")
-        _validate_exam_fks(db, tenant_id=tenant_id, department_id=dept["id"],
+        _validate_exam_fks(db, tenant_id=tenant_id, department_id=dept["id"], user=current_user,
                             class_id=body.class_id, subject_id=body.subject_id, term_id=body.term_id)
 
         # `title` is a leftover NOT NULL column from exams' original
@@ -720,7 +781,8 @@ def update_exam(
         dept = _get_user_department(db, user_id, tenant_id)
         if not dept:
             raise HTTPException(status_code=404, detail="Aucun département assigné")
-        _validate_exam_fks(db, tenant_id=tenant_id, department_id=dept["id"],
+        _require_exam_writable(db, exam_id, dept["id"], tenant_id, current_user)
+        _validate_exam_fks(db, tenant_id=tenant_id, department_id=dept["id"], user=current_user,
                             class_id=body.class_id, subject_id=body.subject_id, term_id=body.term_id)
 
         result = db.execute(text("""
@@ -767,6 +829,7 @@ def delete_exam(
         dept = _get_user_department(db, user_id, tenant_id)
         if not dept:
             raise HTTPException(status_code=404, detail="Aucun département assigné")
+        _require_exam_writable(db, exam_id, dept["id"], tenant_id, current_user)
 
         result = db.execute(text("""
             DELETE FROM exams WHERE id = :exam_id AND tenant_id = :tenant_id AND department_id = :dept_id
@@ -802,7 +865,7 @@ def department_schedule(
         if not dept:
             raise HTTPException(status_code=404, detail="Aucun département assigné")
 
-        class_ids = _get_department_classroom_ids(db, dept["id"], tenant_id)
+        class_ids = _get_department_classroom_ids(db, dept["id"], tenant_id, current_user)
         if not class_ids:
             return {"department": dept, "schedule": []}
 
@@ -858,7 +921,7 @@ def department_grades_report(
         if not dept:
             raise HTTPException(status_code=404, detail="Aucun département assigné")
 
-        class_ids = _get_department_classroom_ids(db, dept["id"], tenant_id)
+        class_ids = _get_department_classroom_ids(db, dept["id"], tenant_id, current_user)
         if not class_ids:
             return {"department": dept, "grades": []}
 
@@ -866,6 +929,7 @@ def department_grades_report(
         filters = "AND e.class_id = ANY(:class_ids)"
 
         if classroom_id:
+            _require_department_class(classroom_id, class_ids)
             filters = "AND e.class_id = :classroom_id"
             params["classroom_id"] = classroom_id
 
@@ -943,7 +1007,7 @@ def department_report_stats(
         if not dept:
             raise HTTPException(status_code=404, detail="Aucun département assigné")
 
-        dept_class_ids = set(_get_department_classroom_ids(db, dept["id"], tenant_id))
+        dept_class_ids = set(_get_department_classroom_ids(db, dept["id"], tenant_id, current_user))
         requested_ids = [c for c in class_ids.split(",") if c]
         scoped_class_ids = [c for c in requested_ids if c in dept_class_ids] or list(dept_class_ids)
         if not scoped_class_ids:
@@ -1080,22 +1144,26 @@ def send_department_alert_email(
     if not dept:
         raise HTTPException(status_code=404, detail="Aucun département assigné")
 
+    _require_alert_classes_in_scope(db, dept["id"], tenant_id, current_user,
+                                    [a.classroomName for a in payload.alerts])
+
     recipient = db.execute(text(
         "SELECT email, first_name FROM users WHERE id = :id AND tenant_id = :tid"
     ), {"id": user_id, "tid": tenant_id}).mappings().first()
 
     email_sent = False
+    esc = lambda value: _html.escape(str(value), quote=True)  # noqa: E731 — saisies du client dans du HTML
     if recipient and recipient["email"] and (settings.RESEND_API_KEY or settings.SMTP_HOST):
         rows_html = "".join(
-            f"<tr><td>{a.classroomName}</td><td>{a.rate}%</td>"
+            f"<tr><td>{esc(a.classroomName)}</td><td>{esc(a.rate)}%</td>"
             f"<td>{a.absent if a.absent is not None else '-'} / {a.total if a.total is not None else '-'}</td></tr>"
             for a in payload.alerts
         )
         html = (
-            f"<p>Bonjour {recipient['first_name'] or ''},</p>"
+            f"<p>Bonjour {esc(recipient['first_name'] or '')},</p>"
             f"<p>Le taux de présence est passé sous le seuil d'alerte pour les classes "
-            f"suivantes de votre département <strong>{dept['name']}</strong> "
-            f"({payload.periodLabel}) :</p>"
+            f"suivantes de votre département <strong>{esc(dept['name'])}</strong> "
+            f"({esc(payload.periodLabel)}) :</p>"
             f"<table border='1' cellpadding='6' style='border-collapse:collapse'>"
             f"<tr><th>Classe</th><th>Taux</th><th>Absences / Total</th></tr>{rows_html}</table>"
         )
@@ -1132,6 +1200,9 @@ def create_department_alert(
     dept = _get_user_department(db, user_id, tenant_id)
     if not dept:
         raise HTTPException(status_code=404, detail="Aucun département assigné")
+
+    _require_alert_classes_in_scope(db, dept["id"], tenant_id, current_user,
+                                    [a.classroomName for a in payload.alerts_data])
 
     import json as _json
     row = db.execute(text("""
@@ -1176,6 +1247,12 @@ def list_department_alerts(
         ORDER BY da.created_at DESC
         LIMIT :limit
     """), {"tid": tenant_id, "dept_id": dept["id"], "limit": limit}).fetchall()
+
+    if is_cycle_restricted(current_user):
+        # Q-P2 : une alerte n'est visible que si TOUTES ses classes sont dans le périmètre.
+        allowed = _department_class_names(db, _get_department_classroom_ids(db, dept["id"], tenant_id, current_user))
+        rows = [r for r in rows
+                if all(isinstance(a, dict) and a.get("classroomName") in allowed for a in (r.alerts_data or []))]
 
     return [{
         "id": str(r.id), "alert_type": r.alert_type, "period_label": r.period_label,

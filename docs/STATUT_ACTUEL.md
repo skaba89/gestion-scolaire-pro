@@ -1515,6 +1515,14 @@ La règle métier de l’auto-pointage reste à valider.
   d'élèves badgés, plus de « points » inexistants ; `academic-stats` ne compte plus une note
   dans les anciennes classes de l'élève. Tests : 4 rouges backend et 3 rouges frontend avant.
 
+- **2026-11-23 — portail de département par cycle (CYCLE-PORTAL-GAP-01) et fuite de
+  classes corrigée (DEPT-CLASS-IDOR-01). Non déployé.** Un chef de département limité à des
+  cycles recevait 403 sur tout son portail ; il voit désormais l'intersection département ∩
+  périmètre (17 routes classées). En chemin : le filtre `classroom_id` des pages élèves,
+  présences et notes n'était pas vérifié dans le département — tout membre listait n'importe
+  quelle classe de l'établissement (présent en production) — et l'e-mail d'alerte n'échappait
+  pas les saisies du client. Tests : 9 rouges avant correctif.
+
 - **2026-11-23 — personnel par cycle, lot B3 : écrans adaptés, `cycle_policy_available`
   activé. Non déployé.** Un compte limité à des cycles ne voit plus dans le menu que les
   écrans de son périmètre (accès déduit côté serveur du classement des routes, nouvelle route
