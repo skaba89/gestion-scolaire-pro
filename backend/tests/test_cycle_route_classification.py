@@ -72,6 +72,8 @@ SCOPE_HELPERS = (
     "require_payment_in_scope", "require_schedule_in_scope",
     # Lot B2e-1 : indicateurs ventilés par classe et nombre d'enseignants du périmètre.
     "class_scope_and", "_teacher_count_sql",
+    # Lot B2e-3 : données rattachées à un niveau (candidatures).
+    "level_scope_and",
 )
 
 
