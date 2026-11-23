@@ -226,6 +226,19 @@ ROUTE_POLICIES: dict[tuple[str, str], Policy] = {
     # routes d'admission restent DENY. Portail de département (périmètre = département, pas cycle) et
     # e-learning (CRUD des cours) restent DENY : lot dédié, intersection département × cycle.
     **_routes(Policy.FILTERED, "GET", "/admissions/stats/"),
+    # --- CYCLE-PORTAL-GAP-01 : portail de département -----------------------------------------
+    # Classes visibles = classes du département ∩ classes du périmètre (point unique
+    # _get_department_classroom_ids). Examens : classe dans l'intersection ; examen sans classe
+    # lisible mais non modifiable par un compte restreint (Q-P1). Alertes : toutes leurs classes
+    # dans le périmètre (Q-P2). Identité du département et de ses membres : aucune donnée d'élève.
+    **_routes(Policy.INDEPENDENT, "GET", "/department-portal/my-department/", "/department-portal/members/"),
+    **_routes(Policy.FILTERED, "GET", "/department-portal/dashboard/", "/department-portal/classrooms/",
+              "/department-portal/students/", "/department-portal/teachers/",
+              "/department-portal/attendance/", "/department-portal/schedule/",
+              "/department-portal/reports/grades/", "/department-portal/reports/stats/"),
+    **_routes(Policy.FILTERED, "GET POST", "/department-portal/exams/", "/department-portal/alerts/"),
+    **_routes(Policy.FILTERED, "POST", "/department-portal/alerts/send/"),
+    **_routes(Policy.FILTERED, "PUT DELETE", "/department-portal/exams/{exam_id}/"),
 }
 
 # Familles refusées d'office (préfixes). Toute route qui n'est pas dans

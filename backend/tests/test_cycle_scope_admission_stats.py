@@ -30,7 +30,8 @@ ADMISSION_ROUTE_TESTS = {
 def test_admission_stats_route_is_filtered_and_the_rest_of_admissions_stays_denied():
     assert policy_for("GET", "/api/v1/admissions/stats/") is Policy.FILTERED
     assert policy_for("GET", "/api/v1/admissions/") is Policy.DENY
-    assert policy_for("GET", "/api/v1/department-portal/reports/stats/") is Policy.DENY
+    # Le portail de département est ouvert par CYCLE-PORTAL-GAP-01 ; l'e-learning reste refusé.
+    assert policy_for("GET", "/api/v1/analytics/elearning/courses/") is Policy.DENY
 
 
 @pytest.fixture

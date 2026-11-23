@@ -111,7 +111,7 @@ def ctx():
 
 
 def _get(x, path, head="head", tid="tid"):
-    user = {"id": x[head], "roles": ["DEPARTMENT_HEAD"], "tenant_id": x[tid]}
+    user = {"id": x[head], "roles": ["DEPARTMENT_HEAD"], "tenant_id": x[tid], "_cycle_ids": None}
     app.dependency_overrides[get_current_user] = lambda: user
     token = create_access_token({"sub": user["id"], "tenant_id": user["tenant_id"], "roles": user["roles"]})
     return client.get(f"{BASE}{path}", headers={"Authorization": f"Bearer {token}"})
