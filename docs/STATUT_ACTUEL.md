@@ -1491,6 +1491,12 @@ La règle métier de l’auto-pointage reste à valider.
   fabriquée) : DECISION-FAKE-01. Reste ouvert : EXPORT-NOOP-01 (boutons d'export sans
   effet). Tests : 14 rouges backend et 3 rouges frontend avant correctif.
 
+- **2026-11-23 — score de maturité recalculé : 68/100, non certifié** (60/100 le
+  2026-11-09), même grille, preuves dans `audit/SCORE_MISSION_20261123.md`. Gains : parcours
+  E2E (+2), sécurité multi-tenant (+1), fiabilité (+2), frontend (+1), non-régression (+2).
+  Inchangés faute de preuve nouvelle : production (19 commits de retard), performance,
+  hors ligne sur appareil réel, préparation commerciale. NO-GO national maintenu.
+
 - **2026-11-23 — plus d'indicateur inventé ni de bouton sans effet (lot S1 :
   ANALYTICS-MOCK-01, ACADEMIC-STATS-01, EXPORT-NOOP-01, DECISION-FAKE-01). Non déployé.**
   Retirés : la « prévision de trésorerie (IA) » de l'écran Finances (constantes inventées :
