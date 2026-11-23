@@ -8,10 +8,10 @@ Aucune décision défavorable sur un pilote précis n'est déduite sans sa recet
 
 | Domaine | État | Preuve / reste à démontrer |
 |---|---|---|
-| Historiques des enseignants | CORRIGÉ, fusionné, non déployé | #552, CI #1532 : six contrôles réussis |
-| Facture et paiement concurrents | CORRIGÉ, fusionné, non déployé | #554 fusionnée, CI 6/6 ; deux ordres de concurrence et RLS |
-| Effacement des établissements | CORRIGÉ contre l'effacement, fusionné, non déployé | #553, CI #1541 6/6 ; archivage/export complet restant |
-| FK notes/année scolaire | Migration préparée en PR | #555 ; orphelins bloquants, 25 tests PostgreSQL ; copie anonymisée réelle NON TESTÉE |
+| Historiques des enseignants | CORRIGÉ, fusionné, déployé le 2026-11-16 (`efff465`) | #552, CI #1532 : six contrôles réussis |
+| Facture et paiement concurrents | CORRIGÉ, fusionné, déployé le 2026-11-16 (`efff465`) | #554 fusionnée, CI 6/6 ; deux ordres de concurrence et RLS |
+| Effacement des établissements | CORRIGÉ contre l'effacement, fusionné, déployé le 2026-11-16 (`efff465`) | #553, CI #1541 6/6 ; archivage/export complet restant |
+| FK notes/année scolaire | Migration fusionnée (#555), passée en production le 2026-11-16 | #555 ; orphelins bloquants, 25 tests PostgreSQL ; copie anonymisée réelle NON TESTÉE |
 | Intégration des quatre correctifs | VÉRIFIÉ localement | 168 tests PostgreSQL réussis / 1 ignoré ; données synthétiques, pas production |
 | Recette par rôle | Couverture CI existante | Parcours E2E et crawls réussis sur #552 ; actions exhaustives de tous les rôles NON TESTÉES dans ce lot |
 | Capacité nationale | NON TESTÉ | Campagne récente graduelle 5 → 20 → 50 → 100 → 500 → 1000 établissements manquante |

@@ -1,6 +1,9 @@
 # Statut actuel — source de vérité datée
 
-**Dernière mise à jour : 2026-11-11 (journal de production ci-dessous ; production en `81eaf4a`). Le
+**Dernière mise à jour : 2026-11-23 — production en `61b9740` depuis le 2026-11-18 (base
+`20261116_0001`) ; `main` en `1aeb97f` (#583) : #572 à #583 et les migrations `20261121_0001`,
+`20261122_0001` sont fusionnées mais **non déployées**. (Mention antérieure : « 2026-11-11,
+production en `81eaf4a` ».) Le
 tableau « vérifié comme implémenté » a été relu contre le code le 2026-09-14
 (`73623a5`) ; seules ses lignes WhatsApp et RLS ont été revérifiées le 2026-10-06.**
 
@@ -1401,6 +1404,19 @@ La règle métier de l’auto-pointage reste à valider.
   route métier de résolution avec conclusion et action prise. Tests rouges
   ajoutés avant le correctif dans `test_cycle_scope_school_life.py` et
   `Incidents.test.tsx`. Vérifié en DEV ; REC et PROD non déployées.
+
+- **2026-11-23 — reprise après #583 : état vérifié (lecture seule).** `main` en
+  `1aeb97f` (#583, CI 6/6). Production en `61b9740` (conteneur API du 2026-11-18,
+  `alembic_version = 20261116_0001`) : #572 à #583 et les migrations
+  `20261121_0001` puis `20261122_0001` sont fusionnées, **non déployées**.
+  Suite backend sur `1aeb97f` : 2709 réussis, 1094 ignorés (PostgreSQL seul),
+  0 échec ; tests Vitest des PR #574–#583 : 35/35. Aucune recette REC ni tablette
+  réelle. Statuts « non déployé » corrigés dans `audit/SECURITY_RISK_REGISTER.md`,
+  `audit/REMAINING_WORK.md` et `audit/NATIONAL_DEPLOYMENT_READINESS.md` pour les
+  correctifs réellement en production (#548–#570). Dernier score formel :
+  60/100 (2026-11-09), non certifié ; aucun nouveau score n'est attribué ici.
+  Alerte picomatch : toujours aucune version corrigée (4.0.7), exception
+  inchangée jusqu'au 2026-12-18.
 
 - **2026-11-23 — personnel par cycle, lot B2d (finances), écrit le 2026-11-18 et repris sur `1aeb97f`. Non déployé.** 45
   routes jusque-là refusées à un compte restreint : 27 `FILTERED` (factures

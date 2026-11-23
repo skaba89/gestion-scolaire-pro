@@ -32,10 +32,10 @@ Détail et matrice : `INTEGRITY_DELETES_20261113.md` ; registre : `SECURITY_RISK
 
 | # | Priorité | Sujet | Constat | Critère d'acceptation |
 |---|---|---|---|---|
-| PERIOD-DELETE-01/02 | ~~P0~~ corrigé | Suppression d'année / de trimestre | **Corrigé** (#548) : l'année effaçait ses inscriptions (cascade), le trimestre détachait ses notes ; désormais 409 si utilisés, verrou, 503 si vérification impossible | Déploiement |
-| STRUCT-DELETE-01 | ~~P1~~ corrigé | Niveaux, campus, semestres, programmes, facultés, départements | **Corrigé** (PR fix/structure-delete-history) : 409 si utilisés, verrou, 503 si vérification impossible | Déploiement |
-| USER-DELETE-02 | ~~P1~~ corrigé #552, CI 6/6 | Suppression d'un compte enseignant | Verrou + garde de toutes les FK réelles ; désactivation réversible ; tests PostgreSQL/RLS/SQLite | Déploiement autorisé restant |
-| INVOICE-DELETE-02 | ~~P1~~ corrigé #554, CI 6/6 | Suppression de facture concurrente à un paiement | Verrou partagé entre les deux URL ; tests des deux ordres de concurrence et RLS | Déploiement autorisé restant |
+| PERIOD-DELETE-01/02 | ~~P0~~ corrigé | Suppression d'année / de trimestre | **Corrigé** (#548) : l'année effaçait ses inscriptions (cascade), le trimestre détachait ses notes ; désormais 409 si utilisés, verrou, 503 si vérification impossible | ~~Déploiement~~ déployé le 2026-11-16 (`efff465`) |
+| STRUCT-DELETE-01 | ~~P1~~ corrigé | Niveaux, campus, semestres, programmes, facultés, départements | **Corrigé** (PR fix/structure-delete-history) : 409 si utilisés, verrou, 503 si vérification impossible | ~~Déploiement~~ déployé le 2026-11-16 (`efff465`) |
+| USER-DELETE-02 | ~~P1~~ corrigé #552, CI 6/6 | Suppression d'un compte enseignant | Verrou + garde de toutes les FK réelles ; désactivation réversible ; tests PostgreSQL/RLS/SQLite | ~~Déploiement autorisé restant~~ déployé le 2026-11-16 (`efff465`) |
+| INVOICE-DELETE-02 | ~~P1~~ corrigé #554, CI 6/6 | Suppression de facture concurrente à un paiement | Verrou partagé entre les deux URL ; tests des deux ordres de concurrence et RLS | ~~Déploiement autorisé restant~~ déployé le 2026-11-16 (`efff465`) |
 | TENANT-DELETE-01 | Protection fusionnée #553, CI 6/6 | Suppression d'établissement | DELETE interdit, désactivation réversible et historiques conservés | Export complet, conservation et restauration à valider avant toute purge |
 
 ## Recette B2 — admissions (2026-11-09)
@@ -103,7 +103,7 @@ Détail et matrice : `INTEGRITY_DELETES_20261113.md` ; registre : `SECURITY_RISK
 | C1 | ~~P1~~ fait | E2E non obligatoire | **Fait le 2026-11-11** (validation humaine) : « E2E Journeys (real stack) » ajouté aux contrôles requis du ruleset `protect-main` (6 contrôles). Job sans filtre de chemins, donc exécuté sur toute PR ; 30 derniers runs : 27 succès (dont 1 au 2ᵉ essai), 2 annulés, 0 échec | — |
 | C2 | ~~P1~~ corrigé | Test instable | **Corrigé** (PR test/stabilize-websocket-revocation) : course du `TestClient` Starlette à la fermeture (annulation avant la fin de l'endpoint) ; 8 échecs sur 15 avant, 0 sur 30 après | — |
 | C3 | P2 | Run `main` incomplet | Sur `7b072ea`, GitHub n'a jamais créé Backend ni Browser Smoke (deux tentatives) ; arbre identique au commit de PR vert 6/6 | Surveiller ; relancer par un nouveau commit si cela se reproduit |
-| C4 | ~~P1~~ fait | Production en retard | **Rattrapée** : 5 déploiements validés du 2026-11-09 au 2026-11-11, chacun avec sauvegarde préalable ; production en `81eaf4a` (#519) | — |
+| C4 | ~~P1~~ fait | Production en retard | **Rattrapée** : 5 déploiements validés du 2026-11-09 au 2026-11-11, chacun avec sauvegarde préalable ; production en `81eaf4a` (#519). *Au 2026-11-23 : production en `61b9740` (2026-11-18) ; #572–#583 et deux migrations fusionnées, non déployées.* | — |
 
 Points hors périmètre automatisé, nécessitant une décision humaine : déploiement
 en production, recette sur appareils réels, environnement sandbox Mobile Money,
