@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({ loading: false, error: null as Error | null, e
 vi.mock("@/hooks/useEducationModules", () => ({ useEducationModules: () => ({
   isLoading: state.loading, error: state.error, refetch: state.refetch,
   isModuleEnabled: () => state.enabled, isPathEnabled: (path: string) => !moduleForPage(path) || state.enabled,
+  isPathInScope: () => true,
 }) }));
 vi.mock("@/contexts/TenantContext", () => ({ useTenant: () => ({ tenant: { id: "a", slug: "ecole" } }) }));
 vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (key: string) => key }) }));

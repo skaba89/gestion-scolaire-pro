@@ -4712,7 +4712,9 @@
       "training": "Centro de formación",
       "vocational": "Formación profesional",
       "mixed": "Institución mixta de varios ciclos"
-    }
+    },
+    "outOfScopeTitle": "Pantalla fuera de su ámbito",
+    "outOfScopeMessage": "Su cuenta está limitada a algunos ciclos: esta pantalla no está disponible para su ámbito. Contacte con la administración del centro si la necesita."
   },
   "educationCycles": {
     "title": "Ciclos educativos",
@@ -4763,7 +4765,8 @@
         "ACCOUNTANT": "Contable",
         "TEACHER": "Docente",
         "TENANT_ADMIN": "Administrador"
-      }
+      },
+      "activeNotice": "Una cuenta limitada a ciclos solo ve los alumnos, clases, notas, asistencias, finanzas e indicadores de sus ciclos. Siguen sin estar disponibles por ahora: mensajería y anuncios, recursos humanos, biblioteca, inventario, e-learning, clubes, encuestas, antiguos alumnos, gestión de usuarios y docentes, admisiones (salvo estadísticas), horario. Una cuenta que también tiene un rol de docente o de padre pierde esos portales mientras esté limitada. Quitar todos los ciclos de una cuenta le devuelve el acceso completo en su próximo inicio de sesión."
     }
   },
   "teachingAdmin": {

@@ -4667,7 +4667,9 @@
       "training": "Training centre",
       "vocational": "Vocational education",
       "mixed": "Mixed multi-cycle institution"
-    }
+    },
+    "outOfScopeTitle": "Screen outside your scope",
+    "outOfScopeMessage": "Your account is limited to some cycles: this screen is not available for your scope. Contact the school administration if you need it."
   },
   "educationCycles": {
     "title": "Education cycles",
@@ -4718,7 +4720,8 @@
         "ACCOUNTANT": "Accountant",
         "TEACHER": "Teacher",
         "TENANT_ADMIN": "Administrator"
-      }
+      },
+      "activeNotice": "An account limited to cycles only sees the students, classes, grades, attendance, finances and indicators of its cycles. Still unavailable for now: messaging and announcements, human resources, library, inventory, e-learning, clubs, surveys, alumni, user and teacher management, admissions (except statistics), timetable. An account that also holds a teacher or parent role loses those portals while restricted. Removing all cycles from an account restores full access at its next sign-in."
     }
   },
   "teachingAdmin": {

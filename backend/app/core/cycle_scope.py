@@ -13,9 +13,8 @@ Modèle validé le 2026-11-16 (opt-in) :
 Ce module calcule le périmètre et fournit les briques de filtrage. Le refus
 par défaut des routes non classées est appliqué par ``get_current_user``
 (lot B2a, registre ``cycle_routes``) ; le filtrage des routes de données
-vient avec les lots B2b à B2e (B2b livré : élèves, classes, inscriptions).
-Tant que ces lots ne sont pas livrés,
-``cycle_policy_available`` reste ``False``.
+vient avec les lots B2b à B2e, livrés, puis le portail de département ; le lot
+B3 adapte les écrans (``cycle_pages``) et active ``CYCLE_POLICY_AVAILABLE``.
 """
 from __future__ import annotations
 
@@ -33,6 +32,11 @@ logger = logging.getLogger(__name__)
 # Rôles qui ne sont jamais limités à des cycles.
 UNRESTRICTED_ROLES = frozenset({"SUPER_ADMIN", "TENANT_ADMIN"})
 # Rôles auxquels un administrateur peut attribuer des cycles.
+# Lot B3 (2026-11-23) : filtrage serveur (B2a–B2e, portail de département) et écrans adaptés
+# (``cycle_pages``, ``GET /education/my-scope/``) livrés — l'indicateur exposé à l'interface
+# passe à vrai. Point unique : toutes les réponses le lisent ici.
+CYCLE_POLICY_AVAILABLE = True
+
 RESTRICTABLE_ROLES = frozenset({"DIRECTOR", "DEPARTMENT_HEAD", "SECRETARY", "STAFF", "ACCOUNTANT"})
 
 

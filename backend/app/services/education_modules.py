@@ -4,6 +4,7 @@ from __future__ import annotations
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.cycle_scope import CYCLE_POLICY_AVAILABLE
 from app.core.education_catalog import (
     AVAILABLE_MODULES,
     CORE_MODULES,
@@ -37,7 +38,7 @@ def configuration_payload(db: Session, tenant: Tenant) -> dict:
     return {"tenant_id": str(tenant.id), "revision": config.revision if config else 0,
             "mode": "configured" if config else "legacy", "profile_id": config.profile_id if config else proposed_profile(tenant.type),
             "overrides": config.overrides if config else {}, "enabled_modules": sorted(enabled),
-            "scope": "institution", "cycle_policy_available": False}
+            "scope": "institution", "cycle_policy_available": CYCLE_POLICY_AVAILABLE}
 
 
 def initialize_new_tenant(db: Session, tenant: Tenant, actor_id: str) -> EducationCycle | None:
@@ -70,7 +71,7 @@ def initialize_new_tenant(db: Session, tenant: Tenant, actor_id: str) -> Educati
               resource_type="EDUCATION_CONFIGURATION", resource_id=str(tenant.id),
               details={"profile_id": profile, "revision": 1,
                        "cycle_id": str(cycle.id) if cycle else None,
-                       "cycle_policy_available": False})
+                       "cycle_policy_available": CYCLE_POLICY_AVAILABLE})
     return cycle
 
 

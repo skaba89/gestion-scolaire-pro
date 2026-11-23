@@ -226,6 +226,8 @@ ROUTE_POLICIES: dict[tuple[str, str], Policy] = {
     # routes d'admission restent DENY. Portail de département (périmètre = département, pas cycle) et
     # e-learning (CRUD des cours) restent DENY : lot dédié, intersection département × cycle.
     **_routes(Policy.FILTERED, "GET", "/admissions/stats/"),
+    # --- Lot B3 : périmètre du compte connecté (présentation des menus, aucune donnée d'élève) ----
+    **_routes(Policy.INDEPENDENT, "GET", "/education/my-scope/"),
 }
 
 # Familles refusées d'office (préfixes). Toute route qui n'est pas dans
