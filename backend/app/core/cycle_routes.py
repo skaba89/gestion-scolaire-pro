@@ -221,6 +221,11 @@ ROUTE_POLICIES: dict[tuple[str, str], Policy] = {
               "/analytics/attendance-trend/", "/analytics/grades-distribution/",
               "/analytics/dashboard-kpis/", "/analytics/risk-scores/summary/",
               "/analytics/risk-scores/"),
+    # --- Lot B2e-3 : statistiques d'admission (décision Q-E1) ----------------------------------
+    # Comptées sur les candidatures dont le niveau demandé appartient aux cycles du compte. Les autres
+    # routes d'admission restent DENY. Portail de département (périmètre = département, pas cycle) et
+    # e-learning (CRUD des cours) restent DENY : lot dédié, intersection département × cycle.
+    **_routes(Policy.FILTERED, "GET", "/admissions/stats/"),
 }
 
 # Familles refusées d'office (préfixes). Toute route qui n'est pas dans

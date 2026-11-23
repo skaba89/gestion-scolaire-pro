@@ -1425,3 +1425,14 @@ Le périmètre est résolu hors des blocs `try` : une erreur de périmètre n'es
 indicateur vide. Comptes non restreints : requêtes inchangées. Restent DENY :
 `cash-flow-forecast` (projection fictive, ANALYTICS-MOCK-01), `ministry-*`, `elearning/*`.
 Tests : `backend/tests/test_cycle_scope_analytics.py` (10 rouges sans le filtrage).
+
+### Lot B2e-3 (2026-11-23) : statistiques d'admission
+
+`GET /admissions/stats/` passe `FILTERED` (décision Q-E1) : un compte restreint ne compte que
+les candidatures dont le niveau demandé (`admission_applications.level_id`) appartient à un de
+ses cycles ; une candidature sans niveau ou d'un niveau sans cycle est exclue. Les autres routes
+d'admission restent `DENY`. Aucune permission ni migration. Restent `DENY` faute de périmètre
+compatible : le portail de département (`/department-portal/*`, limité au département et non au
+cycle) et l'e-learning (`/analytics/elearning/*`, gestion des cours) — voir CYCLE-PORTAL-GAP-01.
+Tests : `backend/tests/test_cycle_scope_admission_stats.py`.
+
