@@ -157,6 +157,14 @@ Limites connues :
 - ces protections réduisent le risque, elles ne remplacent ni la revue humaine
   ni les protections de branche GitHub.
 
+### Agents non Claude (Codex…)
+
+`AGENTS.md` (racine) retranscrit ces règles pour Codex et les autres agents qui lisent ce
+fichier. Ils n'exécutent **pas** les hooks ci-dessus : les blocages deviennent des règles à
+appliquer par discipline (arrêt et confirmation explicite). `AGENTS.md` renvoie aux
+`CLAUDE.md`, qui restent la référence ; toute évolution des règles se fait d'abord dans
+les `CLAUDE.md`, puis est reportée dans `AGENTS.md`.
+
 ## 6. Fichiers versionnés / locaux
 
 Versionnés : `CLAUDE.md`, `backend/CLAUDE.md`, `src/CLAUDE.md`,
