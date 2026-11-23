@@ -129,7 +129,6 @@ export default function Analytics() {
         subtitle={t("analytics.subtitle", "Vue d'ensemble complète de votre établissement")}
         selectedPeriod={selectedPeriod}
         onPeriodChange={setSelectedPeriod}
-        onExport={() => { }}
       />
 
       {unavailable && <AnalyticsUnavailable onRetry={retryUnavailable} />}

@@ -623,10 +623,6 @@ export const adminQueries = {
             notes: p_notes
         });
     },
-    calculateCashFlowForecast: async (tenantId: string, monthsAhead: number = 3) => {
-        const response = await apiClient.post("/analytics/cash-flow-forecast/", { months_ahead: monthsAhead });
-        return response.data;
-    },
     ministryKPIs: (tenantId: string) => ({
         queryKey: ["admin-ministry-kpis", tenantId] as const,
         queryFn: async () => {

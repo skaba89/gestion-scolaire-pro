@@ -1491,3 +1491,15 @@ La règle métier de l’auto-pointage reste à valider.
   fabriquée) : DECISION-FAKE-01. Reste ouvert : EXPORT-NOOP-01 (boutons d'export sans
   effet). Tests : 14 rouges backend et 3 rouges frontend avant correctif.
 
+- **2026-11-23 — plus d'indicateur inventé ni de bouton sans effet (lot S1 :
+  ANALYTICS-MOCK-01, ACADEMIC-STATS-01, EXPORT-NOOP-01, DECISION-FAKE-01). Non déployé.**
+  Retirés : la « prévision de trésorerie (IA) » de l'écran Finances (constantes inventées :
+  +2 % de croissance par mois, dépenses = 60 % des recettes sans module de dépenses) et sa
+  route serveur codée en dur (désormais 501) ; le panneau « Aide à la décision » du tableau
+  décisionnel (constats fictifs : 25 % d'impayés, −15 % en mathématiques, 98 % d'assiduité
+  des enseignants) ; les boutons d'export qui n'exportaient rien. Corrigés : heures des
+  enseignants lues dans `teacher_work_hours` (auparavant 0) ; présence des enseignants
+  « Non mesuré » (aucune donnée, auparavant 0 % en rouge) ; gamification : nombre réel
+  d'élèves badgés, plus de « points » inexistants ; `academic-stats` ne compte plus une note
+  dans les anciennes classes de l'élève. Tests : 4 rouges backend et 3 rouges frontend avant.
+

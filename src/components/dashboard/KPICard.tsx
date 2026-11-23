@@ -2,7 +2,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TrendingUp, TrendingDown, Minus, Target } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type KPIStatus = "good" | "warning" | "critical";
+// « neutral » : indicateur non mesuré (aucune donnée) — ni bon ni mauvais.
+export type KPIStatus = "good" | "warning" | "critical" | "neutral";
 export type TrendDirection = "up" | "down" | "stable";
 
 export interface KPICardProps {
@@ -34,6 +35,7 @@ export const KPICard = ({
         good: "text-green-600 bg-green-50 border-green-200",
         warning: "text-yellow-600 bg-yellow-50 border-yellow-200",
         critical: "text-red-600 bg-red-50 border-red-200",
+        neutral: "text-muted-foreground bg-muted border-border",
     };
 
     const trendColors = {

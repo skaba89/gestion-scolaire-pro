@@ -9,7 +9,7 @@ import {
     Legend, Cell, PieChart, Pie
 } from "recharts";
 import {
-    TrendingUp, TrendingDown, AlertTriangle, CheckCircle2,
+    TrendingUp, AlertTriangle, CheckCircle2,
     Target, BrainCircuit, Wallet, Users, LayoutDashboard,
     ArrowUpRight, ArrowDownRight, CircleDollarSign, HandCoins, FileClock, GraduationCap
 } from "lucide-react";
@@ -22,7 +22,6 @@ import { useTranslation } from "react-i18next";
 import { useTerminology } from "@/hooks/useTerminology";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
 import { useCurrency } from "@/hooks/useCurrency";
-import { toast } from "sonner";
 
 export default function DecisionDashboard() {
     const { tenant } = useTenant();
@@ -99,9 +98,7 @@ export default function DecisionDashboard() {
                         <LayoutDashboard className="h-4 w-4" />
                         {t('decision.operationalView', 'Vue Opérationnelle')}
                     </Button>
-                    <Button className="gap-2 shadow-lg shadow-primary/20" onClick={() => toast.success(t('common.exporting', 'Exportation en cours...'))}>
-                        {t('decision.exportAnalysis', "Exporter l'Analyse")}
-                    </Button>
+                    {/* EXPORT-NOOP-01 : « Exporter l'analyse » n'affichait qu'un message sans rien exporter. */}
                 </div>
             </div>
 
@@ -174,7 +171,7 @@ export default function DecisionDashboard() {
                     </div>
 
                     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
-                        <Card className="lg:col-span-4 shadow-lg border-primary/10">
+                        <Card className="lg:col-span-7 shadow-lg border-primary/10">
                             <CardHeader>
                                 <div className="flex justify-between items-center">
                                     <div>
@@ -209,61 +206,10 @@ export default function DecisionDashboard() {
                             </CardContent>
                         </Card>
 
-                        <Card className="lg:col-span-3 shadow-lg border-primary/10">
-                            <CardHeader>
-                                <CardTitle>{t('decision.support', 'Aide à la Décision')}</CardTitle>
-                                <CardDescription>{t('decision.recommendedActions', 'Actions recommandées basées sur les données actuelles')}</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="space-y-4">
-                                    <div className="p-4 rounded-xl bg-orange-50 border border-orange-100 flex gap-4 items-start">
-                                        <div className="bg-orange-500 p-2 rounded-lg text-white">
-                                            <TrendingDown className="h-5 w-5" />
-                                        </div>
-                                        <div>
-                                            <p className="font-bold text-orange-900">{t('decision.recoveryIntervention', 'Intervention de Recouvrement')}</p>
-                                            <p className="text-sm text-orange-700 mt-1">
-                                                {t('decision.recoveryInterventionDesc', {
-                                                    defaultValue: "Augmenter les relances de facturation en {{level}}. Les factures impayées ont atteint 25% ce mois.",
-                                                    level: isUniversity ? "Licence 1" : "CM2"
-                                                })}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div className="p-4 rounded-xl bg-blue-50 border border-blue-100 flex gap-4 items-start">
-                                        <div className="bg-blue-500 p-2 rounded-lg text-white">
-                                            <Users className="h-5 w-5" />
-                                        </div>
-                                        <div>
-                                            <p className="font-bold text-blue-900">{t('decision.academicSupport', 'Soutien Académique')}</p>
-                                            <p className="text-sm text-blue-700 mt-1">
-                                                {t('decision.academicSupportDesc', {
-                                                    defaultValue: "La performance en {{subject}} a chuté de 15% lors de la dernière évaluation.",
-                                                    subject: isUniversity ? (t('subjects.algo', 'Algorithmique')) : (t('subjects.math', 'Mathématiques'))
-                                                })}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-100 flex gap-4 items-start">
-                                        <div className="bg-emerald-500 p-2 rounded-lg text-white">
-                                            <TrendingUp className="h-5 w-5" />
-                                        </div>
-                                        <div>
-                                            <p className="font-bold text-emerald-900">{t('decision.operationalExcellence', 'Excellence Opérationnelle')}</p>
-                                            <p className="text-sm text-emerald-700 mt-1">
-                                                {t('decision.operationalExcellenceDesc', "L'assiduité des enseignants est à son plus haut niveau historique (98%). Envisagez une prime de reconnaissance.")}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                                <Button
-                                    className="w-full mt-6 bg-primary/10 text-primary hover:bg-primary/20 border-none"
-                                    onClick={() => toast.info(t('decision.generatingReport', 'Génération du rapport complet...'))}
-                                >
-                                    {t('decision.viewFullReport', 'Voir le Rapport Complet d\'Analyse')}
-                                </Button>
-                            </CardContent>
-                        </Card>
+                        {/* DECISION-FAKE-01 : le panneau « Aide à la décision » affichait des constats inventés
+                            (25 % d'impayés, chute de 15 % en mathématiques, 98 % d'assiduité des enseignants)
+                            présentés comme « basés sur les données actuelles », et un bouton « rapport complet »
+                            sans effet. Retiré tant qu'aucune recommandation n'est calculée à partir des données. */}
                     </div>
                 </TabsContent>
 

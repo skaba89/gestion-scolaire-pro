@@ -14,7 +14,8 @@ interface AnalyticsHeaderProps {
     subtitle: string;
     selectedPeriod: string;
     onPeriodChange: (value: string) => void;
-    onExport: () => void;
+    /** Bouton d'export affiché seulement s'il exporte réellement quelque chose (EXPORT-NOOP-01). */
+    onExport?: () => void;
 }
 
 export const AnalyticsHeader = ({
@@ -46,10 +47,12 @@ export const AnalyticsHeader = ({
                         <SelectItem value="year">{t("adminAnalytics.header.year")}</SelectItem>
                     </SelectContent>
                 </Select>
-                <Button variant="outline" onClick={onExport} className="shadow-sm hover:shadow transition-shadow">
-                    <Download className="w-4 h-4 mr-2" />
-                    {t("adminAnalytics.header.export")}
-                </Button>
+                {onExport && (
+                    <Button variant="outline" onClick={onExport} className="shadow-sm hover:shadow transition-shadow">
+                        <Download className="w-4 h-4 mr-2" />
+                        {t("adminAnalytics.header.export")}
+                    </Button>
+                )}
             </div>
         </div>
     );

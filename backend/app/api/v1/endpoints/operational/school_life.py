@@ -2163,14 +2163,17 @@ def get_gamification_stats(
             SELECT 
                 COUNT(*) as total_badges,
                 COUNT(*) FILTER (WHERE status = 'ACTIVE') as active_badges,
-                COUNT(DISTINCT badge_type) as types
+                COUNT(DISTINCT badge_type) as types,
+                COUNT(DISTINCT student_id) as students
             FROM student_badges
             WHERE tenant_id = :tid
         """), {"tid": tenant_id}).mappings().first()
         return {
-            "totalPoints": 0, # Placeholder
+            # ANALYTICS-MOCK-01 : aucun système de points n'existe (null = non mesuré, jamais 0
+            # inventé) ; nombre d'élèves = élèves ayant au moins un badge (auparavant 0 en dur).
+            "totalPoints": None,
             "totalAchievements": row["total_badges"],
-            "totalStudents": 0 # Placeholder
+            "totalStudents": row["students"],
         }
     except Exception as e:
         db.rollback()

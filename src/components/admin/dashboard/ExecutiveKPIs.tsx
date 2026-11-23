@@ -155,16 +155,19 @@ export const OperationalExecutiveKPIs = ({
                             "critical"
                 }
             />
+            {/* ANALYTICS-MOCK-01 : aucune donnée de présence des enseignants n'existe ; le taux
+                valait toujours 0 % (statut « critique »). Affiché « non mesuré » tant qu'il est null. */}
             <KPICard
                 title="Présence profs (Actifs)"
-                value={`${(data?.teacherAttendanceRate ?? 0).toFixed(1)}%`}
-                target={95}
+                value={data?.teacherAttendanceRate == null ? "—" : `${data.teacherAttendanceRate.toFixed(1)}%`}
+                target={data?.teacherAttendanceRate == null ? undefined : 95}
                 icon={<UserCheck className="w-4 h-4" />}
-                subtitle="Basé sur les heures saisies"
+                subtitle={data?.teacherAttendanceRate == null ? "Non mesuré" : "Basé sur les heures saisies"}
                 status={
-                    (data?.teacherAttendanceRate || 0) >= 90 ? "good" :
-                        (data?.teacherAttendanceRate || 0) >= 70 ? "warning" :
-                            "critical"
+                    data?.teacherAttendanceRate == null ? "neutral" :
+                        data.teacherAttendanceRate >= 90 ? "good" :
+                            data.teacherAttendanceRate >= 70 ? "warning" :
+                                "critical"
                 }
             />
             <KPICard
