@@ -14,6 +14,7 @@ from slowapi import Limiter
 from app.core.client_ip import get_client_ip
 import uuid
 
+from app.core.cycle_scope import level_scope_and
 from app.core.database import get_db
 from app.core.security import require_permission, user_has_permission
 from app.core.tenant_resolution import enter_tenant_context_or_404, resolve_current_tenant_id
@@ -351,8 +352,13 @@ def get_stats(
     if academic_year_id:
         q += " AND academic_year_id = :ay_id"
         params["ay_id"] = academic_year_id
+    # Périmètre par cycle (B2e-3, décision Q-E1) : un compte restreint ne compte que les
+    # candidatures dont le niveau demandé appartient à un de ses cycles (sans niveau : exclue).
+    level_scope, level_binds = level_scope_and(current_user, "admission_applications.level_id",
+                                               tenant_id=tenant_id, tag="adms")
+    q += level_scope
     q += " GROUP BY status"
-    rows = db.execute(text(q), params).mappings().all()
+    rows = db.execute(text(q).bindparams(*level_binds), params).mappings().all()
     counts = {r["status"]: r["total"] for r in rows}
     return {
         "DRAFT":                counts.get("DRAFT", 0),

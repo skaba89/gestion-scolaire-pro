@@ -703,6 +703,7 @@ FILTERED_ROUTE_TESTS = {
 
 
 def test_every_filtered_route_has_a_behavioural_test():
+    import test_cycle_scope_admission_stats as admission_stats
     import test_cycle_scope_analytics as analytics
     import test_cycle_scope_finance as finance
     import test_cycle_scope_school_life as school_life
@@ -719,6 +720,8 @@ def test_every_filtered_route_has_a_behavioural_test():
     declared |= {(method, f"{API}{path}") for method, path in finance.FINANCE_ROUTE_TESTS}
     # Lot B2e-1 (indicateurs académiques) : test_cycle_scope_analytics.
     declared |= {(method, f"{API}{path}") for method, path in analytics.ANALYTICS_ROUTE_TESTS}
+    # Lot B2e-3 (statistiques d'admission) : test_cycle_scope_admission_stats.
+    declared |= {(method, f"{API}{path}") for method, path in admission_stats.ADMISSION_ROUTE_TESTS}
     assert filtered == declared, (
         f"Routes FILTERED sans test comportemental : {sorted(filtered - declared)} ; "
         f"entrées orphelines : {sorted(declared - filtered)}"
@@ -737,4 +740,7 @@ def test_every_filtered_route_has_a_behavioural_test():
         assert callable(candidate) and name.startswith("test_"), f"test introuvable : {name}"
     for name in set(analytics.ANALYTICS_ROUTE_TESTS.values()):
         candidate = getattr(analytics, name, None)
+        assert callable(candidate) and name.startswith("test_"), f"test introuvable : {name}"
+    for name in set(admission_stats.ADMISSION_ROUTE_TESTS.values()):
+        candidate = getattr(admission_stats, name, None)
         assert callable(candidate) and name.startswith("test_"), f"test introuvable : {name}"

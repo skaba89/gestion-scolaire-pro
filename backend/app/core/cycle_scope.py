@@ -481,6 +481,27 @@ def class_scope_and(db: Session, tenant_id, user: dict, column_sql: str, *, tag:
     return f" AND {sql}", binds
 
 
+def level_scope_and(user: dict, column_sql: str, *, tenant_id, tag: str = "lvl"):
+    """``(" AND <colonne> IN (niveaux des cycles du compte)", binds)`` pour un compte restreint,
+    ``("", [])`` sinon (lot B2e-3 : données rattachées à un niveau sans élève ni classe, comme
+    une candidature). Une ligne sans niveau, ou dont le niveau n'a pas de cycle, est exclue.
+    ``column_sql`` et ``tag`` sont des littéraux du code appelant ; paramètres liés uniquement."""
+    cycles = _cycles_of(user)
+    if cycles is None:
+        return "", []
+    cycles = list(cycles)
+    if not cycles:
+        return " AND 1 = 0", []
+    from app.models.base import GUID
+
+    sql = (f" AND {column_sql} IN (SELECT {tag}_l.id FROM levels {tag}_l "
+           f"WHERE {tag}_l.tenant_id = :{tag}_tid AND {tag}_l.cycle_id IN :{tag}_cyc)")
+    return sql, [
+        bindparam(f"{tag}_tid", tenant_id, type_=GUID()),
+        bindparam(f"{tag}_cyc", cycles, type_=GUID(), expanding=True),
+    ]
+
+
 def require_invoices_in_scope(
     db: Session, tenant_id, user: dict, invoice_ids: Iterable, *, detail: str = "Facture introuvable",
 ) -> None:

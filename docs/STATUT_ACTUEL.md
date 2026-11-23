@@ -1497,6 +1497,12 @@ La règle métier de l’auto-pointage reste à valider.
   Inchangés faute de preuve nouvelle : production (19 commits de retard), performance,
   hors ligne sur appareil réel, préparation commerciale. NO-GO national maintenu.
 
+- **2026-11-23 — statistiques d'admission par cycle (lot B2e-3). Non déployé.**
+  `GET /admissions/stats/` compte, pour un compte restreint, les seules candidatures dont le
+  niveau demandé appartient à ses cycles (Q-E1). Portail de département et e-learning restent
+  refusés aux comptes restreints : leur périmètre (département, cours) ne recoupe pas le cycle
+  — lot dédié à prévoir avant B3 (CYCLE-PORTAL-GAP-01).
+
 - **2026-11-23 — plus d'indicateur inventé ni de bouton sans effet (lot S1 :
   ANALYTICS-MOCK-01, ACADEMIC-STATS-01, EXPORT-NOOP-01, DECISION-FAKE-01). Non déployé.**
   Retirés : la « prévision de trésorerie (IA) » de l'écran Finances (constantes inventées :
