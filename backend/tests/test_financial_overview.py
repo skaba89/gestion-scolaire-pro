@@ -29,7 +29,7 @@ def test_financial_overview_uses_full_tenant_scope_without_pagination():
                  "overdue_invoices": 4, "outstanding_amount": 1200}),
         _result({"completed_payments": 44, "received_amount": 5300}),
     ]
-    actor = {"id": str(uuid4()), "roles": ["DIRECTOR"]}
+    actor = {"id": str(uuid4()), "roles": ["DIRECTOR"], "_cycle_ids": None}
     with patch.object(api, "_get_tenant_id", return_value=tid):
         summary = api.finance_overview(_request(), db=db, current_user=actor)
     assert summary == {
@@ -57,7 +57,7 @@ def test_financial_overview_preserves_parent_child_restrictions():
                  "overdue_invoices": 0, "outstanding_amount": 0}),
         _result({"completed_payments": 1, "received_amount": 35}),
     ]
-    actor = {"id": str(uuid4()), "roles": ["PARENT"]}
+    actor = {"id": str(uuid4()), "roles": ["PARENT"], "_cycle_ids": None}
     with patch.object(api, "_get_tenant_id", return_value=tid), patch.object(
         api, "parent_student_filter",
         side_effect=lambda db, *, tenant_id, user, column, requested_student_id:
@@ -84,6 +84,6 @@ def test_financial_overview_empty_school_returns_actual_zeros():
     with patch.object(api, "_get_tenant_id", return_value=str(uuid4())):
         result = api.finance_overview(
             _request(), db=db,
-            current_user={"id": str(uuid4()), "roles": ["DIRECTOR"]},
+            current_user={"id": str(uuid4()), "roles": ["DIRECTOR"], "_cycle_ids": None},
         )
     assert all(value == 0 for value in result.values())

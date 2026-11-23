@@ -25,7 +25,8 @@ from app.core.parent_scope import parent_student_filter
 from app.core.cycle_scope import (
     class_scope_sql, is_cycle_restricted, require_class_in_scope, require_classes_in_scope,
     require_enrollment_in_scope, require_student_in_scope, require_students_in_scope,
-    require_submission_in_scope, scoped_class_ids, student_scope_clause, student_scope_sql,
+    require_invoice_in_scope, require_submission_in_scope, scoped_class_ids, student_scope_and,
+    student_scope_clause, student_scope_sql,
 )
 from app.core.teacher_scope import require_teacher_submission_class
 from app.core.tenant_resolution import resolve_current_tenant_id
@@ -253,6 +254,9 @@ def list_invoices_alias(
     if status:
         filters += " AND i.status = :inv_status"
         params["inv_status"] = status
+    # Périmètre par cycle (B2d) : même filtre que GET /payments/invoices/, avant LIMIT et comptage.
+    scope_sql, scope_binds = student_scope_and(db, tenant_id, current_user, "i.student_id", tag="ainv")
+    filters += scope_sql
 
     sql = text(f"""
         SELECT i.id, i.invoice_number, i.total_amount, i.paid_amount, i.status,
@@ -264,10 +268,10 @@ def list_invoices_alias(
         WHERE i.tenant_id = :tenant_id {filters}
         ORDER BY i.created_at DESC
         LIMIT :limit OFFSET :offset
-    """)
+    """).bindparams(*scope_binds)
     rows = db.execute(sql, params).fetchall()
 
-    count_sql = text(f"SELECT COUNT(*) FROM invoices i WHERE i.tenant_id = :tenant_id {filters}")
+    count_sql = text(f"SELECT COUNT(*) FROM invoices i WHERE i.tenant_id = :tenant_id {filters}").bindparams(*scope_binds)
     total = db.execute(count_sql, {k: v for k, v in params.items() if k not in ("limit", "offset")}).scalar() or 0
 
     items = []
@@ -316,6 +320,8 @@ def create_invoice_alias(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
+    # Périmètre par cycle (B2d) : l'élève facturé doit être dans le périmètre, avant l'insertion.
+    require_student_in_scope(db, tenant_id, current_user, body.student_id)
     year = datetime.now().year
     invoice_number = body.invoice_number or f"INV-{year}-{secrets.token_hex(4).upper()}"
     new_id = str(uuid.uuid4())
@@ -375,6 +381,9 @@ def update_invoice_alias(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=400, detail="Tenant ID required")
+    # Périmètre par cycle (B2d) : élève actuel ET élève de destination dans le périmètre, avant écriture.
+    require_invoice_in_scope(db, tenant_id, current_user, invoice_id, detail="Invoice not found")
+    require_student_in_scope(db, tenant_id, current_user, body.student_id)
     existing = db.execute(text("""
         SELECT paid_amount FROM invoices WHERE id = :invoice_id AND tenant_id = :tenant_id
     """), {"invoice_id": invoice_id, "tenant_id": tenant_id}).mappings().first()

@@ -74,7 +74,7 @@ def schedule_ctx():
 
 
 def _as(ids, *, tenant_key="tenant", roles=("TENANT_ADMIN",)):
-    user = {"id": str(uuid.uuid4()), "tenant_id": ids[tenant_key], "roles": list(roles)}
+    user = {"id": str(uuid.uuid4()), "tenant_id": ids[tenant_key], "roles": list(roles), "_cycle_ids": None}
     app.dependency_overrides[get_current_user] = lambda: user
     return HEADERS
 

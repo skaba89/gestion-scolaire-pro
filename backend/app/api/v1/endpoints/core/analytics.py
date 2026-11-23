@@ -10,6 +10,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func, case, and_, text
 
+from app.core.cycle_scope import scoped_class_ids, student_scope_and
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
 from app.core.tenant_refs import ensure_refs_in_tenant
@@ -43,6 +44,11 @@ def get_financial_kpis(
     Financial KPIs: total revenue, paid revenue, pending revenue, collection rate.
     """
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    # Périmètre par cycle (B2d), résolu HORS du try : une erreur de périmètre ne doit jamais
+    # être convertie en « zéro » par le repli ci-dessous. Agrégats calculés sur les seuls élèves du périmètre.
+    scope_sql, scope_binds = student_scope_and(db, tenant_id, current_user, "invoices.student_id", tag="akpi")
+    class_scope_sql, class_scope_binds = student_scope_and(db, tenant_id, current_user, "i.student_id", tag="akpc")
+    scope_classes = scoped_class_ids(db, tenant_id, current_user)
     try:
         # Build dynamic date filter fragments
         date_conditions = ""
@@ -61,8 +67,8 @@ def get_financial_kpis(
                 COALESCE(SUM(CASE WHEN status = 'PAID' THEN total_amount ELSE 0 END), 0) AS paid_revenue,
                 COALESCE(SUM(CASE WHEN status <> 'PAID' THEN total_amount ELSE 0 END), 0) AS pending_revenue
             FROM invoices
-            WHERE tenant_id = :tenant_id {date_conditions}
-        """)
+            WHERE tenant_id = :tenant_id {date_conditions}{scope_sql}
+        """).bindparams(*scope_binds)
 
         row = db.execute(sql, params).fetchone()
         
@@ -72,7 +78,10 @@ def get_financial_kpis(
         collection_rate = (paid_revenue / total_revenue * 100) if total_revenue > 0 else 0.0
 
         # Outstanding by class
-        class_sql = text("""
+        # Compte restreint : seules les classes du périmètre sont ventilées (un élève du périmètre
+        # peut avoir une inscription passée dans une classe d'un autre cycle).
+        class_filter = " AND ce.class_id IN :akp_classes" if scope_classes is not None else ""
+        class_sql = text(f"""
             SELECT
                 c.id   AS class_id,
                 c.name AS class_name,
@@ -81,11 +90,16 @@ def get_financial_kpis(
             JOIN students s ON s.id = i.student_id
             JOIN enrollments ce ON ce.student_id = s.id
             JOIN classes c ON c.id = ce.class_id
-            WHERE i.tenant_id = :tenant_id AND i.status <> 'PAID'
+            WHERE i.tenant_id = :tenant_id AND i.status <> 'PAID'{class_scope_sql}{class_filter}
             GROUP BY c.id, c.name
             ORDER BY outstanding_amount DESC
             LIMIT 10
-        """)
+        """).bindparams(*class_scope_binds)
+        if scope_classes is not None:
+            from sqlalchemy import bindparam
+            from app.models.base import GUID
+
+            class_sql = class_sql.bindparams(bindparam("akp_classes", scope_classes or [], type_=GUID(), expanding=True))
         class_rows = db.execute(class_sql, {"tenant_id": tenant_id}).fetchall()
         outstanding_by_class = [
             {"class_id": str(r.class_id), "class_name": r.class_name, "outstanding_amount": float(r.outstanding_amount)}
@@ -119,20 +133,22 @@ def get_revenue_trend(
 ):
     """Revenue trend by month over the last N months."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    # Périmètre par cycle (B2d), résolu hors du try (voir get_financial_kpis).
+    scope_sql, scope_binds = student_scope_and(db, tenant_id, current_user, "invoices.student_id", tag="atrd")
     try:
         start_date = (datetime.now(timezone.utc) - timedelta(days=months * 30)).strftime("%Y-%m-%d")
 
-        sql = text("""
+        sql = text(f"""
             SELECT
                 TO_CHAR(created_at, 'YYYY-MM') AS period,
                 COALESCE(SUM(total_amount), 0) AS revenue,
                 COALESCE(SUM(CASE WHEN status = 'PAID' THEN total_amount ELSE 0 END), 0) AS paid,
                 COALESCE(SUM(CASE WHEN status <> 'PAID' THEN total_amount ELSE 0 END), 0) AS pending
             FROM invoices
-            WHERE tenant_id = :tenant_id AND created_at >= :start_date
+            WHERE tenant_id = :tenant_id AND created_at >= :start_date{scope_sql}
             GROUP BY period
             ORDER BY period ASC
-        """)
+        """).bindparams(*scope_binds)
         rows = db.execute(sql, {"tenant_id": tenant_id, "start_date": start_date}).fetchall()
         return [
             {
@@ -452,8 +468,10 @@ def get_debt_aging(
 ):
     """Debt aging: breakdown of overdue invoices by age bucket."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    # Périmètre par cycle (B2d), résolu hors du try (voir get_financial_kpis).
+    scope_sql, scope_binds = student_scope_and(db, tenant_id, current_user, "invoices.student_id", tag="adbt")
     try:
-        sql = text("""
+        sql = text(f"""
             SELECT
                 CASE
                     WHEN due_date >= CURRENT_DATE THEN 'current'
@@ -465,10 +483,10 @@ def get_debt_aging(
                 COUNT(*) AS count,
                 COALESCE(SUM(total_amount), 0) AS amount
             FROM invoices
-            WHERE tenant_id = :tenant_id AND status <> 'PAID'
+            WHERE tenant_id = :tenant_id AND status <> 'PAID'{scope_sql}
             GROUP BY bucket
             ORDER BY bucket
-        """)
+        """).bindparams(*scope_binds)
         rows = db.execute(sql, {"tenant_id": tenant_id}).fetchall()
         return [
             {"bucket": r.bucket, "count": int(r.count), "amount": float(r.amount or 0)}
@@ -487,15 +505,17 @@ def get_revenue_by_category(
 ):
     """Revenue breakdown by category/type."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    # Périmètre par cycle (B2d), résolu hors du try (voir get_financial_kpis).
+    scope_sql, scope_binds = student_scope_and(db, tenant_id, current_user, "invoices.student_id", tag="acat")
     try:
-        sql = text("""
+        sql = text(f"""
             SELECT
                 'Scolarité' AS category,
                 COALESCE(SUM(total_amount), 0) AS total,
                 COALESCE(SUM(CASE WHEN status = 'PAID' THEN total_amount ELSE 0 END), 0) AS paid
             FROM invoices
-            WHERE tenant_id = :tenant_id
-        """)
+            WHERE tenant_id = :tenant_id{scope_sql}
+        """).bindparams(*scope_binds)
         rows = db.execute(sql, {"tenant_id": tenant_id}).fetchall()
         return [
             {"category": r.category, "total": float(r.total or 0), "paid": float(r.paid or 0)}

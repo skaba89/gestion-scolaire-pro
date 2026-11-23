@@ -8,7 +8,7 @@ qu'une route **explicitement classée** :
   de l'établissement en lecture…). Passage autorisé.
 - ``FILTERED``   : la route filtre elle-même ses données selon
   ``user["_cycle_ids"]`` (élèves, classes, inscriptions : lot B2b ; scolarité : B2c-1 ; vie
-  scolaire : B2c-2 ; les lots B2d à B2e feront migrer les autres routes une à une, avec leurs tests).
+  scolaire : B2c-2 ; finances : B2d ; les lots B2e feront migrer les autres routes une à une, avec leurs tests).
   La garde laisse passer, **le handler doit filtrer** (404 pour un objet
   hors périmètre) ; ``test_cycle_route_classification`` vérifie qu'il appelle
   une brique de ``cycle_scope``.
@@ -193,6 +193,25 @@ ROUTE_POLICIES: dict[tuple[str, str], Policy] = {
     # code) ; les écritures restent DENY (données d'établissement, Q4). gamification/stats reste DENY.
     **_routes(Policy.INDEPENDENT, "GET", "/school-life/events/", "/school-life/events/export.ics",
               "/school-life/bookable-resources/", "/school-life/bookings/"),
+    # --- Lot B2d : finances ------------------------------------------------------------------
+    # Une donnée financière suit son élève (facture, paiement via son élève, échéancier via la
+    # facture) : visible ssi l'élève est dans le périmètre. Écritures : chaque identifiant reçu ou
+    # résolu (facture, paiement, échéancier, élève) vérifié AVANT toute écriture, envoi ou mise en
+    # file ; relances en lot tout ou rien ; 404 identique inexistant / hors périmètre. Les agrégats
+    # (totaux, aperçu, indicateurs) sont calculés sur le seul périmètre.
+    **_routes(Policy.FILTERED, "GET POST", "/payments/invoices/", "/invoices/"),
+    **_routes(Policy.FILTERED, "PUT DELETE", "/payments/invoices/{invoice_id}/", "/invoices/{invoice_id}/"),
+    **_routes(Policy.FILTERED, "GET", "/payments/payments/", "/payments/export/", "/payments/overview/",
+              "/payments/{payment_id}/receipt/"),
+    **_routes(Policy.FILTERED, "POST", "/payments/register/", "/payments/{payment_id}/reverse/",
+              "/payments/intent/", "/payments/send-invoice-email/", "/payments/send-reminders/"),
+    **_routes(Policy.FILTERED, "GET POST DELETE", "/payment-schedules/"),
+    **_routes(Policy.FILTERED, "GET PUT DELETE", "/payment-schedules/{schedule_id}"),
+    **_routes(Policy.FILTERED, "GET", "/analytics/financial-kpis/", "/analytics/revenue-trend/",
+              "/analytics/revenue-by-category/", "/analytics/debt-aging/"),
+    # Tarifs (aucune donnée d'élève), compteur de référence (jeton aléatoire), catalogue d'offres
+    # de la plateforme : lecture seule. Écritures des frais, abonnement : DENY (Q4 / hors périmètre).
+    **_routes(Policy.INDEPENDENT, "GET", "/payments/fees/", "/payments/sequence/", "/billing/plans/"),
 }
 
 # Familles refusées d'office (préfixes). Toute route qui n'est pas dans

@@ -113,7 +113,7 @@ def _slot(fixtures: dict, day_of_week: int, start_time: str, end_time: str, **ov
 class TestScheduleDoubleBookingOnCreate:
     def test_overlapping_slot_for_same_teacher_is_rejected(self):
         tenant_id = _make_tenant()
-        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id})
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id, "_cycle_ids": None})
         fixtures = _setup(tenant_id)
 
         first = client.post(f"{BASE}/", json=_slot(fixtures, 1, "08:00", "09:00"), headers=headers)
@@ -127,7 +127,7 @@ class TestScheduleDoubleBookingOnCreate:
 
     def test_overlapping_slot_for_same_room_is_rejected(self):
         tenant_id = _make_tenant()
-        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id})
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id, "_cycle_ids": None})
         fixtures = _setup(tenant_id)
         room_id = _make_room(tenant_id)
 
@@ -144,7 +144,7 @@ class TestScheduleDoubleBookingOnCreate:
 
     def test_overlapping_slot_for_same_class_is_rejected(self):
         tenant_id = _make_tenant()
-        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id})
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id, "_cycle_ids": None})
         fixtures = _setup(tenant_id)
 
         first = client.post(f"{BASE}/", json=_slot(fixtures, 3, "14:00", "15:00"), headers=headers)
@@ -159,7 +159,7 @@ class TestScheduleDoubleBookingOnCreate:
 
     def test_touching_edge_slots_are_accepted(self):
         tenant_id = _make_tenant()
-        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id})
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id, "_cycle_ids": None})
         fixtures = _setup(tenant_id)
 
         first = client.post(f"{BASE}/", json=_slot(fixtures, 4, "10:00", "11:00"), headers=headers)
@@ -170,7 +170,7 @@ class TestScheduleDoubleBookingOnCreate:
 
     def test_same_teacher_different_day_is_accepted(self):
         tenant_id = _make_tenant()
-        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id})
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id, "_cycle_ids": None})
         fixtures = _setup(tenant_id)
 
         first = client.post(f"{BASE}/", json=_slot(fixtures, 1, "08:00", "09:00"), headers=headers)
@@ -183,7 +183,7 @@ class TestScheduleDoubleBookingOnCreate:
 class TestScheduleDoubleBookingOnUpdate:
     def test_moving_slot_into_an_existing_slot_is_rejected(self):
         tenant_id = _make_tenant()
-        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id})
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id, "_cycle_ids": None})
         fixtures = _setup(tenant_id)
 
         client.post(f"{BASE}/", json=_slot(fixtures, 5, "08:00", "09:00"), headers=headers)
@@ -196,7 +196,7 @@ class TestScheduleDoubleBookingOnUpdate:
         """exclude_slot_id must exempt the slot's own existing time range
         from the conflict check it is being compared against."""
         tenant_id = _make_tenant()
-        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id})
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id, "_cycle_ids": None})
         fixtures = _setup(tenant_id)
 
         created = client.post(f"{BASE}/", json=_slot(fixtures, 6, "08:00", "09:00"), headers=headers).json()

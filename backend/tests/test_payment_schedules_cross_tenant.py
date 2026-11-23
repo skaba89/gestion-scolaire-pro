@@ -76,7 +76,7 @@ class TestCreatePaymentScheduleRejectsCrossTenantInvoice:
     def test_invoice_from_another_tenant_is_rejected(self):
         tenant_a = _make_tenant_with_invoice()
         tenant_b = _make_tenant_with_invoice()
-        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_a["tenant_id"]})
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_a["tenant_id"], "_cycle_ids": None})
 
         resp = client.post(f"{BASE}/", json=[{
             "invoice_id": tenant_b["invoice_id"], "installment_number": 1,
@@ -93,7 +93,7 @@ class TestCreatePaymentScheduleRejectsCrossTenantInvoice:
 
     def test_own_tenant_invoice_is_accepted(self):
         ctx = _make_tenant_with_invoice()
-        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"]})
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"], "_cycle_ids": None})
 
         resp = client.post(f"{BASE}/", json=[{
             "invoice_id": ctx["invoice_id"], "installment_number": 1,

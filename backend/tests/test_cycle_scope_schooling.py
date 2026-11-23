@@ -228,7 +228,7 @@ def test_the_39_routes_of_the_lot_are_classified_as_decided():
 
 
 @pytest.mark.parametrize("url", [
-    "/school-life/gamification/stats/", "/payments/invoices/", "/students/dashboard/",
+    "/school-life/gamification/stats/", "/parents/payment-schedules/", "/students/dashboard/",
 ])
 def test_sibling_routes_not_in_the_lot_stay_denied(school, url):
     _assert_denied(call(school, "secretary", "GET", url))

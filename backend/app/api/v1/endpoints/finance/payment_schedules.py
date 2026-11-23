@@ -9,6 +9,9 @@ import math
 
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
+from app.core.cycle_scope import (
+    require_invoice_in_scope, require_invoices_in_scope, require_schedule_in_scope, student_scope_and,
+)
 from app.core.parent_scope import parent_student_filter
 from app.core.tenant_resolution import resolve_current_tenant_id
 from app.utils.audit import log_audit
@@ -120,6 +123,12 @@ def list_payment_schedules(
     }
     order_clause = allowed_order.get(ordering, "ps.installment_number ASC")
 
+    # Périmètre par cycle (B2d) : l'échéancier suit l'élève de sa facture (il n'est rattaché ni à
+    # une classe ni à un niveau) ; filtré avant LIMIT et avant le comptage. Une échéance dont la
+    # facture est introuvable n'appartient à aucun cycle.
+    scope_sql, scope_binds = student_scope_and(db, tenant_id, current_user, "i.student_id", tag="fsch")
+    extra_where += scope_sql
+
     sql = text(f"""
         SELECT ps.id, ps.tenant_id, ps.invoice_id, ps.installment_number,
                ps.amount, ps.due_date, ps.paid_date, ps.status, ps.notes,
@@ -129,14 +138,14 @@ def list_payment_schedules(
         WHERE ps.tenant_id = :tenant_id {extra_where}
         ORDER BY {order_clause}
         LIMIT :limit OFFSET :offset
-    """)
+    """).bindparams(*scope_binds)
     rows = db.execute(sql, params).fetchall()
 
     count_sql = text(f"""
         SELECT COUNT(*) FROM payment_schedules ps
         LEFT JOIN invoices i ON ps.invoice_id = i.id
         WHERE ps.tenant_id = :tenant_id {extra_where}
-    """)
+    """).bindparams(*scope_binds)
     total = db.execute(count_sql, {k: v for k, v in params.items() if k not in ("limit", "offset")}).scalar() or 0
 
     items = [_row_to_dict(r) for r in rows]
@@ -174,6 +183,13 @@ def create_payment_schedules(
 
     try:
         invoice_ids = {schedule.invoice_id for schedule in body}
+        # Périmètre par cycle (B2d) : tout ou rien, AVANT la première insertion ; même message
+        # qu'une facture inexistante.
+        if invoice_ids:
+            require_invoices_in_scope(
+                db, tenant_id, current_user, invoice_ids,
+                detail=f"Facture(s) introuvable(s) dans cet établissement : {', '.join(sorted(invoice_ids))}",
+            )
         if invoice_ids:
             found = db.execute(text("""
                 SELECT id FROM invoices WHERE id = ANY(:ids) AND tenant_id = :tenant_id
@@ -244,6 +260,8 @@ def get_payment_schedule(
 ):
     """Get a single payment schedule by ID."""
     tenant_id = _get_tenant_id(request, current_user, db)
+    # Périmètre par cycle (B2d) : 404 identique (inexistant / autre établissement / hors périmètre).
+    require_schedule_in_scope(db, tenant_id, current_user, schedule_id)
     row = db.execute(text("""
         SELECT ps.id, ps.tenant_id, ps.invoice_id, ps.installment_number,
                ps.amount, ps.due_date, ps.paid_date, ps.status, ps.notes,
@@ -285,6 +303,9 @@ def update_payment_schedule(
     """Update a payment schedule by ID."""
     tenant_id = _get_tenant_id(request, current_user, db)
     user_id = current_user.get("id")
+    # Périmètre par cycle (B2d) : élève de la facture de l'échéancier dans le périmètre, avant écriture.
+    # (La facture d'un échéancier n'est pas modifiable ici : l'élève final est donc l'élève actuel.)
+    require_schedule_in_scope(db, tenant_id, current_user, schedule_id)
 
     # Check existence
     existing = db.execute(text("""
@@ -362,6 +383,9 @@ def delete_payment_schedules_by_filter(
 
     if not invoice_id:
         raise HTTPException(status_code=400, detail="Le paramètre invoice_id est requis pour la suppression en masse")
+    # Périmètre par cycle (B2d) : la facture visée (donc tous ses échéanciers, supprimés en bloc)
+    # doit être dans le périmètre, sinon 404 sans suppression.
+    require_invoice_in_scope(db, tenant_id, current_user, invoice_id)
 
     params = {"tenant_id": tenant_id, "invoice_id": invoice_id}
 
@@ -404,6 +428,8 @@ def delete_payment_schedule(
     """Delete a single payment schedule by ID."""
     tenant_id = _get_tenant_id(request, current_user, db)
     user_id = current_user.get("id")
+    # Périmètre par cycle (B2d) : 404 identique à un échéancier inexistant, avant suppression.
+    require_schedule_in_scope(db, tenant_id, current_user, schedule_id)
 
     result = db.execute(text("""
         DELETE FROM payment_schedules

@@ -80,7 +80,7 @@ def _make_overdue_invoice_with_parent(tenant_id: str) -> tuple[str, str]:
 
 
 def _as_tenant_admin(tenant_id: str) -> dict:
-    user = {"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id}
+    user = {"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id, "_cycle_ids": None}
     app.dependency_overrides[get_current_user] = lambda: user
     return HEADERS
 

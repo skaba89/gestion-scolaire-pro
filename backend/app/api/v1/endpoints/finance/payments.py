@@ -20,6 +20,10 @@ from app.core.client_ip import get_client_ip
 
 from app.core.database import get_db
 from app.core.config import settings
+from app.core.cycle_scope import (
+    is_cycle_restricted, require_invoice_in_scope, require_invoices_in_scope, require_payment_in_scope,
+    require_student_in_scope, scoped_class_ids, student_scope_and, student_scope_clause,
+)
 from app.core.parent_scope import parent_student_filter
 from app.core.security import get_current_user, require_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
@@ -156,6 +160,9 @@ def finance_overview(
         db, tenant_id=tenant_id, user=current_user,
         column="p.student_id", requested_student_id=None,
     )
+    # Périmètre par cycle (B2d) : totaux calculés sur les seuls élèves du périmètre.
+    inv_scope_sql, inv_scope_binds = student_scope_and(db, tenant_id, current_user, "i.student_id", tag="fovi")
+    pay_scope_sql, pay_scope_binds = student_scope_and(db, tenant_id, current_user, "p.student_id", tag="fovp")
     invoices = db.execute(text(f"""
         SELECT COUNT(*) AS total_invoices,
                COUNT(*) FILTER (WHERE i.status = 'PAID') AS paid_invoices,
@@ -166,15 +173,15 @@ def finance_overview(
                         ELSE 0 END
                ), 0) AS outstanding_amount
         FROM invoices i
-        WHERE i.tenant_id = :tenant_id {invoice_filter}
-    """), {"tenant_id": tenant_id, **invoice_scope}).mappings().one()
+        WHERE i.tenant_id = :tenant_id {invoice_filter}{inv_scope_sql}
+    """).bindparams(*inv_scope_binds), {"tenant_id": tenant_id, **invoice_scope}).mappings().one()
     payments = db.execute(text(f"""
         SELECT COUNT(*) FILTER (WHERE p.status = 'COMPLETED') AS completed_payments,
                COALESCE(SUM(CASE WHEN p.status = 'COMPLETED'
                    THEN p.amount ELSE 0 END), 0) AS received_amount
         FROM payments p
-        WHERE p.tenant_id = :tenant_id {payment_filter}
-    """), {"tenant_id": tenant_id, **payment_scope}).mappings().one()
+        WHERE p.tenant_id = :tenant_id {payment_filter}{pay_scope_sql}
+    """).bindparams(*pay_scope_binds), {"tenant_id": tenant_id, **payment_scope}).mappings().one()
     return {
         "total_invoices": int(invoices["total_invoices"]),
         "paid_invoices": int(invoices["paid_invoices"]),
@@ -216,6 +223,9 @@ def list_payments(
     if pay_status:
         extra += " AND p.status = :pay_status"
         params["pay_status"] = pay_status
+    # Périmètre par cycle (B2d) : filtré avant LIMIT et avant le comptage.
+    scope_sql, scope_binds = student_scope_and(db, tenant_id, current_user, "p.student_id", tag="fpay")
+    extra += scope_sql
 
     sql = text(f"""
         SELECT p.id, p.amount, p.payment_date, p.payment_method, p.reference, p.notes, p.status,
@@ -228,10 +238,10 @@ def list_payments(
         WHERE p.tenant_id = :tenant_id {extra}
         ORDER BY p.payment_date DESC
         LIMIT :limit OFFSET :offset
-    """)
+    """).bindparams(*scope_binds)
     rows = db.execute(sql, params).fetchall()
 
-    count_sql = text(f"SELECT COUNT(*) FROM payments p WHERE p.tenant_id = :tenant_id {extra}")
+    count_sql = text(f"SELECT COUNT(*) FROM payments p WHERE p.tenant_id = :tenant_id {extra}").bindparams(*scope_binds)
     total = db.execute(count_sql, {k: v for k, v in params.items() if k not in ("limit", "offset")}).scalar() or 0
 
     items = []
@@ -280,6 +290,9 @@ def export_payments_csv(
     if status_filter:
         extra += " AND p.status = :status_filter"
         params["status_filter"] = status_filter
+    # Périmètre par cycle (B2d) : aucune ligne d'un élève hors périmètre dans le fichier.
+    scope_sql, scope_binds = student_scope_and(db, tenant_id, current_user, "p.student_id", tag="fexp")
+    extra += scope_sql
 
     rows = db.execute(text(f"""
         SELECT p.reference, p.payment_date, p.amount, p.currency, p.payment_method, p.status,
@@ -290,7 +303,7 @@ def export_payments_csv(
         WHERE p.tenant_id = :tenant_id {extra}
         ORDER BY p.payment_date DESC
         LIMIT 5000
-    """), params).fetchall()
+    """).bindparams(*scope_binds), params).fetchall()
 
     buffer = io.StringIO()
     writer = csv.writer(buffer)
@@ -367,6 +380,8 @@ def get_payment_receipt(
     Retourne du HTML encodé en base64, même format que les bulletins, pour
     que le frontend imprime en PDF via la même mécanique déjà en place."""
     tenant_id = _get_tenant_id(request, current_user, db)
+    # Périmètre par cycle (B2d) : 404 identique (inexistant / autre établissement / hors périmètre).
+    require_payment_in_scope(db, tenant_id, current_user, payment_id)
 
     row = db.execute(text("""
         SELECT p.student_id, p.reference, p.amount, p.currency, p.payment_date, p.payment_method, p.status, p.notes,
@@ -428,6 +443,12 @@ def register_payment(
     tenant_id = _get_tenant_id(request, current_user, db)
     user_id = current_user.get("id")
 
+    # Périmètre par cycle (B2d) : la facture (donc son élève) doit être dans le périmètre,
+    # vérifié AVANT l'encaissement ; la même condition est reprise dans l'UPDATE atomique ci-dessous
+    # pour qu'aucun changement d'élève concurrent ne l'affaiblisse.
+    require_invoice_in_scope(db, tenant_id, current_user, body.invoice_id)
+    scope_sql, scope_binds = student_scope_and(db, tenant_id, current_user, "invoices.student_id", tag="freg")
+
     # Idempotence (P0 intégrité financière, audit 2026-11-02) : un client qui
     # renvoie la même requête — réponse perdue sur réseau mobile, double clic,
     # rejeu automatique sur 502/504 — avec le même X-Idempotency-Key reçoit le
@@ -451,9 +472,9 @@ def register_payment(
                updated_at = NOW()
          WHERE id = :invoice_id AND tenant_id = :tenant_id
            AND status NOT IN ('PAID', 'CANCELLED')
-           AND COALESCE(paid_amount, 0) + :amount <= total_amount
+           AND COALESCE(paid_amount, 0) + :amount <= total_amount""" + scope_sql + """
      RETURNING student_id, paid_amount, total_amount
-    """), {"amount": body.amount, "invoice_id": body.invoice_id, "tenant_id": tenant_id}).mappings().first()
+    """).bindparams(*scope_binds), {"amount": body.amount, "invoice_id": body.invoice_id, "tenant_id": tenant_id}).mappings().first()
 
     if not updated:
         inv = db.execute(text("""
@@ -466,6 +487,8 @@ def register_payment(
         replay = _idempotent_replay(db, tenant_id, user_id, idem_key, request_body)
         if replay is not None:
             return replay
+        # Facture sortie du périmètre entre le contrôle et l'encaissement : 404, pas un message de solde.
+        require_invoice_in_scope(db, tenant_id, current_user, body.invoice_id)
         if not inv:
             raise HTTPException(status_code=404, detail="Facture introuvable")
         if inv["status"] == "PAID":
@@ -577,6 +600,9 @@ def reverse_payment(
     Replaces the Supabase RPC `reverse_payment`.
     """
     tenant_id = _get_tenant_id(request, current_user, db)
+    # Périmètre par cycle (B2d) : le paiement ET sa facture (qu'on décrémente) doivent être dans le
+    # périmètre ; 404 identique à un paiement inexistant, avant toute écriture.
+    require_payment_in_scope(db, tenant_id, current_user, payment_id, with_invoice=True)
 
     # Bascule ATOMIQUE vers REVERSED : deux annulations simultanées du même
     # paiement passaient toutes deux le contrôle de statut (lu puis écrit en
@@ -681,6 +707,9 @@ def list_invoices(
         filters += " AND i.status = :inv_status"
         params["inv_status"] = inv_status
     filters += _period_filter("i.issue_date", date_from, date_to, params)
+    # Périmètre par cycle (B2d) : filtré avant LIMIT et avant le comptage.
+    scope_sql, scope_binds = student_scope_and(db, tenant_id, current_user, "i.student_id", tag="finv")
+    filters += scope_sql
 
     sql = text(f"""
         SELECT i.id, i.invoice_number, i.total_amount, i.paid_amount, i.status,
@@ -692,10 +721,10 @@ def list_invoices(
         WHERE i.tenant_id = :tenant_id {filters}
         ORDER BY i.created_at DESC
         LIMIT :limit OFFSET :offset
-    """)
+    """).bindparams(*scope_binds)
     rows = db.execute(sql, params).fetchall()
 
-    count_sql = text(f"SELECT COUNT(*) FROM invoices i WHERE i.tenant_id = :tenant_id {filters}")
+    count_sql = text(f"SELECT COUNT(*) FROM invoices i WHERE i.tenant_id = :tenant_id {filters}").bindparams(*scope_binds)
     total = db.execute(count_sql, {k: v for k, v in params.items() if k not in ("limit", "offset")}).scalar() or 0
 
     items = []
@@ -742,6 +771,8 @@ def create_invoice_atomic(
     """
     import json
     tenant_id = _get_tenant_id(request, current_user, db)
+    # Périmètre par cycle (B2d) : l'élève facturé doit être dans le périmètre, avant l'insertion.
+    require_student_in_scope(db, tenant_id, current_user, body.student_id)
     year = datetime.now().year
     invoice_number = body.invoice_number or f"INV-{year}-{secrets.token_hex(4).upper()}"
 
@@ -794,6 +825,10 @@ def update_invoice_endpoint(
     """Update an invoice."""
     import json
     tenant_id = _get_tenant_id(request, current_user, db)
+    # Périmètre par cycle (B2d) : élève actuel de la facture ET élève de destination dans le
+    # périmètre, avant toute écriture (une facture ne peut pas être « sortie » du périmètre).
+    require_invoice_in_scope(db, tenant_id, current_user, invoice_id)
+    require_student_in_scope(db, tenant_id, current_user, body.student_id)
 
     # BUSINESS-RULE FIX (institutional-readiness audit, 2026-09): editing
     # total_amount (e.g. applying a discount, or correcting an amount)
@@ -893,9 +928,16 @@ def delete_invoice_endpoint(
     # FOR UPDATE conflicts with the KEY SHARE taken by FK inserts. A payment
     # committed while this query waits is visible to the following check at
     # READ COMMITTED; no insert can slip between that check and deletion.
-    invoice_row = db.execute(select(InvoiceModel.id).where(
+    # Périmètre par cycle (B2d) : la condition est dans la MÊME requête verrouillante (élève
+    # de la facture dans le périmètre), sans fenêtre entre contrôle et verrou ; hors périmètre = 404.
+    invoice_query = select(InvoiceModel.id).where(
         InvoiceModel.id == invoice_id, InvoiceModel.tenant_id == tenant_id,
-    ).with_for_update()).first()
+    )
+    if is_cycle_restricted(current_user):
+        invoice_query = invoice_query.where(student_scope_clause(
+            InvoiceModel.student_id, scoped_class_ids(db, tenant_id, current_user), tenant_id=tenant_id,
+        ))
+    invoice_row = db.execute(invoice_query.with_for_update()).first()
     if not invoice_row:
         raise HTTPException(status_code=404, detail="Facture introuvable")
 
@@ -994,6 +1036,12 @@ async def send_payment_reminders(
 
     tenant_id = _get_tenant_id(request, current_user, db)
 
+    # Périmètre par cycle (B2d). Liste explicite : TOUTES les factures doivent être dans le périmètre
+    # (une seule hors périmètre ou inexistante = 404, rien n'est envoyé, aucune tâche ni notification).
+    # Sans liste (« tous les impayés ») : seuls les élèves du périmètre sont relancés.
+    require_invoices_in_scope(db, tenant_id, current_user, body.invoice_ids or [])
+    scope_sql, scope_binds = student_scope_and(db, tenant_id, current_user, "s.id", tag="frem")
+
     # Fetch invoices with parent contact details (phone + email)
     base_query = """
         SELECT
@@ -1009,13 +1057,13 @@ async def send_payment_reminders(
         LEFT JOIN parent_students ps ON ps.student_id = s.id
         LEFT JOIN users u ON u.id = ps.parent_id AND u.tenant_id = :tenant_id
         WHERE i.tenant_id = :tenant_id AND i.status IN ('PENDING', 'OVERDUE')
-    """
+    """ + scope_sql
 
     if body.invoice_ids:
-        overdue = db.execute(text(base_query + " AND i.id = ANY(:ids) LIMIT 200"),
+        overdue = db.execute(text(base_query + " AND i.id = ANY(:ids) LIMIT 200").bindparams(*scope_binds),
                              {"tenant_id": tenant_id, "ids": body.invoice_ids}).fetchall()
     else:
-        overdue = db.execute(text(base_query + " AND i.due_date < CURRENT_DATE LIMIT 100"),
+        overdue = db.execute(text(base_query + " AND i.due_date < CURRENT_DATE LIMIT 100").bindparams(*scope_binds),
                              {"tenant_id": tenant_id}).fetchall()
 
     # Build notification service from tenant settings
@@ -1300,6 +1348,8 @@ def send_invoice_email(
 
     if not invoice_id:
         raise HTTPException(status_code=400, detail="invoiceId is required")
+    # Périmètre par cycle (B2d) : 404 identique à une facture inexistante, avant toute trace d'audit.
+    require_invoice_in_scope(db, tenant_id, current_user, invoice_id, detail="Invoice not found")
 
     # Fetch invoice so we can confirm it exists and get the parent email fallback
     invoice = db.execute(text("""
@@ -1355,6 +1405,8 @@ def create_payment_intent(
     tenant_id = _get_tenant_id(request, current_user, db)
     if not invoice_id:
         raise HTTPException(status_code=400, detail="Une facture est requise")
+    # Périmètre par cycle (B2d) : avant tout appel à la passerelle ou écriture d'un paiement PENDING.
+    require_invoice_in_scope(db, tenant_id, current_user, invoice_id)
 
     method_upper = method.upper()
     if method_upper not in {"MOBILE_MONEY", "CINETPAY", "PAYTECH"}:

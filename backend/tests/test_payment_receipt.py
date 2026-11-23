@@ -95,7 +95,7 @@ class TestPaymentReceipt:
     @_needs_postgres
     def test_receipt_returns_numbered_html_receipt(self):
         ctx = _build_payment()
-        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"]})
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"], "_cycle_ids": None})
 
         resp = client.get(f"/api/v1/payments/{ctx['payment_id']}/receipt/", headers=headers)
         assert resp.status_code == 200, resp.text
@@ -113,7 +113,7 @@ class TestPaymentReceipt:
     @_needs_postgres
     def test_reversed_payment_receipt_shows_cancellation(self):
         ctx = _build_payment(status=PaymentStatus.REVERSED)
-        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"]})
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"], "_cycle_ids": None})
 
         resp = client.get(f"/api/v1/payments/{ctx['payment_id']}/receipt/", headers=headers)
         assert resp.status_code == 200, resp.text
@@ -125,7 +125,7 @@ class TestPaymentReceipt:
     def test_receipt_requires_payments_read_permission(self):
         ctx = _build_payment()
         # STUDENT has no payments:read.
-        headers = _as({"id": str(uuid.uuid4()), "roles": ["STUDENT"], "tenant_id": ctx["tenant_id"]})
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["STUDENT"], "tenant_id": ctx["tenant_id"], "_cycle_ids": None})
 
         resp = client.get(f"/api/v1/payments/{ctx['payment_id']}/receipt/", headers=headers)
         assert resp.status_code == 403, resp.text
@@ -143,7 +143,7 @@ class TestPaymentReceipt:
             ))
             db.commit()
 
-        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": other_tenant_id})
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": other_tenant_id, "_cycle_ids": None})
         resp = client.get(f"/api/v1/payments/{ctx['payment_id']}/receipt/", headers=headers)
         assert resp.status_code == 404, resp.text
 
@@ -156,7 +156,7 @@ class TestPaymentReceipt:
             ))
             db.commit()
 
-        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id})
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": tenant_id, "_cycle_ids": None})
         resp = client.get(f"/api/v1/payments/{uuid.uuid4()}/receipt/", headers=headers)
         assert resp.status_code == 404, resp.text
 
@@ -170,7 +170,7 @@ class TestPaymentsExport:
     @_needs_postgres
     def test_export_returns_csv_with_expected_row(self):
         ctx = _build_payment()
-        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"]})
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"], "_cycle_ids": None})
 
         resp = client.get("/api/v1/payments/export/", headers=headers)
         assert resp.status_code == 200, resp.text
@@ -184,7 +184,7 @@ class TestPaymentsExport:
 
     def test_export_requires_payments_read_permission(self):
         ctx = _build_payment()
-        headers = _as({"id": str(uuid.uuid4()), "roles": ["STUDENT"], "tenant_id": ctx["tenant_id"]})
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["STUDENT"], "tenant_id": ctx["tenant_id"], "_cycle_ids": None})
 
         resp = client.get("/api/v1/payments/export/", headers=headers)
         assert resp.status_code == 403, resp.text
@@ -193,7 +193,7 @@ class TestPaymentsExport:
         ctx_a = _build_payment(tenant_name="École Export A")
         ctx_b = _build_payment(tenant_name="École Export B")
 
-        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx_a["tenant_id"]})
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx_a["tenant_id"], "_cycle_ids": None})
         resp = client.get("/api/v1/payments/export/", headers=headers)
         assert resp.status_code == 200, resp.text
 
@@ -203,7 +203,7 @@ class TestPaymentsExport:
 
     def test_export_filters_by_status(self):
         ctx = _build_payment(status=PaymentStatus.REVERSED)
-        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"]})
+        headers = _as({"id": str(uuid.uuid4()), "roles": ["TENANT_ADMIN"], "tenant_id": ctx["tenant_id"], "_cycle_ids": None})
 
         resp = client.get("/api/v1/payments/export/", params={"status": "COMPLETED"}, headers=headers)
         assert resp.status_code == 200, resp.text

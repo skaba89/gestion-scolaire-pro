@@ -220,7 +220,7 @@ class TestPaymentIntentValidation:
                 method="MOBILE_MONEY",
                 invoice_id=None,
                 db=MagicMock(),
-                current_user={"id": str(uuid.uuid4()), "tenant_id": str(uuid.uuid4())},
+                current_user={"id": str(uuid.uuid4()), "tenant_id": str(uuid.uuid4()), "_cycle_ids": None},
             )
         assert exc_info.value.status_code == 400
 
@@ -233,7 +233,7 @@ class TestPaymentIntentValidation:
                 method="CASH",
                 invoice_id=uuid.uuid4(),
                 db=MagicMock(),
-                current_user={"id": str(uuid.uuid4()), "tenant_id": str(uuid.uuid4())},
+                current_user={"id": str(uuid.uuid4()), "tenant_id": str(uuid.uuid4()), "_cycle_ids": None},
             )
         assert exc_info.value.status_code == 400
 
@@ -249,7 +249,7 @@ class TestPaymentIntentValidation:
                 method="MOBILE_MONEY",
                 invoice_id=uuid.uuid4(),
                 db=db,
-                current_user={"id": str(uuid.uuid4()), "tenant_id": str(uuid.uuid4())},
+                current_user={"id": str(uuid.uuid4()), "tenant_id": str(uuid.uuid4()), "_cycle_ids": None},
             )
         assert exc_info.value.status_code == 404
         db.execute.assert_called_once()
@@ -276,7 +276,7 @@ class TestPaymentIntentValidation:
                 method="MOBILE_MONEY",
                 invoice_id=uuid.uuid4(),
                 db=db,
-                current_user={"id": str(uuid.uuid4()), "tenant_id": str(uuid.uuid4())},
+                current_user={"id": str(uuid.uuid4()), "tenant_id": str(uuid.uuid4()), "_cycle_ids": None},
             )
         assert exc_info.value.status_code == 400
         assert exc_info.value.detail == expected_detail

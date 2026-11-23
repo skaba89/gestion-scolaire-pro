@@ -67,6 +67,9 @@ SCOPE_HELPERS = (
     "_require_attendance_record_in_scope", "_require_check_in_session_in_scope",
     "_require_report_card_in_scope", "_require_slot_without_out_of_scope_appointment",
     "_require_incident_in_scope", "_early_warning_scope", "_require_own_slot_in_scope",
+    # Lot B2d : finances.
+    "student_scope_and", "require_invoice_in_scope", "require_invoices_in_scope",
+    "require_payment_in_scope", "require_schedule_in_scope",
 )
 
 
@@ -75,6 +78,9 @@ SCOPE_HELPERS = (
 DELEGATING_ALIASES = {
     # GRADE-HISTORY-LEAK-01 (#568) : l'alias délègue à list_grade_history.
     ("GET", "/api/v1/grade-history/"): ("GET", "/api/v1/grades/history/"),
+    # B2d : l'alias de suppression délègue au verrou et au périmètre de la route canonique ; les
+    # autres méthodes de /invoices/ portent leurs propres contrôles (pas de délégation).
+    ("DELETE", "/api/v1/invoices/{invoice_id}/"): ("DELETE", "/api/v1/payments/invoices/{invoice_id}/"),
 }
 
 
