@@ -1844,7 +1844,11 @@ def create_check_in(
     request: Request,
     db: Session = Depends(get_db),
     obj_in: StudentCheckInCreate,
-    current_user: dict = Depends(get_current_user),
+    # CHECKINS-SELF-01 (décision du 2026-11-23) : un pointage est enregistré par le personnel
+    # (badges, scan QR, séance de l'enseignant) ou par une borne (/kiosk/scan/, jeton d'appareil).
+    # Élève et parent n'ont pas school_life:write : ils ne peuvent plus se déclarer présents à
+    # distance (le pointage apparaît dans la présence en direct du professeur et du secrétariat).
+    current_user: dict = Depends(require_permission("school_life:write")),
 ):
     try:
         tenant_id = resolve_current_tenant_id(request, current_user, db)
