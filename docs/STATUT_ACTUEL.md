@@ -1479,3 +1479,15 @@ La règle métier de l’auto-pointage reste à valider.
   Défauts relevés, non corrigés : ANALYTICS-MOCK-01 (prévision de trésorerie fictive,
   heures d'enseignants à 0), RISK-SCORES-01 (table de scores jamais alimentée),
   ACADEMIC-STATS-01 (notes comptées dans les anciennes classes) — voir le registre.
+
+- **2026-11-23 — indicateurs indisponibles affichés comme tels (ANALYTICS-ZERO-01,
+  lot B2e-2). Non déployé.** Les routes `/analytics/` renvoyaient des zéros sur toute
+  erreur et le tableau de bord remplaçait lui aussi chaque échec par des zéros : une panne
+  s'affichait « 0 élève, 0 GNF ». Elles répondent désormais 503 « indicateur indisponible »
+  (erreur journalisée, aucun détail technique) et les écrans affichent un état
+  « indisponible » avec « Réessayer ». L'export ministériel n'écrit plus le texte des
+  erreurs SQL dans le fichier remis à l'administration. Le tableau décisionnel n'affiche
+  plus de valeurs inventées (score d'efficacité 8,4 par défaut, répartition des risques
+  fabriquée) : DECISION-FAKE-01. Reste ouvert : EXPORT-NOOP-01 (boutons d'export sans
+  effet). Tests : 14 rouges backend et 3 rouges frontend avant correctif.
+

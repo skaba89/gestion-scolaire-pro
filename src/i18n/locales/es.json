@@ -234,7 +234,12 @@
     "setupAcademicYearTitle": "Configure su año académico",
     "setupAcademicYearDesc": "No hay ningún año académico definido como actual. Cree un año académico para comenzar a gestionar las inscripciones.",
     "setupAcademicYearBtn": "Configurar año académico",
-    "welcome": "Bienvenido"
+    "welcome": "Bienvenido",
+    "analyticsUnavailable": {
+      "title": "Indicador no disponible",
+      "description": "No se pudieron calcular estas cifras. No se muestran en cero para no inducirle a error.",
+      "retry": "Reintentar"
+    }
   },
   "portal": {
     "welcome": "Bienvenido",

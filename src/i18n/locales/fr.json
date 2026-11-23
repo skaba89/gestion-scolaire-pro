@@ -250,7 +250,12 @@
         "setupAcademicYearTitle": "Configurez votre année scolaire",
         "setupAcademicYearDesc": "Aucune année scolaire n'est définie comme courante. Créez une année scolaire pour commencer à gérer les inscriptions.",
         "setupAcademicYearBtn": "Configurer l'année scolaire",
-        "welcome": "Bienvenue"
+        "welcome": "Bienvenue",
+        "analyticsUnavailable": {
+            "title": "Indicateur indisponible",
+            "description": "Ces chiffres n'ont pas pu être calculés. Ils ne sont pas affichés à zéro pour ne pas vous induire en erreur.",
+            "retry": "Réessayer"
+        }
     },
     "students": {
         "tabList": "Liste des {{label}}",

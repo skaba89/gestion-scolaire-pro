@@ -234,7 +234,12 @@
     "setupAcademicYearTitle": "设置学年",
     "setupAcademicYearDesc": "尚未设置当前学年。请创建学年以开始管理注册。",
     "setupAcademicYearBtn": "设置学年",
-    "welcome": "欢迎"
+    "welcome": "欢迎",
+    "analyticsUnavailable": {
+      "title": "指标不可用",
+      "description": "无法计算这些数据。为避免误导，不会将其显示为零。",
+      "retry": "重试"
+    }
   },
   "portal": {
     "welcome": "欢迎",
