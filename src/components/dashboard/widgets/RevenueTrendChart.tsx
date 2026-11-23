@@ -3,6 +3,7 @@ import { analyticsQueries } from "@/queries/analytics";
 import { useTenant } from "@/contexts/TenantContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AnalyticsUnavailable } from "@/components/analytics/AnalyticsUnavailable";
 import {
     LineChart,
     Line,
@@ -19,7 +20,7 @@ import { useCurrency } from "@/hooks/useCurrency";
 export const RevenueTrendChart = () => {
     const { tenant } = useTenant();
     const { formatCurrency } = useCurrency();
-    const { data: trendData, isLoading } = useQuery(
+    const { data: trendData, isLoading, isError, refetch } = useQuery(
         analyticsQueries.revenueTrend(tenant?.id || "")
     );
 
@@ -31,6 +32,17 @@ export const RevenueTrendChart = () => {
                 </CardHeader>
                 <CardContent>
                     <Skeleton className="h-[250px] w-full" />
+                </CardContent>
+            </Card>
+        );
+    }
+
+    // ANALYTICS-ZERO-01 : indicateur indisponible (503) affiché comme tel, jamais comme un graphique vide.
+    if (isError) {
+        return (
+            <Card className="border-none shadow-sm h-full">
+                <CardContent className="p-4">
+                    <AnalyticsUnavailable onRetry={() => refetch()} />
                 </CardContent>
             </Card>
         );

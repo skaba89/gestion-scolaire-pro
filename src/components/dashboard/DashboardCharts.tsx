@@ -22,6 +22,7 @@ import { useStudentLabel } from "@/hooks/useStudentLabel";
 
 import { dashboardQueries } from "@/queries/dashboard";
 import { useTranslation } from "react-i18next";
+import { AnalyticsUnavailable } from "@/components/analytics/AnalyticsUnavailable";
 
 export const COLORS = ['hsl(217, 91%, 40%)', 'hsl(199, 89%, 48%)', 'hsl(142, 76%, 36%)', 'hsl(38, 92%, 50%)', 'hsl(16, 85%, 57%)', 'hsl(168, 76%, 42%)'];
 
@@ -31,7 +32,7 @@ export const DashboardCharts = () => {
   const { StudentsLabel, studentsLabel } = useStudentLabel();
 
   // Unified fetch for all dashboard charts
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     ...dashboardQueries.chartData(tenant?.id || ""),
     enabled: !!tenant?.id,
   });
@@ -46,6 +47,11 @@ export const DashboardCharts = () => {
 
 
   const presentRate = attendanceStats?.find(a => a.key === "present")?.percentage || 0;
+
+  // ANALYTICS-ZERO-01 : pas de graphiques à zéro quand les indicateurs sont indisponibles.
+  if (isError) {
+    return <AnalyticsUnavailable onRetry={() => refetch()} />;
+  }
 
   return (
     <div className="space-y-6">

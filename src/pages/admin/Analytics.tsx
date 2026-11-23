@@ -18,6 +18,7 @@ import { AnalyticsGradesTab } from "@/components/admin/analytics/AnalyticsGrades
 import { AnalyticsFinancesTab } from "@/components/admin/analytics/AnalyticsFinancesTab";
 import { AnalyticsAITab } from "@/components/admin/analytics/AnalyticsAITab";
 import { dateFnsLocale } from "@/lib/locale";
+import { AnalyticsUnavailable } from "@/components/analytics/AnalyticsUnavailable";
 
 export default function Analytics() {
   const { t } = useTranslation();
@@ -28,13 +29,13 @@ export default function Analytics() {
   const [selectedPeriod, setSelectedPeriod] = useState<string>("month");
 
   // Centralized KPIs query
-  const { data: stats, isLoading: isKpisLoading } = useQuery({
+  const { data: stats, isLoading: isKpisLoading, isError: kpiError, refetch: kpiRefetch } = useQuery({
     ...adminQueries.analyticsKPIs(tenant?.id || ""),
     enabled: !!tenant?.id,
   });
 
   // Attendance trend
-  const { data: attendanceTrend } = useQuery({
+  const { data: attendanceTrend, isError: atError, refetch: atRefetch } = useQuery({
     queryKey: ["analytics-attendance-trend", tenant?.id, selectedPeriod],
     queryFn: async () => {
       if (!tenant?.id) return [];
@@ -52,7 +53,7 @@ export default function Analytics() {
   });
 
   // Grades distribution
-  const { data: gradesDistribution } = useQuery({
+  const { data: gradesDistribution, isError: gdError, refetch: gdRefetch } = useQuery({
     queryKey: ["analytics-grades-distribution", tenant?.id],
     queryFn: async () => {
       if (!tenant?.id) return [];
@@ -73,7 +74,7 @@ export default function Analytics() {
   });
 
   // Monthly revenue
-  const { data: revenueData } = useQuery({
+  const { data: revenueData, isError: rvError, refetch: rvRefetch } = useQuery({
     queryKey: ["analytics-revenue", tenant?.id],
     queryFn: async () => {
       if (!tenant?.id) return [];
@@ -93,7 +94,7 @@ export default function Analytics() {
   });
 
   // Subjects performance
-  const { data: subjectPerformance } = useQuery({
+  const { data: subjectPerformance, isError: spError, refetch: spRefetch } = useQuery({
     queryKey: ["analytics-subjects", tenant?.id],
     queryFn: async () => {
       if (!tenant?.id) return [];
@@ -112,6 +113,15 @@ export default function Analytics() {
     enabled: !!tenant?.id,
   });
 
+  // ANALYTICS-ZERO-01 : indicateurs indisponibles signalés, jamais affichés à zéro.
+  const unavailable = kpiError || atError || gdError || rvError || spError;
+  const retryUnavailable = () => {
+    for (const [failed, retry] of [[kpiError, kpiRefetch], [atError, atRefetch], [gdError, gdRefetch],
+      [rvError, rvRefetch], [spError, spRefetch]] as const) {
+      if (failed) void retry();
+    }
+  };
+
   return (
     <div className="space-y-6">
       <AnalyticsHeader
@@ -121,6 +131,8 @@ export default function Analytics() {
         onPeriodChange={setSelectedPeriod}
         onExport={() => { }}
       />
+
+      {unavailable && <AnalyticsUnavailable onRetry={retryUnavailable} />}
 
       <AnalyticsKPIs
         totalStudents={stats?.totalStudents || 0}

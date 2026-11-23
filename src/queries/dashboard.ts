@@ -11,9 +11,11 @@ export const dashboardQueries = {
                 currentAcademicYear: null
             };
 
+            // ANALYTICS-ZERO-01 : un indicateur indisponible (503) n'est plus remplacé par des zéros,
+            // indiscernables d'un établissement vide : l'erreur remonte et l'écran l'affiche.
             const [academic, financial, admissions] = await Promise.all([
-                apiClient.get("/analytics/academic-kpis/").catch((err) => { console.error('[Dashboard] Failed to load academic KPIs:', err); return { data: {} }; }),
-                apiClient.get("/analytics/financial-kpis/").catch((err) => { console.error('[Dashboard] Failed to load financial KPIs:', err); return { data: {} }; }),
+                apiClient.get("/analytics/academic-kpis/"),
+                apiClient.get("/analytics/financial-kpis/"),
                 apiClient.get("/admissions/stats/").catch((err) => { console.error('[Dashboard] Failed to load admissions stats:', err); return { data: { SUBMITTED: 0, UNDER_REVIEW: 0 } }; }),
             ]);
 
@@ -35,9 +37,10 @@ export const dashboardQueries = {
                 classAverages: []
             };
 
+            // ANALYTICS-ZERO-01 : pas de repli silencieux sur des graphiques vides.
             const [academicStats, operational] = await Promise.all([
-                apiClient.get("/analytics/academic-stats/").catch((err) => { console.error('[Dashboard] Failed to load:', err); return { data: { byClass: [] } }; }),
-                apiClient.get("/analytics/operational-kpis/").catch((err) => { console.error('[Dashboard] Failed to load:', err); return { data: {} }; })
+                apiClient.get("/analytics/academic-stats/"),
+                apiClient.get("/analytics/operational-kpis/"),
             ]);
 
             const attendanceRate = operational.data.studentAttendanceRate || 0;

@@ -16,6 +16,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { financialKPIs, academicKPIs, operationalKPIs } from "@/queries/dashboardKPIs";
+import { analyticsQueries } from "@/queries/analytics";
+import { AnalyticsUnavailable } from "@/components/analytics/AnalyticsUnavailable";
 import { useTranslation } from "react-i18next";
 import { useTerminology } from "@/hooks/useTerminology";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
@@ -30,40 +32,57 @@ export default function DecisionDashboard() {
     const [selectedTab, setSelectedTab] = useState("strategic");
 
     // Fetch Financial Trends
-    const { data: revenueTrend } = useQuery({
+    const { data: revenueTrend, isError: rtError, refetch: rtRefetch } = useQuery({
         queryKey: ["decision-revenue-trend", tenant?.id],
         queryFn: () => financialKPIs.revenueTrend(tenant!.id, 12),
         enabled: !!tenant?.id,
     });
 
     // Fetch Academic Risks
-    const { data: successByClass } = useQuery({
+    const { data: successByClass, isError: scError, refetch: scRefetch } = useQuery({
         queryKey: ["decision-success-class", tenant?.id],
         queryFn: () => academicKPIs.successRateByClass(tenant!.id, "current"),
         enabled: !!tenant?.id,
     });
 
-    const { data: academicOverall } = useQuery({
+    const { data: academicOverall, isError: aoError, refetch: aoRefetch } = useQuery({
         queryKey: ["decision-academic-overall", tenant?.id],
         queryFn: () => academicKPIs.overallSuccessRate(tenant!.id, "current"),
         enabled: !!tenant?.id,
     });
 
-    const { data: financialData } = useQuery({
+    const { data: financialData, isError: fdError, refetch: fdRefetch } = useQuery({
         queryKey: ["decision-financial-data", tenant?.id],
         queryFn: () => financialKPIs.revenue(tenant!.id),
         enabled: !!tenant?.id,
     });
 
-    const { data: operationalData } = useQuery({
+    const { data: operationalData, isError: odError, refetch: odRefetch } = useQuery({
         queryKey: ["decision-operational-data", tenant?.id],
         queryFn: () => operationalKPIs.studentAttendanceRate(tenant!.id),
         enabled: !!tenant?.id,
     });
 
+    // Répartition réelle des élèves à risque (GET /analytics/students-at-risk/) : remplace une
+    // répartition inventée (5 élèves « critiques » par défaut, puis 20 / 40 / 30 % de l'effectif).
+    const { data: atRisk, isError: arError, refetch: arRefetch } = useQuery({
+        ...analyticsQueries.studentsAtRisk(tenant?.id || ""),
+    });
+
+    // ANALYTICS-ZERO-01 : un indicateur indisponible est signalé, jamais affiché à zéro.
+    const unavailable = rtError || scError || aoError || fdError || odError || arError;
+    const retryUnavailable = () => {
+        for (const [failed, retry] of [[rtError, rtRefetch], [scError, scRefetch], [aoError, aoRefetch],
+            [fdError, fdRefetch], [odError, odRefetch], [arError, arRefetch]] as const) {
+            if (failed) void retry();
+        }
+    };
+
     const { formatCurrency, formatCurrencyCompact } = useCurrency();
     const failingStudentsCount = academicOverall?.failingStudents || 0;
-    const efficiencyScore = academicOverall && operationalData ? ((academicOverall.overallSuccessRate * 0.5 + operationalData * 0.5) / 10).toFixed(1) : "8.4";
+    // Pas de valeur de repli inventée (« 8.4 » auparavant) : « — » tant que les données manquent.
+    const efficiencyScore = academicOverall && operationalData ? ((academicOverall.overallSuccessRate * 0.5 + operationalData * 0.5) / 10).toFixed(1) : "—";
+    const riskSummary = (atRisk as { summary?: Record<string, number> } | undefined)?.summary;
 
     return (
         <div className="space-y-6 pb-12">
@@ -85,6 +104,8 @@ export default function DecisionDashboard() {
                     </Button>
                 </div>
             </div>
+
+            {unavailable && <AnalyticsUnavailable onRetry={retryUnavailable} />}
 
             <Tabs defaultValue="strategic" onValueChange={setSelectedTab} className="space-y-6">
                 <TabsList className="flex w-full overflow-x-auto overflow-y-hidden h-auto p-1 bg-muted/50 whitespace-nowrap">
@@ -294,10 +315,9 @@ export default function DecisionDashboard() {
                                     <PieChart>
                                         <Pie
                                             data={[
-                                                { name: t('common.risk.critical', 'Critique (Renvoyés)'), value: academicOverall?.failingStudents || 5, color: '#ef4444' },
-                                                { name: t('common.risk.high', 'Élevé (Passables)'), value: Math.floor((academicOverall?.totalStudents || 20) * 0.2), color: '#f97316' },
-                                                { name: t('common.risk.moderate', 'Modéré (Moyens)'), value: Math.floor((academicOverall?.totalStudents || 20) * 0.4), color: '#eab308' },
-                                                { name: t('common.risk.low', 'Faible (Excellents)'), value: Math.floor((academicOverall?.totalStudents || 20) * 0.3), color: '#22c55e' },
+                                                { name: t('common.risk.critical', 'Critique (Renvoyés)'), value: riskSummary?.critical ?? 0, color: '#ef4444' },
+                                                { name: t('common.risk.high', 'Élevé (Passables)'), value: riskSummary?.high ?? 0, color: '#f97316' },
+                                                { name: t('common.risk.moderate', 'Modéré (Moyens)'), value: riskSummary?.moderate ?? 0, color: '#eab308' },
                                             ]}
                                             cx="50%"
                                             cy="50%"
@@ -306,7 +326,7 @@ export default function DecisionDashboard() {
                                             paddingAngle={5}
                                             dataKey="value"
                                         >
-                                            {['#ef4444', '#f97316', '#eab308', '#22c55e'].map((color, index) => (
+                                            {['#ef4444', '#f97316', '#eab308'].map((color, index) => (
                                                 <Cell key={`cell-${index}`} fill={color} />
                                             ))}
                                         </Pie>

@@ -25,6 +25,7 @@ import { SecurityAlerts } from "@/components/admin/security/SecurityAlerts";
 import { StudentsAtRiskWidget } from "@/components/dashboard/widgets/StudentsAtRiskWidget";
 
 import { AnalyticsReportButton } from "@/components/dashboard/AnalyticsReportButton";
+import { AnalyticsUnavailable } from "@/components/analytics/AnalyticsUnavailable";
 
 const Dashboard = () => {
   const { t } = useTranslation();
@@ -34,7 +35,7 @@ const Dashboard = () => {
   const { getTenantUrl } = useTenantUrl();
 
   // Use React Query for dashboard stats with automatic caching
-  const { data: stats, isLoading } = useQuery({
+  const { data: stats, isLoading, isError: statsUnavailable, refetch: refetchStats } = useQuery({
     ...dashboardQueries.stats(tenant?.id || ''),
     enabled: !!tenant,
   });
@@ -118,6 +119,9 @@ const Dashboard = () => {
 
 
       {/* Stats Grid */}
+      {statsUnavailable ? (
+        <AnalyticsUnavailable onRetry={() => refetchStats()} />
+      ) : (
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {statsCards.map((stat, index) => (
           <motion.div
@@ -145,6 +149,7 @@ const Dashboard = () => {
           </motion.div>
         ))}
       </div>
+      )}
 
       {/* Charts & Analytics Section */}
       <div className="grid lg:grid-cols-4 gap-8">

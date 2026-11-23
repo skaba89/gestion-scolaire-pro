@@ -250,7 +250,12 @@
     "setupAcademicYearTitle": "Set up your academic year",
     "setupAcademicYearDesc": "No academic year is set as current. Create an academic year to start managing enrollments.",
     "setupAcademicYearBtn": "Set up academic year",
-    "welcome": "Welcome"
+    "welcome": "Welcome",
+    "analyticsUnavailable": {
+      "title": "Indicator unavailable",
+      "description": "These figures could not be calculated. They are not shown as zero so as not to mislead you.",
+      "retry": "Retry"
+    }
   },
   "students": {
     "tabList": "List of {{label}}",

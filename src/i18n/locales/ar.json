@@ -234,7 +234,12 @@
     "setupAcademicYearTitle": "إعداد السنة الدراسية",
     "setupAcademicYearDesc": "لا توجد سنة دراسية محددة كسنة حالية. أنشئ سنة دراسية لبدء إدارة التسجيلات.",
     "setupAcademicYearBtn": "إعداد السنة الدراسية",
-    "welcome": "مرحبًا"
+    "welcome": "مرحبًا",
+    "analyticsUnavailable": {
+      "title": "المؤشر غير متاح",
+      "description": "تعذّر حساب هذه الأرقام. لا تُعرض كأصفار حتى لا تكون مضلِّلة.",
+      "retry": "إعادة المحاولة"
+    }
   },
   "portal": {
     "welcome": "مرحباً",

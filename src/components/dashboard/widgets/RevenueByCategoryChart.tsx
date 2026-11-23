@@ -3,6 +3,7 @@ import { analyticsQueries } from "@/queries/analytics";
 import { useTenant } from "@/contexts/TenantContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AnalyticsUnavailable } from "@/components/analytics/AnalyticsUnavailable";
 import {
     PieChart,
     Pie,
@@ -26,7 +27,7 @@ const COLORS = [
 export const RevenueByCategoryChart = () => {
     const { tenant } = useTenant();
     const { formatCurrency, formatCurrencyCompact } = useCurrency();
-    const { data: categoryData, isLoading } = useQuery(
+    const { data: categoryData, isLoading, isError, refetch } = useQuery(
         analyticsQueries.revenueByCategory(tenant?.id || "")
     );
 
@@ -38,6 +39,17 @@ export const RevenueByCategoryChart = () => {
                 </CardHeader>
                 <CardContent>
                     <Skeleton className="h-[250px] w-full" />
+                </CardContent>
+            </Card>
+        );
+    }
+
+    // ANALYTICS-ZERO-01 : indicateur indisponible (503) affiché comme tel, jamais comme un graphique vide.
+    if (isError) {
+        return (
+            <Card className="border-none shadow-sm h-full">
+                <CardContent className="p-4">
+                    <AnalyticsUnavailable onRetry={() => refetch()} />
                 </CardContent>
             </Card>
         );

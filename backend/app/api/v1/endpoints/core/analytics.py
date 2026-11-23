@@ -48,6 +48,17 @@ def _teacher_count_sql(db: Session, tenant_id: str, user: dict, *, tag: str):
     """).bindparams(*cls_binds)
 
 
+def _indicator_unavailable(name: str, exc: Exception) -> HTTPException:
+    """ANALYTICS-ZERO-01 : un indicateur qui n'a pas pu être calculé répond 503 « indisponible ».
+
+    Auparavant chaque route renvoyait des zéros (ou des listes vides) sur toute erreur, ce qui
+    était indiscernable d'un établissement réellement vide ; l'export ministériel écrivait même le
+    texte de l'erreur (SQL compris) dans le fichier. L'erreur est journalisée côté serveur, le
+    client reçoit un message générique sans détail technique."""
+    logger.error("Indicateur %s indisponible (%s)", name, type(exc).__name__, exc_info=exc)
+    return HTTPException(status_code=503, detail="Indicateur indisponible : réessayez plus tard.")
+
+
 # ─── Financial KPIs ──────────────────────────────────────────────────────────
 
 @router.get("/financial-kpis/")
@@ -143,15 +154,10 @@ def get_financial_kpis(
             "collectionRate": round(collection_rate, 2),
             "outstandingByClass": outstanding_by_class,
         }
-    except Exception as e:
-        logger.error("Error in get_financial_kpis: %s", e, exc_info=True)
-        return {
-            "totalRevenue": 0,
-            "paidRevenue": 0,
-            "pendingRevenue": 0,
-            "collectionRate": 0,
-            "outstandingByClass": []
-        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _indicator_unavailable("get_financial_kpis", exc) from exc
 
 
 @router.get("/revenue-trend/")
@@ -191,9 +197,10 @@ def get_revenue_trend(
             }
             for r in rows
         ]
-    except Exception as e:
-        logger.error("Error in get_revenue_trend: %s", e, exc_info=True)
-        return []
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _indicator_unavailable("get_revenue_trend", exc) from exc
 
 
 # ─── Academic KPIs ───────────────────────────────────────────────────────────
@@ -251,15 +258,10 @@ def get_academic_kpis(
             "failingStudents": failing,
             "averageGrade": avg_grade,
         }
-    except Exception as e:
-        logger.error("Error in get_academic_kpis: %s", e, exc_info=True)
-        return {
-            "overallSuccessRate": 0,
-            "totalStudents": 0,
-            "passingStudents": 0,
-            "failingStudents": 0,
-            "averageGrade": 0.0,
-        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _indicator_unavailable("get_academic_kpis", exc) from exc
 
 
 @router.get("/academic-stats/")
@@ -342,9 +344,10 @@ def get_academic_stats(
                 for r in class_rows
             ],
         }
-    except Exception as e:
-        logger.error("Error in get_academic_stats: %s", e, exc_info=True)
-        return {"bySubject": [], "byClass": []}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _indicator_unavailable("get_academic_stats", exc) from exc
 
 
 @router.get("/students-at-risk/")
@@ -408,9 +411,10 @@ def get_students_at_risk(
             counts[d["risk_level"]] = counts.get(d["risk_level"], 0) + 1
 
         return {"students": data, "summary": {"total": len(data), **counts}}
-    except Exception as e:
-        logger.error("Error in get_students_at_risk: %s", e, exc_info=True)
-        return {"students": [], "summary": {"total": 0, "critical": 0, "high": 0, "moderate": 0, "low": 0}}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _indicator_unavailable("get_students_at_risk", exc) from exc
 
 
 # ─── Operational KPIs ────────────────────────────────────────────────────────
@@ -490,16 +494,10 @@ def get_operational_kpis(
             "dropoutCount": dropout_count,
             "totalTeacherHours": total_teacher_hours,
         }
-    except Exception as e:
-        logger.error("Error in get_operational_kpis: %s", e, exc_info=True)
-        return {
-            "studentAttendanceRate": 0,
-            "teacherAttendanceRate": 0,
-            "totalEnrollments": 0,
-            "dropoutRate": 0,
-            "dropoutCount": 0,
-            "totalTeacherHours": 0,
-        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _indicator_unavailable("get_operational_kpis", exc) from exc
 
 
 @router.get("/debt-aging/")
@@ -534,9 +532,10 @@ def get_debt_aging(
             {"bucket": r.bucket, "count": int(r.count), "amount": float(r.amount or 0)}
             for r in rows
         ]
-    except Exception as e:
-        logger.error("Error in get_debt_aging: %s", e, exc_info=True)
-        return []
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _indicator_unavailable("get_debt_aging", exc) from exc
 
 
 @router.get("/revenue-by-category/")
@@ -563,9 +562,10 @@ def get_revenue_by_category(
             {"category": r.category, "total": float(r.total or 0), "paid": float(r.paid or 0)}
             for r in rows
         ]
-    except Exception as e:
-        logger.error("Error in get_revenue_by_category: %s", e, exc_info=True)
-        return []
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _indicator_unavailable("get_revenue_by_category", exc) from exc
 
 @router.get("/attendance-trend/")
 def get_attendance_trend(
@@ -611,9 +611,10 @@ def get_attendance_trend(
             }
             for r in rows
         ]
-    except Exception as e:
-        logger.error("Error in get_attendance_trend: %s", e, exc_info=True)
-        return []
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _indicator_unavailable("get_attendance_trend", exc) from exc
 
 @router.get("/grades-distribution/")
 def get_grades_distribution(
@@ -650,9 +651,10 @@ def get_grades_distribution(
         return [
             {"range": k, "count": v} for k, v in distribution.items()
         ]
-    except Exception as e:
-        logger.error("Error in get_grades_distribution: %s", e, exc_info=True)
-        return []
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _indicator_unavailable("get_grades_distribution", exc) from exc
 
 @router.get("/dashboard-kpis/")
 def get_dashboard_kpis(
@@ -726,25 +728,12 @@ def get_dashboard_kpis(
             "attendanceRate": round(attendance_rate, 2),
             "avgGrade": round(avg_grade, 1),
         }
-    except Exception as e:
-        # SECURITY (Phase 4, commercialisation): returning all-zero KPIs on
-        # any DB error is indistinguishable from "this school genuinely has
-        # 0 students" — a director sees an empty dashboard with no signal
-        # that something is actually broken. Surface it explicitly instead
-        # of masking the failure (see docs/DIRECTION_DASHBOARD_READINESS.md).
-        logger.error("Error in get_dashboard_kpis: %s", e, exc_info=True)
-        return {
-            "totalStudents": 0,
-            "teacherCount": 0,
-            "classroomCount": 0,
-            "totalRevenue": 0,
-            "collectedRevenue": 0,
-            "pendingRevenue": 0,
-            "collectionRate": 0,
-            "attendanceRate": 0,
-            "avgGrade": 0,
-            "degraded": True,
-        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        # ANALYTICS-ZERO-01 : l'ancien repli renvoyait des zéros marqués « degraded » qu'aucun
+        # écran ne lisait (le tableau de bord affichait 0 élève) : 503 explicite désormais.
+        raise _indicator_unavailable("get_dashboard_kpis", exc) from exc
 
 @router.get("/ministry-kpis/")
 def get_ministry_kpis(
@@ -811,19 +800,10 @@ def get_ministry_kpis(
             "total_revenue_collected": collected,
             "tenant_id": tenant_id
         }
-    except Exception as e:
-        logger.error("Error in get_ministry_kpis: %s", e, exc_info=True)
-        return {
-            "total_students": 0,
-            "students_male": 0,
-            "students_female": 0,
-            "attendance_rate": 0,
-            "average_grade": 0,
-            "collection_rate": 0,
-            "total_revenue_expected": 0,
-            "total_revenue_collected": 0,
-            "tenant_id": tenant_id
-        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _indicator_unavailable("get_ministry_kpis", exc) from exc
 
 @router.get("/ministry-stats/levels/")
 def get_ministry_stats_by_level(
@@ -864,9 +844,10 @@ def get_ministry_stats_by_level(
             }
             for r in rows
         ]
-    except Exception as e:
-        logger.error("ministry-stats/levels/ error: %s", e)
-        return []
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise _indicator_unavailable("get_ministry_stats_by_level", exc) from exc
 
 
 @router.get("/ministry-export/csv/")
@@ -945,8 +926,8 @@ def export_ministry_csv(
         writer.writerow(["Taux de recouvrement", f"{col_rate}%"])
         writer.writerow(["Montant attendu (FCFA)", f"{expected:,.0f}"])
         writer.writerow(["Montant collecté (FCFA)", f"{collected:,.0f}"])
-    except Exception as e:
-        writer.writerow(["Erreur", str(e)])
+    except Exception as exc:
+        raise _indicator_unavailable("export_ministry_csv", exc) from exc
 
     writer.writerow([])
 
@@ -974,8 +955,8 @@ def export_ministry_csv(
                 r["niveau"], total, int(r["male"] or 0), female,
                 f"{girl_rate}%", float(r["avg_grade"] or 0)
             ])
-    except Exception as e:
-        writer.writerow(["Erreur", str(e)])
+    except Exception as exc:
+        raise _indicator_unavailable("export_ministry_csv", exc) from exc
 
     writer.writerow([])
 
@@ -1003,8 +984,8 @@ def export_ministry_csv(
                 r["niveau"], total, present,
                 int(r["absent"] or 0), int(r["late"] or 0), f"{rate}%"
             ])
-    except Exception as e:
-        writer.writerow(["Erreur", str(e)])
+    except Exception as exc:
+        raise _indicator_unavailable("export_ministry_csv", exc) from exc
 
     writer.writerow([])
 
@@ -1019,8 +1000,8 @@ def export_ministry_csv(
         """), {"tid": tenant_id}).mappings().all()
         for r in inv_rows:
             writer.writerow([r["status"], int(r["cnt"]), f"{float(r['total']):,.0f}"])
-    except Exception as e:
-        writer.writerow(["Erreur", str(e)])
+    except Exception as exc:
+        raise _indicator_unavailable("export_ministry_csv", exc) from exc
 
     writer.writerow([])
 
@@ -1045,8 +1026,8 @@ def export_ministry_csv(
                 "M" if s["gender"] == "MALE" else "F",
                 dob, s["level"] or "", s["class_name"] or "", s["status"] or ""
             ])
-    except Exception as e:
-        writer.writerow(["Erreur", str(e)])
+    except Exception as exc:
+        raise _indicator_unavailable("export_ministry_csv", exc) from exc
 
     # Stream the response
     output.seek(0)
