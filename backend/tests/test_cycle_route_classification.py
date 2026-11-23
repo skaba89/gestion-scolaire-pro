@@ -70,6 +70,8 @@ SCOPE_HELPERS = (
     # Lot B2d : finances.
     "student_scope_and", "require_invoice_in_scope", "require_invoices_in_scope",
     "require_payment_in_scope", "require_schedule_in_scope",
+    # Lot B2e-1 : indicateurs ventilés par classe et nombre d'enseignants du périmètre.
+    "class_scope_and", "_teacher_count_sql",
 )
 
 

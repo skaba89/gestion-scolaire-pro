@@ -1406,3 +1406,22 @@ Tests : `backend/tests/test_school_life_checkins_and_event_registrations_idor.py
 - `POST /payments/invoices/` et `POST /invoices/` : élève vérifié dans l'établissement pour tout
   compte (404), en plus du périmètre par cycle. Aucun changement de `ROLE_PERMISSIONS`.
   Tests : `backend/tests/test_finance_preexisting_defects.py`.
+
+### Lot B2e-1 (2026-11-23) : indicateurs académiques et tableau de bord
+
+Aucune permission ajoutée (`ROLE_PERMISSIONS` inchangé), aucune migration. Neuf routes `GET`
+jusque-là refusées à un compte restreint passent `FILTERED` : `/analytics/academic-kpis/`,
+`academic-stats/`, `students-at-risk/`, `operational-kpis/`, `attendance-trend/`,
+`grades-distribution/`, `dashboard-kpis/`, `risk-scores/summary/`, `risk-scores/`.
+
+| Donnée agrégée | Règle pour un compte restreint |
+|---|---|
+| Notes, présences, inscriptions, factures, scores de risque | élèves du périmètre seulement (inscription ACTIVE de l'année en cours, règle Q1) |
+| Ventilation par classe, nombre de classes | classes du périmètre seulement |
+| Nombre d'enseignants | enseignants affectés à une classe du périmètre (`teacher_assignments`) |
+| `risk-scores/?student_ids=` | un élève hors périmètre n'apparaît pas, même demandé explicitement |
+
+Le périmètre est résolu hors des blocs `try` : une erreur de périmètre n'est jamais convertie en
+indicateur vide. Comptes non restreints : requêtes inchangées. Restent DENY :
+`cash-flow-forecast` (projection fictive, ANALYTICS-MOCK-01), `ministry-*`, `elearning/*`.
+Tests : `backend/tests/test_cycle_scope_analytics.py` (10 rouges sans le filtrage).

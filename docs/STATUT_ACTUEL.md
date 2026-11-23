@@ -1468,3 +1468,14 @@ La règle métier de l’auto-pointage reste à valider.
   l'inscription active. Tests : `test_finance_preexisting_defects.py` (12 rouges avant,
   verts après, PostgreSQL), `InvoiceActions.test.tsx` (2 rouges avant). Reste ouvert
   (B2e) : indicateurs financiers à zéro en cas d'erreur (ANALYTICS-ZERO-01).
+
+- **2026-11-23 — personnel par cycle, lot B2e-1 (indicateurs académiques). Non déployé.**
+  Neuf indicateurs (`academic-kpis`, `academic-stats`, `students-at-risk`,
+  `operational-kpis`, `attendance-trend`, `grades-distribution`, `dashboard-kpis`,
+  `risk-scores`, `risk-scores/summary`), jusque-là refusés à un compte restreint, sont
+  calculés sur son seul périmètre (élèves, classes, enseignants affectés à ses classes).
+  Comptes non restreints inchangés ; aucune migration ni permission. Tests :
+  `test_cycle_scope_analytics.py` (16 tests PostgreSQL, 10 rouges sans le filtrage).
+  Défauts relevés, non corrigés : ANALYTICS-MOCK-01 (prévision de trésorerie fictive,
+  heures d'enseignants à 0), RISK-SCORES-01 (table de scores jamais alimentée),
+  ACADEMIC-STATS-01 (notes comptées dans les anciennes classes) — voir le registre.

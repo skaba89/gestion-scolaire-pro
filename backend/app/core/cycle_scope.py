@@ -471,6 +471,16 @@ def student_scope_and(db: Session, tenant_id, user: dict, column_sql: str, *, ta
     return f" AND {sql}", binds
 
 
+def class_scope_and(db: Session, tenant_id, user: dict, column_sql: str, *, tag: str = "cls"):
+    """``(" AND <colonne> IN (classes du périmètre)", binds)`` pour un compte restreint, ``("", [])``
+    sinon (lot B2e : statistiques ventilées par classe, nombre de classes ou d'enseignants).
+    ``column_sql`` et ``tag`` sont des littéraux du code appelant ; périmètre vide : rien."""
+    if not is_cycle_restricted(user):
+        return "", []
+    sql, binds = class_scope_sql(column_sql, scoped_class_ids(db, tenant_id, user), tag=tag)
+    return f" AND {sql}", binds
+
+
 def require_invoices_in_scope(
     db: Session, tenant_id, user: dict, invoice_ids: Iterable, *, detail: str = "Facture introuvable",
 ) -> None:

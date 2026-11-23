@@ -10,7 +10,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func, case, and_, text
 
-from app.core.cycle_scope import scoped_class_ids, student_scope_and
+from app.core.cycle_scope import class_scope_and, is_cycle_restricted, scoped_class_ids, student_scope_and
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
 from app.core.tenant_refs import ensure_refs_in_tenant
@@ -28,6 +28,24 @@ def _resolve_academic_year(db: Session, tenant_id: str, ay_id: Optional[str]) ->
         row = db.execute(sql, {"tenant_id": tenant_id}).fetchone()
         return str(row.id) if row else None
     return ay_id
+
+
+def _teacher_count_sql(db: Session, tenant_id: str, user: dict, *, tag: str):
+    """Requête « nombre d'enseignants ». Compte non restreint : rôles TEACHER de l'établissement
+    (inchangé). Compte restreint (B2e) : enseignants affectés à une classe du périmètre
+    (``teacher_assignments.classroom_id``) — jamais l'effectif enseignant de tout l'établissement."""
+    if not is_cycle_restricted(user):
+        return text("""
+            SELECT COUNT(*) AS total
+            FROM user_roles
+            WHERE tenant_id = :tenant_id AND role = 'TEACHER'
+        """)
+    cls_scope, cls_binds = class_scope_and(db, tenant_id, user, "ta.classroom_id", tag=tag)
+    return text(f"""
+        SELECT COUNT(DISTINCT ta.user_id) AS total
+        FROM teacher_assignments ta
+        WHERE ta.tenant_id = :tenant_id{cls_scope}
+    """).bindparams(*cls_binds)
 
 
 # ─── Financial KPIs ──────────────────────────────────────────────────────────
@@ -189,6 +207,10 @@ def get_academic_kpis(
 ):
     """Academic KPIs: success rate, average grade, students at risk."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    # Périmètre par cycle (B2e), résolu HORS du try : une erreur de périmètre n'est jamais convertie
+    # en indicateur vide. Compte non restreint : fragments vides, requêtes inchangées.
+    grade_scope, grade_binds = student_scope_and(db, tenant_id, current_user, "grades.student_id", tag="aakg")
+    enr_scope, enr_binds = student_scope_and(db, tenant_id, current_user, "enrollments.student_id", tag="aake")
     try:
         ay_id = _resolve_academic_year(db, tenant_id, academic_year_id)
         ay_filter = ""
@@ -203,8 +225,8 @@ def get_academic_kpis(
                 COALESCE(SUM(CASE WHEN score >= (max_score / 2.0) THEN 1 ELSE 0 END), 0) AS passing,
                 COALESCE(AVG(score), 0) AS avg_grade
             FROM grades
-            WHERE tenant_id = :tenant_id {ay_filter}
-        """)
+            WHERE tenant_id = :tenant_id {ay_filter}{grade_scope}
+        """).bindparams(*grade_binds)
         row = db.execute(sql, params).fetchone()
 
         total_graded = int(row.total or 0) if row else 0
@@ -218,8 +240,8 @@ def get_academic_kpis(
         # Les taux (passing/failing/moyenne) restent calculés sur les notes.
         enrolled_sql = text(f"""
             SELECT COUNT(DISTINCT student_id) FROM enrollments
-            WHERE tenant_id = :tenant_id AND LOWER(status) = 'active' {ay_filter}
-        """)
+            WHERE tenant_id = :tenant_id AND LOWER(status) = 'active' {ay_filter}{enr_scope}
+        """).bindparams(*enr_binds)
         enrolled = int(db.execute(enrolled_sql, params).scalar() or 0)
 
         return {
@@ -249,6 +271,11 @@ def get_academic_stats(
 ):
     """Success rate by class and by subject."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    # Périmètre par cycle (B2e), résolu HORS du try : une erreur de périmètre n'est jamais convertie
+    # en indicateur vide. Compte non restreint : fragments vides, requêtes inchangées.
+    subj_scope, subj_binds = student_scope_and(db, tenant_id, current_user, "g.student_id", tag="aass")
+    cls_g_scope, cls_g_binds = student_scope_and(db, tenant_id, current_user, "g.student_id", tag="aacg")
+    cls_scope, cls_binds = class_scope_and(db, tenant_id, current_user, "c.id", tag="aacc")
     try:
         ay_id = _resolve_academic_year(db, tenant_id, academic_year_id)
         
@@ -266,10 +293,10 @@ def get_academic_stats(
                 AVG(g.score) AS avg_grade
             FROM grades g
             JOIN subjects s ON s.id = g.subject_id
-            WHERE g.tenant_id = :tenant_id {ay_filter}
+            WHERE g.tenant_id = :tenant_id {ay_filter}{subj_scope}
             GROUP BY s.id, s.name
             ORDER BY subject_name
-        """)
+        """).bindparams(*subj_binds)
 
         by_class_sql = text(f"""
             SELECT
@@ -280,10 +307,10 @@ def get_academic_stats(
             FROM grades g
             JOIN enrollments ce ON ce.student_id = g.student_id
             JOIN classes c ON c.id = ce.class_id
-            WHERE g.tenant_id = :tenant_id {ay_filter}
+            WHERE g.tenant_id = :tenant_id {ay_filter}{cls_g_scope}{cls_scope}
             GROUP BY c.id, c.name
             ORDER BY class_name
-        """)
+        """).bindparams(*cls_g_binds, *cls_binds)
 
         subject_rows = db.execute(by_subject_sql, params).fetchall()
         class_rows = db.execute(by_class_sql, params).fetchall()
@@ -329,6 +356,9 @@ def get_students_at_risk(
 ):
     """Return students with average grade below passing threshold."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    # Périmètre par cycle (B2e), résolu HORS du try : une erreur de périmètre n'est jamais convertie
+    # en indicateur vide. Compte non restreint : fragments vides, requêtes inchangées.
+    risk_scope, risk_binds = student_scope_and(db, tenant_id, current_user, "g.student_id", tag="asar")
     try:
         ay_id = _resolve_academic_year(db, tenant_id, academic_year_id)
         
@@ -352,12 +382,12 @@ def get_students_at_risk(
                 END AS risk_level
             FROM grades g
             JOIN students s ON s.id = g.student_id
-            WHERE g.tenant_id = :tenant_id {ay_filter}
+            WHERE g.tenant_id = :tenant_id {ay_filter}{risk_scope}
             GROUP BY s.id, s.first_name, s.last_name
             HAVING AVG(g.score / NULLIF(g.max_score, 0)) < 0.6
             ORDER BY avg_grade ASC
             LIMIT 50
-        """)
+        """).bindparams(*risk_binds)
         rows = db.execute(sql, params).fetchall()
 
         data = [
@@ -397,6 +427,11 @@ def get_operational_kpis(
     """Operational KPIs: attendance rates, dropout rate, teacher workload."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     params: dict = {"tenant_id": tenant_id}
+    # Périmètre par cycle (B2e), résolu HORS du try : une erreur de périmètre n'est jamais convertie
+    # en indicateur vide. Compte non restreint : fragments vides, requêtes inchangées.
+    att_scope, att_binds = student_scope_and(db, tenant_id, current_user, "attendance.student_id", tag="aoka")
+    enr_scope, enr_binds = student_scope_and(db, tenant_id, current_user, "enrollments.student_id", tag="aoke")
+    teacher_sql = _teacher_count_sql(db, tenant_id, current_user, tag="aokt")
     try:
         # Build optional filters
         att_filter = ""
@@ -420,8 +455,8 @@ def get_operational_kpis(
                 COUNT(*) AS total,
                 SUM(CASE WHEN status = 'PRESENT' THEN 1 ELSE 0 END) AS present
             FROM attendance
-            WHERE tenant_id = :tenant_id {att_filter}
-        """)
+            WHERE tenant_id = :tenant_id {att_filter}{att_scope}
+        """).bindparams(*att_binds)
         att = db.execute(att_sql, params).fetchone()
         student_att_rate = round((att.present / att.total * 100) if (att and att.total) else 0.0, 2)
 
@@ -431,8 +466,8 @@ def get_operational_kpis(
                 COUNT(*) AS total,
                 SUM(CASE WHEN status = 'DROPPED' THEN 1 ELSE 0 END) AS dropped
             FROM enrollments
-            WHERE tenant_id = :tenant_id {ay_filter}
-        """)
+            WHERE tenant_id = :tenant_id {ay_filter}{enr_scope}
+        """).bindparams(*enr_binds)
         enroll = db.execute(enroll_sql, params).fetchone()
         total_enrollments = int(enroll.total or 0) if enroll else 0
         dropout_count = int(enroll.dropped or 0) if enroll else 0
@@ -443,12 +478,7 @@ def get_operational_kpis(
         active_teachers = 0
 
         # Total teachers (to compute rate)
-        teacher_count_sql = text("""
-            SELECT COUNT(*) AS total
-            FROM user_roles
-            WHERE tenant_id = :tenant_id AND role = 'TEACHER'
-        """)
-        tc = db.execute(teacher_count_sql, {"tenant_id": tenant_id}).fetchone()
+        tc = db.execute(teacher_sql, {"tenant_id": tenant_id}).fetchone()
         total_teachers = int(tc.total or 0) if tc else 0
         teacher_att_rate = round((active_teachers / total_teachers * 100) if total_teachers > 0 else 0.0, 2)
 
@@ -546,6 +576,9 @@ def get_attendance_trend(
 ):
     """Attendance trend over time."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    # Périmètre par cycle (B2e), résolu HORS du try : une erreur de périmètre n'est jamais convertie
+    # en indicateur vide. Compte non restreint : fragments vides, requêtes inchangées.
+    att_scope, att_binds = student_scope_and(db, tenant_id, current_user, "attendance.student_id", tag="aatr")
     try:
         if period == "week":
             days = 7
@@ -556,17 +589,17 @@ def get_attendance_trend(
             
         start_date = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
 
-        sql = text("""
+        sql = text(f"""
             SELECT 
                 TO_CHAR(date, 'YYYY-MM-DD') AS day,
                 COUNT(*) AS total,
                 SUM(CASE WHEN status = 'PRESENT' THEN 1 ELSE 0 END) AS present,
                 SUM(CASE WHEN status = 'ABSENT' THEN 1 ELSE 0 END) AS absent
             FROM attendance
-            WHERE tenant_id = :tenant_id AND date >= :start_date
+            WHERE tenant_id = :tenant_id AND date >= :start_date{att_scope}
             GROUP BY day
             ORDER BY day ASC
-        """)
+        """).bindparams(*att_binds)
         rows = db.execute(sql, {"tenant_id": tenant_id, "start_date": start_date}).fetchall()
         
         return [
@@ -590,14 +623,17 @@ def get_grades_distribution(
 ):
     """Grades distribution across standard buckets."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    # Périmètre par cycle (B2e), résolu HORS du try : une erreur de périmètre n'est jamais convertie
+    # en indicateur vide. Compte non restreint : fragments vides, requêtes inchangées.
+    grade_scope, grade_binds = student_scope_and(db, tenant_id, current_user, "grades.student_id", tag="agrd")
     try:
-        sql = text("""
+        sql = text(f"""
             SELECT 
                 score, 
                 max_score 
             FROM grades 
-            WHERE tenant_id = :tenant_id AND score IS NOT NULL
-        """)
+            WHERE tenant_id = :tenant_id AND score IS NOT NULL{grade_scope}
+        """).bindparams(*grade_binds)
         rows = db.execute(sql, {"tenant_id": tenant_id}).fetchall()
         
         distribution = {"0-5": 0, "5-10": 0, "10-12": 0, "12-14": 0, "14-16": 0, "16-20": 0}
@@ -628,52 +664,60 @@ def get_dashboard_kpis(
     Global dashboard KPIs for admins: students, teachers, classrooms, revenue, attendance.
     """
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    # Périmètre par cycle (B2e), résolu HORS du try : une erreur de périmètre n'est jamais convertie
+    # en indicateur vide. Compte non restreint : fragments vides, requêtes inchangées.
+    stu_scope, stu_binds = student_scope_and(db, tenant_id, current_user, "students.id", tag="adks")
+    cls_scope, cls_binds = class_scope_and(db, tenant_id, current_user, "classes.id", tag="adkc")
+    inv_scope, inv_binds = student_scope_and(db, tenant_id, current_user, "invoices.student_id", tag="adki")
+    att_scope, att_binds = student_scope_and(db, tenant_id, current_user, "attendance.student_id", tag="adka")
+    grade_scope, grade_binds = student_scope_and(db, tenant_id, current_user, "grades.student_id", tag="adkg")
+    teacher_sql = _teacher_count_sql(db, tenant_id, current_user, tag="adkt")
     try:
         # 1. Counts: Students, Teachers, Classrooms
-        count_sql = text("""
+        count_sql = text(f"""
             SELECT
-                (SELECT COUNT(*) FROM students WHERE tenant_id = :tenant_id AND status = 'ACTIVE') AS total_students,
-                (SELECT COUNT(*) FROM user_roles WHERE tenant_id = :tenant_id AND role = 'TEACHER') AS total_teachers,
-                (SELECT COUNT(*) FROM classes WHERE tenant_id = :tenant_id) AS total_classrooms
-        """)
+                (SELECT COUNT(*) FROM students WHERE tenant_id = :tenant_id AND status = 'ACTIVE'{stu_scope}) AS total_students,
+                (SELECT COUNT(*) FROM classes WHERE tenant_id = :tenant_id{cls_scope}) AS total_classrooms
+        """).bindparams(*stu_binds, *cls_binds)
         counts = db.execute(count_sql, {"tenant_id": tenant_id}).fetchone()
+        teachers = db.execute(teacher_sql, {"tenant_id": tenant_id}).fetchone()
 
         # 2. Revenue (Current Month)
-        revenue_sql = text("""
+        revenue_sql = text(f"""
             SELECT
                 COALESCE(SUM(total_amount), 0) AS total,
                 COALESCE(SUM(paid_amount), 0) AS paid
             FROM invoices
-            WHERE tenant_id = :tenant_id
-        """)
+            WHERE tenant_id = :tenant_id{inv_scope}
+        """).bindparams(*inv_binds)
         rev = db.execute(revenue_sql, {"tenant_id": tenant_id}).fetchone()
         total_revenue = float(rev.total or 0) if rev else 0.0
         collected_revenue = float(rev.paid or 0) if rev else 0.0
         collection_rate = (collected_revenue / total_revenue * 100) if total_revenue > 0 else 0.0
 
         # 3. Attendance Rate (Last 30 days)
-        att_sql = text("""
+        att_sql = text(f"""
             SELECT
                 COUNT(*) AS total,
                 SUM(CASE WHEN status = 'PRESENT' THEN 1 ELSE 0 END) AS present
             FROM attendance
-            WHERE tenant_id = :tenant_id AND date >= CURRENT_DATE - INTERVAL '30 days'
-        """)
+            WHERE tenant_id = :tenant_id AND date >= CURRENT_DATE - INTERVAL '30 days'{att_scope}
+        """).bindparams(*att_binds)
         att = db.execute(att_sql, {"tenant_id": tenant_id}).fetchone()
         attendance_rate = (att.present / att.total * 100) if (att and att.total) else 0.0
 
         # 4. Average Grade
-        grade_sql = text("""
+        grade_sql = text(f"""
             SELECT AVG(score / max_score * 20) as avg_grade
             FROM grades
-            WHERE tenant_id = :tenant_id
-        """)
+            WHERE tenant_id = :tenant_id{grade_scope}
+        """).bindparams(*grade_binds)
         grade_row = db.execute(grade_sql, {"tenant_id": tenant_id}).fetchone()
         avg_grade = float(grade_row.avg_grade or 0) if (grade_row and grade_row.avg_grade) else 0.0
 
         return {
             "totalStudents": int(counts.total_students or 0) if counts else 0,
-            "teacherCount": int(counts.total_teachers or 0) if counts else 0,
+            "teacherCount": int(teachers.total or 0) if teachers else 0,
             "classroomCount": int(counts.total_classrooms or 0) if counts else 0,
             "totalRevenue": total_revenue,
             "collectedRevenue": collected_revenue,
@@ -1279,7 +1323,9 @@ def get_analytics_risk_summary(
             "Academic term filtering is not supported for recorded risk scores"
         ))
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
-    row = db.execute(text("""
+    # Périmètre par cycle (B2e) : seuls les scores des élèves du périmètre sont comptés.
+    risk_scope, risk_binds = student_scope_and(db, tenant_id, current_user, "student_risk_scores.student_id", tag="arss")
+    row = db.execute(text(f"""
         SELECT
             COUNT(*) AS total,
             COUNT(*) FILTER (WHERE risk_level = 'CRITICAL'
@@ -1294,8 +1340,8 @@ def get_analytics_risk_summary(
                 OR risk_level IS NULL
                 OR risk_level NOT IN ('CRITICAL', 'HIGH', 'MODERATE', 'LOW')) AS unknown
         FROM student_risk_scores
-        WHERE tenant_id = :tid
-    """), {"tid": tenant_id}).mappings().one()
+        WHERE tenant_id = :tid{risk_scope}
+    """).bindparams(*risk_binds), {"tid": tenant_id}).mappings().one()
     return {
         "total": int(row["total"]),
         "critical": int(row["critical"]),
@@ -1323,6 +1369,10 @@ def get_analytics_risk_scores(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     params: Dict[str, Any] = {"tid": tenant_id}
     where = ["sr.tenant_id = :tid"]
+    # Périmètre par cycle (B2e) : un élève hors périmètre n'apparaît pas, même demandé par identifiant.
+    risk_scope, risk_binds = student_scope_and(db, tenant_id, current_user, "sr.student_id", tag="arsl")
+    if risk_scope:
+        where.append(risk_scope[len(" AND "):])
 
     if student_ids:
         ids = [s.strip() for s in student_ids.split(",") if s.strip()]
@@ -1338,5 +1388,5 @@ def get_analytics_risk_scores(
         WHERE {" AND ".join(where)}
         ORDER BY sr.risk_score DESC
         LIMIT 100
-    """), params).mappings().all()
+    """).bindparams(*risk_binds), params).mappings().all()
     return [dict(r) for r in rows]

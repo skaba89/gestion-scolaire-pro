@@ -8,7 +8,7 @@ qu'une route **explicitement classée** :
   de l'établissement en lecture…). Passage autorisé.
 - ``FILTERED``   : la route filtre elle-même ses données selon
   ``user["_cycle_ids"]`` (élèves, classes, inscriptions : lot B2b ; scolarité : B2c-1 ; vie
-  scolaire : B2c-2 ; finances : B2d ; les lots B2e feront migrer les autres routes une à une, avec leurs tests).
+  scolaire : B2c-2 ; finances : B2d ; indicateurs académiques : B2e-1 ; les lots B2e suivants feront migrer les autres routes une à une, avec leurs tests).
   La garde laisse passer, **le handler doit filtrer** (404 pour un objet
   hors périmètre) ; ``test_cycle_route_classification`` vérifie qu'il appelle
   une brique de ``cycle_scope``.
@@ -212,6 +212,15 @@ ROUTE_POLICIES: dict[tuple[str, str], Policy] = {
     # Tarifs (aucune donnée d'élève), compteur de référence (jeton aléatoire), catalogue d'offres
     # de la plateforme : lecture seule. Écritures des frais, abonnement : DENY (Q4 / hors périmètre).
     **_routes(Policy.INDEPENDENT, "GET", "/payments/fees/", "/payments/sequence/", "/billing/plans/"),
+    # --- Lot B2e-1 : indicateurs académiques et tableau de bord ---------------------------------
+    # Agrégats, moyennes, taux et listes calculés sur les seuls élèves du périmètre (notes, présences,
+    # inscriptions, factures, scores de risque) ; classes et enseignants comptés dans les classes du
+    # périmètre. cash-flow-forecast (projection fictive), ministry-* et elearning restent DENY.
+    **_routes(Policy.FILTERED, "GET", "/analytics/academic-kpis/", "/analytics/academic-stats/",
+              "/analytics/students-at-risk/", "/analytics/operational-kpis/",
+              "/analytics/attendance-trend/", "/analytics/grades-distribution/",
+              "/analytics/dashboard-kpis/", "/analytics/risk-scores/summary/",
+              "/analytics/risk-scores/"),
 }
 
 # Familles refusées d'office (préfixes). Toute route qui n'est pas dans
