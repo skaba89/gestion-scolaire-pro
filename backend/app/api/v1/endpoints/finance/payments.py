@@ -26,6 +26,7 @@ from app.core.cycle_scope import (
 )
 from app.core.parent_scope import parent_student_filter
 from app.core.security import get_current_user, require_permission
+from app.core.tenant_refs import ensure_refs_in_tenant
 from app.core.tenant_resolution import resolve_current_tenant_id
 from app.services.payment_gateways import CinetPayGateway, get_gateway
 from app.utils.audit import log_audit
@@ -773,6 +774,10 @@ def create_invoice_atomic(
     tenant_id = _get_tenant_id(request, current_user, db)
     # Périmètre par cycle (B2d) : l'élève facturé doit être dans le périmètre, avant l'insertion.
     require_student_in_scope(db, tenant_id, current_user, body.student_id)
+    # FIN-IDOR-01 : l'élève facturé doit appartenir à l'établissement, pour tout compte (la clé
+    # étrangère accepte un élève d'un autre établissement : la RLS ne s'applique pas à son contrôle).
+    # Après le contrôle de périmètre : un compte restreint reçoit le même 404, sans oracle.
+    ensure_refs_in_tenant(db, tenant_id, ("students", body.student_id))
     year = datetime.now().year
     invoice_number = body.invoice_number or f"INV-{year}-{secrets.token_hex(4).upper()}"
 
@@ -857,10 +862,12 @@ def update_invoice_endpoint(
     result = db.execute(text("""
         UPDATE invoices SET
             student_id = :student_id,
-            invoice_number = :invoice_number,
+            -- FIN-PUT-01 : numéro et échéance facultatifs dans le corps, NOT NULL en base ;
+            -- omis = valeur existante conservée (écrire NULL répondait 500).
+            invoice_number = COALESCE(:invoice_number, invoice_number),
             total_amount = :total_amount,
             items = :items,
-            due_date = :due_date,
+            due_date = COALESCE(:due_date, due_date),
             notes = :notes,
             has_payment_plan = :has_payment_plan,
             installments_count = :installments_count,
@@ -869,7 +876,7 @@ def update_invoice_endpoint(
         WHERE id = :invoice_id AND tenant_id = :tenant_id
     """), {
         "tenant_id": tenant_id, "invoice_id": invoice_id,
-        "student_id": body.student_id, "invoice_number": body.invoice_number,
+        "student_id": body.student_id, "invoice_number": body.invoice_number or None,
         "total_amount": body.total_amount,
         "items": json.dumps(body.items) if body.items else None,
         "due_date": body.due_date if body.due_date else None,
@@ -1054,7 +1061,8 @@ async def send_payment_reminders(
             u.id AS parent_user_id
         FROM invoices i
         JOIN students s ON s.id = i.student_id
-        LEFT JOIN parent_students ps ON ps.student_id = s.id
+        -- FIN-REMIND-01 : le lien parent-élève est lu dans l'établissement courant uniquement.
+        LEFT JOIN parent_students ps ON ps.student_id = s.id AND ps.tenant_id = :tenant_id
         LEFT JOIN users u ON u.id = ps.parent_id AND u.tenant_id = :tenant_id
         WHERE i.tenant_id = :tenant_id AND i.status IN ('PENDING', 'OVERDUE')
     """ + scope_sql
@@ -1069,7 +1077,7 @@ async def send_payment_reminders(
     # Build notification service from tenant settings
     svc = build_service_from_db(db, tenant_id)
 
-    results: dict = {"in_app": 0}
+    results: dict = {"in_app": 0, "in_app_failed": 0}
     deliveries: list = []
     count = 0
 
@@ -1120,22 +1128,29 @@ async def send_payment_reminders(
             })
 
         # ── Always insert in-app notification ────────────────────────────────
+        # FIN-REMIND-01 : point de sauvegarde par notification — un échec n'invalide plus la
+        # transaction (PostgreSQL) ni les autres relances ; il est journalisé et compté.
         if inv.parent_user_id:
             try:
-                db.execute(text("""
-                    INSERT INTO notifications (id, tenant_id, user_id, type, title, message, is_read, created_at)
-                    VALUES (:nid, :tid, :uid, 'PAYMENT_REMINDER', :title, :msg, false, NOW())
-                    ON CONFLICT DO NOTHING
-                """), {
-                    "nid": str(_uuid.uuid4()),
-                    "tid": tenant_id,
-                    "uid": str(inv.parent_user_id),
-                    "title": "Rappel de paiement",
-                    "msg": f"La facture {inv.invoice_number} de {amount_str} est en attente (échéance: {due_str}).",
-                })
+                with db.begin_nested():
+                    db.execute(text("""
+                        INSERT INTO notifications (id, tenant_id, user_id, type, title, message, is_read, created_at)
+                        VALUES (:nid, :tid, :uid, 'PAYMENT_REMINDER', :title, :msg, false, NOW())
+                        ON CONFLICT DO NOTHING
+                    """), {
+                        "nid": str(_uuid.uuid4()),
+                        "tid": tenant_id,
+                        "uid": str(inv.parent_user_id),
+                        "title": "Rappel de paiement",
+                        "msg": f"La facture {inv.invoice_number} de {amount_str} est en attente (échéance: {due_str}).",
+                    })
                 results["in_app"] += 1
-            except Exception:
-                pass
+            except Exception as exc:
+                results["in_app_failed"] += 1
+                logger.error(
+                    "Payment reminder in-app notification failed (tenant=%s invoice=%s): %s",
+                    tenant_id, inv.id, type(exc).__name__,
+                )
 
         count += 1
 
@@ -1149,6 +1164,7 @@ async def send_payment_reminders(
             "invoice_count": count,
             "queued_deliveries": len(deliveries),
             "in_app": results["in_app"],
+            "in_app_failed": results["in_app_failed"],
             "specific_ids": body.invoice_ids,
         }
     )
@@ -1339,51 +1355,36 @@ def send_invoice_email(
     request: Request,
     body: dict,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission("payments:read")),
+    current_user: dict = Depends(require_permission("payments:write")),
 ):
-    """POST /payments/send-invoice-email/ — log and acknowledge invoice email send."""
+    """POST /payments/send-invoice-email/ — envoi de facture par courriel : **non disponible**.
+
+    FIN-EMAIL-01 (2026-11-23) : la route ne faisait qu'écrire une trace d'audit et répondait
+    « Facture envoyée à … » sans jamais rien envoyer, avec ``payments:read`` (parent et directeur
+    compris) et un destinataire libre. Aucun envoi de courriel de facture n'est branché : la route
+    répond désormais 501 (rien n'est écrit) au lieu d'annoncer un faux succès. Elle exige
+    ``payments:write`` et vérifie la facture (établissement, périmètre par cycle) avant de répondre,
+    pour qu'un futur envoi réel reprenne ces contrôles. Alternatives : PDF, WhatsApp, relances."""
     tenant_id = _get_tenant_id(request, current_user, db)
     invoice_id = body.get("invoiceId") or body.get("invoice_id")
-    recipient_email = body.get("recipientEmail") or body.get("recipient_email")
 
     if not invoice_id:
         raise HTTPException(status_code=400, detail="invoiceId is required")
-    # Périmètre par cycle (B2d) : 404 identique à une facture inexistante, avant toute trace d'audit.
+    # Périmètre par cycle (B2d) : 404 identique à une facture inexistante.
     require_invoice_in_scope(db, tenant_id, current_user, invoice_id, detail="Invoice not found")
 
-    # Fetch invoice so we can confirm it exists and get the parent email fallback
     invoice = db.execute(text("""
-        SELECT i.id, i.invoice_number, i.total_amount, i.status
-        FROM invoices i
+        SELECT i.id FROM invoices i
         WHERE i.id = :invoice_id AND i.tenant_id = :tenant_id
     """), {"invoice_id": invoice_id, "tenant_id": tenant_id}).mappings().first()
-
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
 
-    email_to = recipient_email or "parent@schoolflow.pro"
-
-    # Audit log the action
-    try:
-        log_audit(
-            db,
-            user_id=current_user.get("id"),
-            tenant_id=tenant_id,
-            action="EMAIL_INVOICE",
-            resource_type="INVOICE",
-            resource_id=invoice_id,
-            details={"recipient": email_to, "invoice_number": invoice.get("invoice_number")},
-        )
-        db.commit()
-    except Exception:
-        db.rollback()
-
-    return {
-        "success": True,
-        "message": f"Facture envoyée à {email_to}",
-        "invoice_id": invoice_id,
-        "recipient": email_to,
-    }
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail=("L'envoi de facture par e-mail n'est pas disponible. "
+                "Téléchargez le PDF ou envoyez la facture par WhatsApp."),
+    )
 
 
 # ─── Payment Intent (Mobile Money) ───────────────────────────────────────────

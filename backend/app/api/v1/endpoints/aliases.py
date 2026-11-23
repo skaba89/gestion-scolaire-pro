@@ -322,6 +322,10 @@ def create_invoice_alias(
         raise HTTPException(status_code=400, detail="Tenant ID required")
     # Périmètre par cycle (B2d) : l'élève facturé doit être dans le périmètre, avant l'insertion.
     require_student_in_scope(db, tenant_id, current_user, body.student_id)
+    # FIN-IDOR-01 : l'élève facturé doit appartenir à l'établissement, pour tout compte (la clé
+    # étrangère accepte un élève d'un autre établissement : la RLS ne s'applique pas à son contrôle).
+    # Après le contrôle de périmètre : un compte restreint reçoit le même 404, sans oracle.
+    ensure_refs_in_tenant(db, tenant_id, ("students", body.student_id))
     year = datetime.now().year
     invoice_number = body.invoice_number or f"INV-{year}-{secrets.token_hex(4).upper()}"
     new_id = str(uuid.uuid4())
@@ -403,14 +407,16 @@ def update_invoice_alias(
 
     result = db.execute(text("""
         UPDATE invoices SET
-            student_id = :student_id, invoice_number = :invoice_number,
-            total_amount = :total_amount, items = :items, due_date = :due_date,
+            -- FIN-PUT-01 : numéro et échéance omis = valeurs existantes (NOT NULL en base).
+            student_id = :student_id, invoice_number = COALESCE(:invoice_number, invoice_number),
+            total_amount = :total_amount, items = :items,
+            due_date = COALESCE(:due_date, due_date),
             notes = :notes, has_payment_plan = :has_payment_plan,
             installments_count = :installments_count, status = :status, updated_at = NOW()
         WHERE id = :invoice_id AND tenant_id = :tenant_id
     """), {
         "tenant_id": tenant_id, "invoice_id": invoice_id,
-        "student_id": body.student_id, "invoice_number": body.invoice_number,
+        "student_id": body.student_id, "invoice_number": body.invoice_number or None,
         "total_amount": body.total_amount,
         "items": json.dumps(body.items) if body.items else None,
         "due_date": body.due_date if body.due_date else None,

@@ -1396,3 +1396,13 @@ leurs enfants) reçoivent 403 : un élève ne peut plus se déclarer présent à
 élève ou parent n'appelait cette route. Les règles d'enseignant (ses classes) et de périmètre par
 cycle sont inchangées. Le « défaut métier restant à confirmer » ci-dessus est donc clos.
 Tests : `backend/tests/test_school_life_checkins_and_event_registrations_idor.py`.
+
+### Correctifs finance préexistants (2026-11-23)
+
+- `POST /payments/send-invoice-email/` : **`payments:write`** (auparavant `payments:read`, donc
+  parent et directeur lecture). La route répond **501** : aucun envoi de facture par courriel
+  n'existe (elle annonçait un faux succès) ; facture vérifiée (établissement, cycle) avant la
+  réponse, aucune trace d'audit. L'action est retirée de `InvoiceActions`.
+- `POST /payments/invoices/` et `POST /invoices/` : élève vérifié dans l'établissement pour tout
+  compte (404), en plus du périmètre par cycle. Aucun changement de `ROLE_PERMISSIONS`.
+  Tests : `backend/tests/test_finance_preexisting_defects.py`.
