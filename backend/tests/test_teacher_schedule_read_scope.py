@@ -61,7 +61,7 @@ def schedule_ctx():
 
 
 def _as(user_id: str, tenant_id: str, roles):
-    user = {"id": user_id, "tenant_id": tenant_id, "roles": list(roles)}
+    user = {"id": user_id, "tenant_id": tenant_id, "roles": list(roles), "_cycle_ids": None}  # compte non restreint
     app.dependency_overrides[get_current_user] = lambda: user
     return HEADERS
 

@@ -75,7 +75,7 @@ def test_list_users_sqlite_distinct_roles_and_tenant_boundary(sqlite_users_db):
     ):
         response = users.list_users(
             request=_request(), db=db,
-            current_user={"tenant_id": tenant, "roles": ["TENANT_ADMIN"]},
+            current_user={"tenant_id": tenant, "roles": ["TENANT_ADMIN"], "_cycle_ids": None},
             page=1, page_size=20, search=None, role=None, is_active=None,
         )
     assert response["total"] == 1
@@ -92,13 +92,13 @@ def test_get_user_sqlite_distinct_roles_and_tenant_boundary(sqlite_users_db):
     ):
         result = users.get_user(
             user_id=user_id, request=_request(), db=db,
-            current_user={"tenant_id": tenant, "roles": ["TENANT_ADMIN"]},
+            current_user={"tenant_id": tenant, "roles": ["TENANT_ADMIN"], "_cycle_ids": None},
         )
         assert set(result["roles"]) == {"TEACHER", "TENANT_ADMIN"}
         assert len(result["roles"]) == 2
         with pytest.raises(HTTPException) as exc:
             users.get_user(
                 user_id=foreign_id, request=_request(), db=db,
-                current_user={"tenant_id": tenant, "roles": ["TENANT_ADMIN"]},
+                current_user={"tenant_id": tenant, "roles": ["TENANT_ADMIN"], "_cycle_ids": None},
             )
     assert exc.value.status_code == 404

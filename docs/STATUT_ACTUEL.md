@@ -1546,3 +1546,10 @@ La règle métier de l’auto-pointage reste à valider.
   ou parent compris, obtenait la liste de tous les enseignants avec leurs e-mails. Corrigé
   (`users:read`). Tests : 3 rouges avant correctif.
 
+- **2026-11-24 — emploi du temps et enseignants pour les comptes limités à des cycles ;
+  liste des enseignants fermée aux familles (TEACHERS-LIST-01). Non déployé.** Une direction ou
+  un secrétariat limité à des cycles voit et modifie l'emploi du temps et les affectations des
+  classes de ses cycles ; un conflit avec un créneau d'un autre cycle reste refusé, sans en
+  révéler le détail. En chemin : `GET /teachers/` était lisible par les élèves et les parents
+  (affectations et e-mails des enseignants) : réservé au personnel.
+
