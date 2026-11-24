@@ -1501,3 +1501,17 @@ l'établissement avec le message générique existant (Q-S1). `GET /teachers/das
 `users:read` (auparavant `settings:read`, détenue aussi par élèves et parents). Aucune migration.
 Tests : `backend/tests/test_cycle_scope_schedule_teachers.py` (4 rouges sans le filtrage).
 
+### Admissions pour les comptes limités à des cycles (2026-11-24, Q-B3-2, Q-A1)
+
+FILTERED : `GET /admissions/`, `GET /admissions/{admission_id}/`, `GET /admissions/{admission_id}/timeline/`,
+`POST /admissions/`, `PATCH /admissions/{admission_id}/`, `PATCH /admissions/{admission_id}/status/`,
+`DELETE /admissions/{admission_id}/`, `POST /admissions/{admission_id}/convert/`. Candidatures d'un
+niveau des cycles du compte (sans niveau, niveau sans cycle ou d'un autre cycle : 404 identique à
+une candidature inexistante) ; création sans niveau refusée (403) ; niveau cible vérifié avant toute
+modification. Conversion : `class_id` facultatif ; obligatoire pour un compte restreint (403 sinon)
+et dans ses cycles (404) ; l'élève est inscrit dans cette classe pour l'année de la candidature,
+dans la même transaction (classe d'un autre niveau : 400, rien n'est créé). Inchangés : formulaires
+publics, `GET /admissions/reenrollments/mine/` et `POST /admissions/reenrollments/` (portail parent,
+DENY pour un compte restreint, Q-B3-1). Aucune migration ; aucune permission modifiée.
+Tests : `backend/tests/test_cycle_scope_admissions.py` (3 rouges sans le filtrage).
+

@@ -81,6 +81,8 @@ SCOPE_HELPERS = (
     "_recipient_scope_sql", "_require_thread_in_scope",
     # Emploi du temps et enseignants.
     "_require_slot_in_scope", "_require_assignment_class_in_scope", "_require_existing_assignment_in_scope",
+    # Lot Admissions.
+    "_fetch_in_scope", "_require_level_in_scope",
 )
 
 

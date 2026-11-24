@@ -1960,7 +1960,19 @@
             "validateReenrollment": "Valider la réinscription",
             "enroll": "Inscrire"
         },
-        "rechercherParNomOuEmail": "Rechercher par nom ou email..."
+        "rechercherParNomOuEmail": "Rechercher par nom ou email...",
+        "convertDialog": {
+            "title": "Inscrire l'élève",
+            "description": "choisissez la classe où l'inscrire, ou inscrivez-le plus tard depuis l'écran des inscriptions.",
+            "descriptionRequired": "choisissez la classe où l'inscrire (une classe de vos cycles).",
+            "classLabel": "Classe",
+            "noClass": "Sans classe (inscrire plus tard)",
+            "choose": "Choisir une classe",
+            "noClassAvailable": "Aucune classe disponible pour le niveau demandé.",
+            "cancel": "Annuler",
+            "confirm": "Inscrire",
+            "reenrolledInClass": "Réinscription validée : {{name}} est inscrit(e) dans sa classe."
+        }
     },
     "campuses": {
         "deleteConfirm": "Êtes-vous sûr de vouloir supprimer ce campus ?",
@@ -4721,7 +4733,7 @@
                 "TEACHER": "Enseignant",
                 "TENANT_ADMIN": "Administrateur"
             },
-            "activeNotice": "Un compte limité à des cycles ne voit que les élèves, classes, notes, présences, finances et indicateurs de ses cycles. Restent indisponibles pour lui pour l'instant : publication d'annonces (la messagerie est disponible, limitée aux familles de ses cycles), ressources humaines, bibliothèque, inventaire, e-learning, clubs, enquêtes, anciens élèves, gestion des comptes utilisateurs, admissions (hors statistiques). L'emploi du temps et les enseignants sont disponibles pour les classes de ses cycles. Un compte qui cumule un rôle enseignant ou parent perd ces portails tant qu'il est limité. Retirer tous les cycles d'un compte lui rend l'accès complet à sa prochaine connexion."
+            "activeNotice": "Un compte limité à des cycles ne voit que les élèves, classes, notes, présences, finances et indicateurs de ses cycles. Restent indisponibles pour lui pour l'instant : publication d'annonces (la messagerie est disponible, limitée aux familles de ses cycles), ressources humaines, bibliothèque, inventaire, e-learning, clubs, enquêtes, anciens élèves, gestion des comptes utilisateurs. Les admissions sont disponibles pour les niveaux de ses cycles. L'emploi du temps et les enseignants sont disponibles pour les classes de ses cycles. Un compte qui cumule un rôle enseignant ou parent perd ces portails tant qu'il est limité. Retirer tous les cycles d'un compte lui rend l'accès complet à sa prochaine connexion."
         }
     },
     "teachingAdmin": {

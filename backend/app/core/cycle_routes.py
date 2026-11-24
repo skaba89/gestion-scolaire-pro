@@ -222,10 +222,16 @@ ROUTE_POLICIES: dict[tuple[str, str], Policy] = {
               "/analytics/dashboard-kpis/", "/analytics/risk-scores/summary/",
               "/analytics/risk-scores/"),
     # --- Lot B2e-3 : statistiques d'admission (décision Q-E1) ----------------------------------
-    # Comptées sur les candidatures dont le niveau demandé appartient aux cycles du compte. Les autres
-    # routes d'admission restent DENY. Portail de département (périmètre = département, pas cycle) et
+    # Comptées sur les candidatures dont le niveau demandé appartient aux cycles du compte (les autres
+    # routes d'admission suivent, lot Admissions ci-dessous). Portail de département (périmètre = département, pas cycle) et
     # e-learning (CRUD des cours) restent DENY : lot dédié, intersection département × cycle.
     **_routes(Policy.FILTERED, "GET", "/admissions/stats/"),
+    # Lot Admissions (Q-B3-2, Q-A1) : candidatures d'un niveau des cycles du compte ; la conversion
+    # inscrit l'élève dans une classe de ces cycles. Formulaires publics et portail parent inchangés.
+    **_routes(Policy.FILTERED, "GET", "/admissions/", "/admissions/{admission_id}/", "/admissions/{admission_id}/timeline/"),
+    **_routes(Policy.FILTERED, "POST", "/admissions/", "/admissions/{admission_id}/convert/"),
+    **_routes(Policy.FILTERED, "PATCH", "/admissions/{admission_id}/", "/admissions/{admission_id}/status/"),
+    **_routes(Policy.FILTERED, "DELETE", "/admissions/{admission_id}/"),
     # --- CYCLE-PORTAL-GAP-01 : portail de département -----------------------------------------
     # Classes visibles = classes du département ∩ classes du périmètre (point unique
     # _get_department_classroom_ids). Examens : classe dans l'intersection ; examen sans classe

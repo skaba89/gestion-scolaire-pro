@@ -14,7 +14,7 @@ from slowapi import Limiter
 from app.core.client_ip import get_client_ip
 import uuid
 
-from app.core.cycle_scope import level_scope_and
+from app.core.cycle_scope import is_cycle_restricted, level_scope_and, require_class_in_scope
 from app.core.database import get_db
 from app.core.security import require_permission, user_has_permission
 from app.core.tenant_resolution import enter_tenant_context_or_404, resolve_current_tenant_id
@@ -189,6 +189,9 @@ class StatusUpdate(BaseModel):
 class ConvertPayload(BaseModel):
     registration_number: Optional[str] = None
     class_name: Optional[str] = None
+    # Lot Admissions (Q-A1) : classe où inscrire l'élève dans la même transaction ; obligatoire pour
+    # un compte limité à des cycles (classe de ses cycles), facultative sinon.
+    class_id: Optional[uuid.UUID] = None
     # Date de naissance à utiliser si la candidature n'en a pas : jamais
     # inventée (l'ancien code mettait la date du jour).
     date_of_birth: Optional[date] = None
@@ -251,7 +254,7 @@ def _refresh_document_urls(application: dict) -> dict:
     return application
 
 
-def _fetch(db: Session, admission_id: str, tenant_id: str) -> dict:
+def _fetch(db: Session, admission_id: str, tenant_id: str, user: Optional[dict] = None) -> dict:
     # bindparam(type_=GUID()) on id/tenant_id: on SQLite the GUID
     # TypeDecorator stores UUIDs dash-less — a plain string bind compares
     # the dashed value the caller has against the dash-less value in the
@@ -259,6 +262,10 @@ def _fetch(db: Session, admission_id: str, tenant_id: str) -> dict:
     # PostgreSQL, which doesn't have this mismatch — this endpoint had no
     # test coverage before this feature and would 404 every single time
     # under SQLite otherwise).
+    # Périmètre par cycle (lot Admissions) : avec ``user`` restreint, une candidature d'un niveau hors
+    # de ses cycles (ou sans niveau) est introuvable — même 404 qu'une candidature inexistante.
+    scope_sql, scope_binds = ("", []) if user is None else level_scope_and(
+        user, "a.level_id", tenant_id=tenant_id, tag="admf")
     stmt = text("""
         SELECT a.*,
                ay.name AS academic_year_name,
@@ -267,11 +274,39 @@ def _fetch(db: Session, admission_id: str, tenant_id: str) -> dict:
         LEFT JOIN academic_years ay ON a.academic_year_id = ay.id
         LEFT JOIN levels         l  ON a.level_id         = l.id
         WHERE  a.id = :id AND a.tenant_id = :tenant_id
-    """).bindparams(bindparam("id", type_=GUID()), bindparam("tenant_id", type_=GUID()))
+    """ + scope_sql).bindparams(bindparam("id", type_=GUID()), bindparam("tenant_id", type_=GUID()), *scope_binds)
     row = db.execute(stmt, {"id": admission_id, "tenant_id": tenant_id}).mappings().first()
     if not row:
         raise HTTPException(status_code=404, detail="Application not found")
     return _refresh_document_urls(dict(row))
+
+
+def _fetch_in_scope(db: Session, admission_id: str, tenant_id: str, user: dict) -> dict:
+    """Candidature du périmètre du compte (404 sinon) ; sans effet de périmètre pour un compte non restreint."""
+    return _fetch(db, admission_id, tenant_id, user)
+
+
+def _require_level_in_scope(db: Session, tenant_id, user: dict, level_id) -> None:
+    """Compte limité à des cycles : le niveau visé doit appartenir à un de ses cycles (404 sinon,
+    même réponse qu'un niveau inexistant) ; une candidature sans niveau vaudrait pour tout
+    l'établissement : refusée (403). Sans effet pour un compte non restreint."""
+    if not is_cycle_restricted(user):
+        return
+    if not level_id:
+        raise HTTPException(status_code=403, detail=(
+            "Un compte limité à des cycles doit indiquer un niveau de ses cycles."))
+    try:
+        level_id = str(uuid.UUID(str(level_id)))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Niveau introuvable") from None
+    scope_sql, scope_binds = level_scope_and(user, "lv.id", tenant_id=tenant_id, tag="admlv")
+    found = db.execute(
+        text("SELECT 1 FROM levels lv WHERE lv.id = :id AND lv.tenant_id = :tid" + scope_sql).bindparams(
+            bindparam("id", type_=GUID()), bindparam("tid", type_=GUID()), *scope_binds),
+        {"id": level_id, "tid": str(tenant_id)},
+    ).first()
+    if not found:
+        raise HTTPException(status_code=404, detail="Niveau introuvable")
 
 
 # ─── GET / ────────────────────────────────────────────────────────────────────
@@ -313,7 +348,10 @@ def list_admissions(
                    OR a.parent_email ILIKE :search OR a.parent_phone ILIKE :search)"""
         params["search"] = f"%{search}%"
 
-    bindparams = [bindparam(name, type_=GUID()) for name in guid_params]
+    # Périmètre par cycle (lot Admissions) : candidatures d'un niveau des cycles du compte.
+    scope_sql, scope_binds = level_scope_and(current_user, "a.level_id", tenant_id=tenant_id, tag="adml")
+    where += scope_sql
+    bindparams = [bindparam(name, type_=GUID()) for name in guid_params] + scope_binds
 
     # Separate COUNT query for accurate total
     count_stmt = text("SELECT COUNT(*) FROM admission_applications a" + where).bindparams(*bindparams)
@@ -380,7 +418,7 @@ def get_admission(
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("admissions:read")),
 ):
-    return _fetch(db, admission_id, resolve_current_tenant_id(request, current_user, db))
+    return _fetch_in_scope(db, admission_id, resolve_current_tenant_id(request, current_user, db), current_user)
 
 
 # ─── GET /{id}/timeline — évolution du dossier, vue admin ────────────────────
@@ -397,7 +435,7 @@ def get_admission_timeline(
     current_user: dict = Depends(require_permission("admissions:read")),
 ):
     tenant_id = resolve_current_tenant_id(request, current_user, db)
-    application = _fetch(db, admission_id, tenant_id)  # 404 si absent/mauvais tenant
+    application = _fetch_in_scope(db, admission_id, tenant_id, current_user)  # 404 si absent/mauvais tenant/hors périmètre
     reached, events = _admission_events_reached(
         db, tenant_id, admission_id, fallback_submitted_at=application.get("submitted_at") or application.get("created_at"),
     )
@@ -444,6 +482,7 @@ def create_admission(
     # (l'année d'un autre établissement passait la clé étrangère, vérifiée
     # sans RLS) — même contrôle que les candidatures publiques.
     _assert_year_and_level_in_tenant(db, tenant_id, payload.academic_year_id, payload.level_id)
+    _require_level_in_scope(db, tenant_id, current_user, payload.level_id)  # périmètre par cycle
     row = db.execute(text("""
         INSERT INTO admission_applications (
             id, tenant_id, academic_year_id, level_id,
@@ -487,7 +526,7 @@ def transition_status(
 ):
     """Move an application through its lifecycle with state machine validation."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
-    app = _fetch(db, admission_id, tenant_id)
+    app = _fetch_in_scope(db, admission_id, tenant_id, current_user)
     current_status = app["status"]
     new_status = payload.status.upper()
     allowed = VALID_TRANSITIONS.get(current_status, [])
@@ -517,6 +556,38 @@ def transition_status(
 
 
 # ─── POST /{id}/convert ───────────────────────────────────────────────────────
+
+def _enroll_converted_student(db: Session, tenant_id, application, student_id, class_id) -> Optional[str]:
+    """Lot Admissions (Q-A1) : inscrit l'élève converti dans ``class_id`` (déjà vérifiée dans le
+    périmètre) pour l'année de la candidature, dans la transaction de la conversion (aucun commit :
+    en cas de refus, l'appelant annule tout). Retourne l'id de l'inscription, None sans classe."""
+    if class_id is None:
+        return None
+    from app.crud import academic as academic_crud
+    from app.models.classroom import Classroom
+    from app.schemas.academic import EnrollmentCreate
+
+    classroom = db.query(Classroom).filter(Classroom.id == class_id, Classroom.tenant_id == tenant_id).first()
+    if classroom is None:
+        db.rollback()
+        raise HTTPException(status_code=404, detail="Classe introuvable")
+    if application.level_id and classroom.level_id and str(classroom.level_id) != str(application.level_id):
+        db.rollback()
+        raise HTTPException(status_code=400, detail="La classe choisie ne correspond pas au niveau demandé.")
+    year_id = application.academic_year_id or classroom.academic_year_id
+    if year_id is None:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=(
+            "Année scolaire inconnue : renseignez l'année de la candidature ou choisissez une classe rattachée à une année."))
+    try:
+        enrollment = academic_crud.add_enrollment(db, EnrollmentCreate(
+            student_id=student_id, class_id=classroom.id, academic_year_id=year_id,
+            enrollment_date=date.today(), status="ACTIVE"), tenant_id)
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc)) from None
+    return str(enrollment.id)
+
 
 # Tentatives de matricule automatique avant d'abandonner (collisions avec un
 # matricule déjà pris dans l'établissement : élèves supprimés ou importés hors
@@ -551,7 +622,14 @@ def convert_to_student(
     from app.models.student import Gender, Student, StudentStatus
 
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
-    app = _fetch(db, admission_id, tenant_id)  # 404 si absente / autre école
+    app = _fetch_in_scope(db, admission_id, tenant_id, current_user)  # 404 si absente / autre école / hors périmètre
+    # Lot Admissions (Q-A1) : un compte limité inscrit l'élève dans une classe de ses cycles, sinon
+    # il créerait un élève hors de son périmètre (ni visible, ni inscriptible ensuite).
+    if is_cycle_restricted(current_user) and payload.class_id is None:
+        raise HTTPException(status_code=403, detail=(
+            "Choisissez la classe de l'élève : un compte limité à des cycles inscrit l'élève dans une classe de ses cycles."))
+    if payload.class_id is not None:
+        require_class_in_scope(db, tenant_id, current_user, payload.class_id)
 
     # Verrou de la ligne : deux validations simultanées (double clic, deux
     # secrétaires) ne peuvent pas créer deux élèves.
@@ -592,6 +670,7 @@ def convert_to_student(
             raise HTTPException(status_code=400, detail=(
                 "Réinscription : l'élève concerné est introuvable dans cet établissement."
             ))
+        enrollment_id = _enroll_converted_student(db, tenant_id, application, existing.id, payload.class_id)
         application.status = AdmissionStatus.CONVERTED_TO_STUDENT
         application.converted_student_id = existing.id
         application.reviewed_by = current_user.get("id")
@@ -599,7 +678,8 @@ def convert_to_student(
         log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
                   action="ADMISSION_REENROLLMENT_VALIDATED", resource_type="ADMISSION",
                   resource_id=admission_id,
-                  details={"student_id": str(existing.id), "registration_number": existing.registration_number})
+                  details={"student_id": str(existing.id), "registration_number": existing.registration_number,
+                           "enrollment_id": enrollment_id})
         db.commit()
         return {
             "message": "Re-enrollment validated: existing student kept",
@@ -607,6 +687,7 @@ def convert_to_student(
             "registration_number": existing.registration_number,
             "student_name": f"{existing.first_name} {existing.last_name}",
             "reenrollment": True,
+            "enrollment_id": enrollment_id,
         }
 
     # Valeur ORM (typée sur SQLite comme sur PostgreSQL), pas celle du SQL brut.
@@ -638,7 +719,9 @@ def convert_to_student(
             level=app.get("level_name") or "", class_name=payload.class_name,
             academic_year=app.get("academic_year_name"), status=StudentStatus.ACTIVE,
             parent_name=f"{app['parent_first_name']} {app['parent_last_name']}",
-            parent_phone=app["parent_phone"], parent_email=app["parent_email"],
+            # ADM-CONVERT-EMAIL-01 : un e-mail vide (dossier saisi sans e-mail) était recopié tel quel
+            # et la fiche de l'élève créé répondait 500 (e-mail invalide en sortie) : None.
+            parent_phone=app["parent_phone"], parent_email=(app.get("parent_email") or "").strip() or None,
         )
 
     student = None
@@ -673,6 +756,7 @@ def convert_to_student(
                 "Impossible d'attribuer un matricule automatique : saisissez-en un."
             ))
 
+    enrollment_id = _enroll_converted_student(db, tenant_id, application, student.id, payload.class_id)
     application.status = AdmissionStatus.CONVERTED_TO_STUDENT
     application.converted_student_id = student.id
     application.reviewed_by = current_user.get("id")
@@ -687,7 +771,7 @@ def convert_to_student(
     log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id,
               action="ADMISSION_CONVERTED", resource_type="ADMISSION", resource_id=admission_id,
               details={"student_id": student_id, "registration_number": reg_number,
-                       "parent_link": parent_link["status"]})
+                       "parent_link": parent_link["status"], "enrollment_id": enrollment_id})
     db.commit()
 
     return {
@@ -696,6 +780,7 @@ def convert_to_student(
         "registration_number": reg_number,
         "student_name": f"{student.first_name} {student.last_name}",
         "reenrollment": False,
+        "enrollment_id": enrollment_id,
         "parent_link": {k: v for k, v in parent_link.items() if k != "parent_id"},
     }
 
@@ -712,6 +797,10 @@ def edit_admission(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     updates = {k: v for k, v in payload.model_dump(exclude_none=True).items()}
     _assert_year_and_level_in_tenant(db, tenant_id, updates.get("academic_year_id"), updates.get("level_id"))
+    if is_cycle_restricted(current_user):
+        _fetch_in_scope(db, admission_id, tenant_id, current_user)  # candidature actuelle (404 hors périmètre)
+        if "level_id" in updates:
+            _require_level_in_scope(db, tenant_id, current_user, updates["level_id"])  # niveau cible
     if not updates:
         raise HTTPException(status_code=400, detail="No updatable fields provided")
     set_clause = ", ".join(f"{k} = :{k}" for k in updates)
@@ -739,6 +828,8 @@ def delete_admission(
 ):
     """Delete a DRAFT application only."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    if is_cycle_restricted(current_user):
+        _fetch_in_scope(db, admission_id, tenant_id, current_user)  # 404 hors périmètre, avant toute écriture
     result = db.execute(text("""
         DELETE FROM admission_applications
         WHERE id = :id AND tenant_id = :tenant_id AND status = 'DRAFT'

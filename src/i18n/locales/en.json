@@ -1960,7 +1960,19 @@
       "validateReenrollment": "Approve re-enrollment",
       "enroll": "Enroll"
     },
-    "rechercherParNomOuEmail": "Search by name or email..."
+    "rechercherParNomOuEmail": "Search by name or email...",
+    "convertDialog": {
+      "title": "Enroll the student",
+      "description": "choose the class to enroll them in, or enroll them later from the enrollment screen.",
+      "descriptionRequired": "choose the class to enroll them in (a class of your cycles).",
+      "classLabel": "Class",
+      "noClass": "No class (enroll later)",
+      "choose": "Choose a class",
+      "noClassAvailable": "No class available for the requested level.",
+      "cancel": "Cancel",
+      "confirm": "Enroll",
+      "reenrolledInClass": "Re-enrollment validated: {{name}} is enrolled in their class."
+    }
   },
   "campuses": {
     "deleteConfirm": "Are you sure you want to delete this campus?",
@@ -4721,7 +4733,7 @@
         "TEACHER": "Teacher",
         "TENANT_ADMIN": "Administrator"
       },
-      "activeNotice": "An account limited to cycles only sees the students, classes, grades, attendance, finances and indicators of its cycles. Still unavailable for now: publishing announcements (messaging is available, limited to the families of its cycles), human resources, library, inventory, e-learning, clubs, surveys, alumni, user account management, admissions (except statistics). The timetable and teachers are available for the classes of its cycles. An account that also holds a teacher or parent role loses those portals while restricted. Removing all cycles from an account restores full access at its next sign-in."
+      "activeNotice": "An account limited to cycles only sees the students, classes, grades, attendance, finances and indicators of its cycles. Still unavailable for now: publishing announcements (messaging is available, limited to the families of its cycles), human resources, library, inventory, e-learning, clubs, surveys, alumni, user account management. Admissions are available for the levels of its cycles. The timetable and teachers are available for the classes of its cycles. An account that also holds a teacher or parent role loses those portals while restricted. Removing all cycles from an account restores full access at its next sign-in."
     }
   },
   "teachingAdmin": {

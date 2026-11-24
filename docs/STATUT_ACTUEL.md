@@ -1553,3 +1553,9 @@ La règle métier de l’auto-pointage reste à valider.
   révéler le détail. En chemin : `GET /teachers/` était lisible par les élèves et les parents
   (affectations et e-mails des enseignants) : réservé au personnel.
 
+- **2026-11-24 — admissions pour les comptes limités à des cycles. Non déployé.** Un
+  secrétariat limité à des cycles voit et traite les candidatures des niveaux de ses cycles ;
+  « Inscrire » choisit la classe de l'élève (obligatoire pour lui, facultative sinon) et l'y
+  inscrit dans la même opération. En chemin : la fiche d'un élève converti depuis une candidature
+  sans e-mail de parent renvoyait une erreur (ADM-CONVERT-EMAIL-01), corrigé.
+
