@@ -15,6 +15,11 @@ export function EducationModuleGate({ children }: { children: ReactNode }) {
   const query = useEducationModules();
   const { t } = useTranslation();
   const module = moduleForPage(pathname);
+  // Lot B3 : écran hors du périmètre par cycle du compte → message clair plutôt qu'une erreur 403.
+  if (!query.isPathInScope(pathname)) return <div role="alert" className="rounded-lg border p-6">
+    <h2 className="text-lg font-semibold">{t("educationModules.outOfScopeTitle")}</h2>
+    <p>{t("educationModules.outOfScopeMessage")}</p>
+  </div>;
   if (!module) return children;
   if (query.isLoading) return <p role="status">{t("educationModules.loading")}</p>;
   if (query.error) return <div role="alert" className="space-y-3 rounded-lg border p-6">

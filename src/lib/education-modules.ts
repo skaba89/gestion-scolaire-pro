@@ -67,6 +67,38 @@ export function moduleForPage(path: string): string | undefined {
   return PAGE_MODULE[parts[portal + 1]];
 }
 
+/** Lot B3 : périmètre du compte connecté (GET /education/my-scope/). */
+export interface CycleScope {
+  restricted: boolean;
+  cycles: { id: string; code: string; name: string }[];
+  /** Accès écran par écran pour un compte restreint ; null : rien à masquer. */
+  pages: Record<string, boolean> | null;
+  cycle_policy_available: boolean;
+}
+
+/**
+ * Clé d'écran d'administration d'un chemin (« » pour le tableau de bord), telle que rattachée
+ * côté serveur dans app/core/cycle_pages.py ; undefined hors du portail d'administration.
+ * Une clé à deux segments (« orders/history ») est préférée si le serveur la connaît.
+ */
+export function adminPageForPath(path: string, pages: Record<string, boolean>): string | undefined {
+  const parts = path.split(/[?#]/, 1)[0].split("/").filter(Boolean);
+  const index = parts.indexOf("admin");
+  if (index < 0 || index > 1) return undefined;
+  const rest = parts.slice(index + 1);
+  if (rest.length >= 2 && `${rest[0]}/${rest[1]}` in pages) return `${rest[0]}/${rest[1]}`;
+  return rest[0] ?? "";
+}
+
+/** Un écran est-il dans le périmètre ? Compte non restreint : toujours. Écran inconnu du
+ * serveur pour un compte restreint : non (le serveur rattache chaque écran du menu). */
+export function isPathInCycleScope(path: string, scope: CycleScope | undefined): boolean {
+  if (!scope?.restricted || !scope.pages) return true;
+  const page = adminPageForPath(path, scope.pages);
+  if (page === undefined) return true;
+  return scope.pages[page] === true;
+}
+
 /** Keep dependency changes explicit in the draft shown by the preview. */
 export function toggleDraftModule(catalog: EducationCatalog, active: Set<string>, moduleId: string, enabled: boolean): Set<string> {
   const next = new Set(active);

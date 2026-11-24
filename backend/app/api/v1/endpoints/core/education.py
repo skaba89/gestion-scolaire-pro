@@ -14,7 +14,10 @@ from app.core.education_catalog import (
     resolve_modules,
     validate_institution_type,
 )
-from app.core.cycle_scope import RESTRICTABLE_ROLES, UNRESTRICTED_ROLES, can_be_cycle_restricted
+from app.core.cycle_pages import page_policies
+from app.core.cycle_scope import (
+    CYCLE_POLICY_AVAILABLE, RESTRICTABLE_ROLES, UNRESTRICTED_ROLES, can_be_cycle_restricted, is_cycle_restricted,
+)
 from app.core.security import get_current_user, require_permission
 from app.core.tenant_resolution import resolve_current_tenant_id, enter_tenant_context_or_404
 from app.models import EducationConfiguration, EducationCycle, Level, StaffCycleAssignment, Tenant, User, UserRole
@@ -139,9 +142,8 @@ def _cycle_payload(db: Session, cycle: EducationCycle) -> dict:
         "level_ids": level_ids,
         "created_at": cycle.created_at,
         "updated_at": cycle.updated_at,
-        # Resource-level cycle permissions are a later, separately verified
-        # layer. Never imply they exist merely because cycle metadata exists.
-        "cycle_policy_available": False,
+        # Lot B3 : le filtrage par cycle est appliqué côté serveur et les écrans sont adaptés.
+        "cycle_policy_available": CYCLE_POLICY_AVAILABLE,
     }
 
 
@@ -209,6 +211,34 @@ def write_configuration(body: ConfigurationChoice, request: Request, db: Session
                        "profile_id": body.profile_id, "added": sorted(enabled - previous), "removed": sorted(previous - enabled)})
     db.commit()
     return configuration_payload(db, tenant)
+
+
+@router.get("/my-scope/")
+def get_my_scope(request: Request, db: Session = Depends(get_db),
+                 user: dict = Depends(get_current_user)):
+    """Lot B3 : périmètre du compte connecté, pour adapter menus et écrans.
+
+    ``restricted`` faux : rien n'est masqué (``pages`` vaut ``null``). Vrai : ``cycles`` liste ses
+    cycles et ``pages`` dit, écran par écran, s'il lui est accessible — accès **déduit** du
+    classement des routes côté serveur (``app/core/cycle_pages.py``). Information de présentation :
+    chaque appel d'API reste contrôlé par le serveur."""
+    tenant_id = resolve_current_tenant_id(request, user, db)
+    if not is_cycle_restricted(user):
+        return {"restricted": False, "cycles": [], "pages": None,
+                "cycle_policy_available": CYCLE_POLICY_AVAILABLE}
+    cycle_ids = [UUID(str(c)) for c in user["_cycle_ids"]]
+    cycles = (
+        db.query(EducationCycle)
+        .filter(EducationCycle.tenant_id == tenant_id, EducationCycle.id.in_(cycle_ids))
+        .order_by(EducationCycle.order_index, EducationCycle.name)
+        .all()
+    ) if cycle_ids else []
+    return {
+        "restricted": True,
+        "cycles": [{"id": str(c.id), "code": c.code, "name": c.name} for c in cycles],
+        "pages": page_policies(),
+        "cycle_policy_available": CYCLE_POLICY_AVAILABLE,
+    }
 
 
 @router.get("/cycles/")
@@ -409,8 +439,8 @@ def list_staff_cycles(request: Request, db: Session = Depends(get_db),
         "limit": limit,
         "restrictable_roles": sorted(RESTRICTABLE_ROLES),
         "unrestricted_roles": sorted(UNRESTRICTED_ROLES),
-        # Restrictions are recorded but not yet enforced on data routes.
-        "cycle_policy_available": False,
+        # Lot B3 : les restrictions enregistrées sont appliquées (B2a–B2e, portail, écrans).
+        "cycle_policy_available": CYCLE_POLICY_AVAILABLE,
     }
 
 

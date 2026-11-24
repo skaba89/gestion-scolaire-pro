@@ -99,7 +99,7 @@ def test_listing_shows_only_restrictable_staff_and_never_claims_enforcement(scho
     body = response.json()
     names = {item["first_name"] for item in body["items"]}
     assert names == {"director", "secretary", "accountant", "teacher_secretary"}
-    assert body["total"] == 4 and body["cycle_policy_available"] is False
+    assert body["total"] == 4 and body["cycle_policy_available"] is True
     assert all(item["cycle_ids"] == [] and item["restrictable"] for item in body["items"])
 
 
@@ -237,7 +237,7 @@ def test_computed_scope_is_opt_in_and_ignores_rows_of_administrators(school):
 def test_cycle_payload_still_reports_policy_unavailable(school):
     response = client.get("/api/v1/education/cycles/", headers=school["headers"]())
     assert response.status_code == 200
-    assert all(item["cycle_policy_available"] is False for item in response.json())
+    assert all(item["cycle_policy_available"] is True for item in response.json())
 
 
 @pytest.mark.skipif(engine.dialect.name != "postgresql", reason="Requires PostgreSQL composite foreign keys")

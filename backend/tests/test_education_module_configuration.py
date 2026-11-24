@@ -303,7 +303,7 @@ def test_cycle_configuration_is_versioned_audited_and_archival_preserves_level_h
     assert created.status_code == 201, created.text
     cycle = created.json()
     assert cycle["code"] == "COLLEGE" and cycle["revision"] == 1
-    assert cycle["level_ids"] == [] and cycle["cycle_policy_available"] is False
+    assert cycle["level_ids"] == [] and cycle["cycle_policy_available"] is True
 
     assigned = client.put(
         f"/api/v1/education/cycles/{cycle['id']}/levels/",

@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
-import { CORE_EDUCATION_MODULES, moduleForPage, type EducationCatalog, type EducationConfiguration } from "@/lib/education-modules";
+import { CORE_EDUCATION_MODULES, isPathInCycleScope, moduleForPage, type CycleScope, type EducationCatalog, type EducationConfiguration } from "@/lib/education-modules";
 
 export function useEducationCatalog() {
   const { user } = useAuth();
@@ -27,11 +27,20 @@ export function useEducationModules() {
     retry: 1,
     refetchOnWindowFocus: true,
   });
+  // Lot B3 : périmètre par cycle du compte (présentation seulement ; le serveur décide).
+  const scope = useQuery<CycleScope>({
+    queryKey: ["education-my-scope", tenant?.id, user?.id],
+    queryFn: () => apiClient.get("/education/my-scope/").then(r => r.data),
+    enabled: !!tenant?.id && !!user,
+    staleTime: 30_000,
+    retry: 1,
+  });
   const enabled = useMemo(() => new Set(query.data?.enabled_modules ?? CORE_EDUCATION_MODULES), [query.data]);
   const isModuleEnabled = useCallback((id: string) => enabled.has(id), [enabled]);
+  const isPathInScope = useCallback((path: string) => isPathInCycleScope(path, scope.data), [scope.data]);
   const isPathEnabled = useCallback((path: string) => {
     const id = moduleForPage(path);
-    return !id || enabled.has(id);
-  }, [enabled]);
-  return { ...query, isModuleEnabled, isPathEnabled };
+    return (!id || enabled.has(id)) && isPathInScope(path);
+  }, [enabled, isPathInScope]);
+  return { ...query, isModuleEnabled, isPathEnabled, isPathInScope, cycleScope: scope.data };
 }

@@ -1523,3 +1523,12 @@ La règle métier de l’auto-pointage reste à valider.
   quelle classe de l'établissement (présent en production) — et l'e-mail d'alerte n'échappait
   pas les saisies du client. Tests : 9 rouges avant correctif.
 
+- **2026-11-23 — personnel par cycle, lot B3 : écrans adaptés, `cycle_policy_available`
+  activé. Non déployé.** Un compte limité à des cycles ne voit plus dans le menu que les
+  écrans de son périmètre (accès déduit côté serveur du classement des routes, nouvelle route
+  `GET /education/my-scope/`) ; un écran hors périmètre ouvert par son adresse affiche un
+  message clair au lieu d'erreurs 403. Comptes non restreints inchangés. L'avertissement
+  « filtrage non actif » de Paramètres → Cycles est remplacé par la liste des modules encore
+  indisponibles (messagerie en premier à ouvrir, décision Q-B3-2). Parcours E2E 23 : un
+  secrétariat limité à un cycle parcourt tout son menu sans aucun refus de l'API.
+

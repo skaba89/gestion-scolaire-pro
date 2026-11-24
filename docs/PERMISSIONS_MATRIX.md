@@ -1449,3 +1449,21 @@ sont dans le périmètre (Q-P2). Pour **tous** les comptes : un `classroom_id` h
 répond 404 (DEPT-CLASS-IDOR-01). Aucune permission ni migration.
 Tests : `backend/tests/test_cycle_scope_department_portal.py`.
 
+### Lot B3 (2026-11-23) : écrans selon le périmètre par cycle, indicateur activé
+
+`GET /education/my-scope/` (INDEPENDENT, tout compte connecté) : `restricted`, `cycles` du compte
+et, pour un compte restreint, l'accès écran par écran de l'administration. L'accès est **déduit
+côté serveur** du classement des routes (`app/core/cycle_pages.py` : chaque écran rattaché à ses
+routes `GET` ; écran accessible si aucune n'est `DENY`) — le frontend ne tient aucune seconde
+liste. Le menu (`isPathEnabled`) combine modules de l'établissement et périmètre ; un écran hors
+périmètre ouvert par son URL affiche « Écran hors de votre périmètre » au lieu d'erreurs 403.
+Comptes non restreints : `pages = null`, rien n'est masqué. `cycle_policy_available` vaut
+désormais `true` (constante unique `CYCLE_POLICY_AVAILABLE`). Restent refusés à un compte
+restreint (décision Q-B3-2, ouverture module par module) : messagerie et annonces, RH,
+bibliothèque, inventaire, e-learning, clubs, enquêtes, anciens élèves, utilisateurs, enseignants,
+admissions (hors statistiques), emploi du temps. Q-B3-1 : un compte restreint qui cumule un rôle
+enseignant ou parent garde la perte de ces portails (comportement B2a, affiché dans Paramètres).
+Tests : `backend/tests/test_cycle_pages.py` (complétude du menu et du routeur, routes existantes,
+accès déduit, `my-scope`), Vitest (`cycle-scope-screens`, `useEducationModules.cycle-scope`),
+parcours E2E 23 (secrétariat restreint : menu, aucun 403, écran hors périmètre).
+
