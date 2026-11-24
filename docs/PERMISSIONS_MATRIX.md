@@ -1479,6 +1479,14 @@ dans le périmètre). Restent DENY : publication et suppression d'annonces, cour
 (tout l'établissement), forums (e-learning), destinataires « enseignant ». Aucune permission ni
 migration. Tests : `backend/tests/test_cycle_scope_messaging.py` (3 rouges sans le filtre).
 
+### TEACHER-RECIPIENTS-STATUS-01 (2026-11-24)
+
+`GET /communication/messaging/teacher-recipients/` exige **`users:read`** (auparavant tout compte
+connecté) : détenue par tout le personnel, enseignants et chefs de département compris, et par
+aucune famille (décision Q-T1). `communications:write` n'a pas été retenue : ni TEACHER ni
+DEPARTMENT_HEAD ne la détiennent. Aucun écran élève ou parent n'appelait la route ; aucun
+changement de `ROLE_PERMISSIONS`. Tests : `backend/tests/test_teacher_recipients.py`.
+
 ### Emploi du temps et enseignants pour les comptes limités à des cycles (2026-11-24, Q-B3-2)
 
 FILTERED : `GET|POST /schedule/`, `GET /schedule-slots/`, `GET /schedule/{slot_id}/roster/`,
