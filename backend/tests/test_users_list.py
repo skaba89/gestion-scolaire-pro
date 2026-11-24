@@ -57,6 +57,7 @@ def _make_user(tenant_id: str, *, role: str, email: str | None = None) -> str:
 
 
 def _as(user: dict) -> dict:
+    user = {**user, "_cycle_ids": user.get("_cycle_ids")}  # compte non restreint par défaut
     app.dependency_overrides[get_current_user] = lambda: user
     token = create_access_token({"sub": user["id"], "tenant_id": user.get("tenant_id"), "roles": user.get("roles", [])})
     return {"Authorization": f"Bearer {token}"}
