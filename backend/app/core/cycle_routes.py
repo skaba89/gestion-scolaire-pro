@@ -269,6 +269,9 @@ ROUTE_POLICIES: dict[tuple[str, str], Policy] = {
               "/teachers/{teacher_id}/schedule/"),
     **_routes(Policy.FILTERED, "PUT DELETE", "/schedule/{slot_id}/", "/teachers/{assignment_id}/"),
     **_routes(Policy.FILTERED, "PUT", "/schedule/classes/{class_id}/replace/"),
+    # Liste des comptes : l'écran Enseignants charge les comptes enseignants (parcours E2E 23). Compte
+    # restreint : comptes du personnel seulement ; la gestion des comptes reste DENY.
+    **_routes(Policy.FILTERED, "GET", "/users/"),
     # Lectures de structure appelées par ces écrans (matières d'un niveau, départements, niveaux et
     # prérequis d'une matière) : aucune donnée d'élève, comme les autres lectures de structure.
     **_routes(Policy.INDEPENDENT, "GET", "/levels/{level_id}/subjects/", "/subjects/{subject_id}/departments/",

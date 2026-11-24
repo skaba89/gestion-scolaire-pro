@@ -139,7 +139,11 @@ def test_exact_entries_do_not_leak_to_other_methods_or_paths():
     assert policy_for("GET", "/api/v1/students/") is Policy.FILTERED
     assert policy_for("POST", "/api/v1/students/") is Policy.DENY
     assert policy_for("GET", "/api/v1/students/{student_id}/grades/") is Policy.DENY
-    assert policy_for("GET", "/api/v1/users/") is Policy.DENY
+    # GET /users/ est FILTERED (comptes du personnel) ; la gestion des comptes reste refusée.
+    assert policy_for("GET", "/api/v1/users/") is Policy.FILTERED
+    assert policy_for("POST", "/api/v1/users/") is Policy.DENY
+    assert policy_for("GET", "/api/v1/users/pending/") is Policy.DENY
+    assert policy_for("GET", "/api/v1/users/{user_id}/") is Policy.DENY
 
 
 # Routes authentifiées SANS get_current_user : la garde centrale ne les voit

@@ -77,10 +77,13 @@ export const useStaff = (filters?: StaffFilters & { page?: number; pageSize?: nu
 
 import { apiClient } from "@/api/client";
 
-export const useTeacherData = (teacherId?: string) => {
+export const useTeacherData = (teacherId?: string, { selfFallback = true }: { selfFallback?: boolean } = {}) => {
     const { user } = useAuth();
     const { currentTenant } = useTenant();
-    const targetId = teacherId || user?.id;
+    // selfFallback (portail enseignant) : sans identifiant, l'enseignant connecté. Écrans
+    // d'administration : jamais — sinon l'écran chargeait le tableau de bord enseignant de
+    // l'administrateur lui-même (refusé à un compte limité à des cycles, parcours E2E 23).
+    const targetId = teacherId || (selfFallback ? user?.id : undefined);
 
     const dashboardQuery = useQuery({
         queryKey: ["teacher-dashboard", currentTenant?.id, targetId],
@@ -144,5 +147,5 @@ export const useTeacherData = (teacherId?: string) => {
     };
 };
 
-// Backward compatibility alias
-export const useTeacherSchedule = useTeacherData;
+// Écrans d'administration (liste et fiche d'un enseignant) : uniquement l'enseignant sélectionné.
+export const useTeacherSchedule = (teacherId?: string) => useTeacherData(teacherId, { selfFallback: false });

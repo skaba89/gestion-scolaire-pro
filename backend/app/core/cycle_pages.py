@@ -62,7 +62,8 @@ ADMIN_PAGE_ROUTES: dict[str, tuple[str, ...]] = {
     "teaching-units": ("/teaching-units/",),
     "academic-rules": ("/tenants/settings/academic-rules/",),
     # Modules encore refusés à un compte restreint (décision Q-B3-2 : ouverts lot par lot)
-    "users": ("/users/",),
+    # Gestion des comptes (création, rôles, comptes en attente) : encore réservée (Q-B3-2).
+    "users": ("/users/", "/users/pending/"),
     "teachers": ("/teachers/",),
     "teacher-hours": ("/hr/teacher-work-hours/",),
     "hr": ("/hr/employees/",),
@@ -80,7 +81,7 @@ ADMIN_PAGE_ROUTES: dict[str, tuple[str, ...]] = {
     "careers": ("/alumni/careers/jobs/",),
     "alumni-mentors": ("/alumni/admin/mentors/",),
     "alumni-requests": ("/alumni/admin/document-requests/",),
-    "exports": ("/students/", "/users/"),
+    "exports": ("/students/", "/users/", "/users/pending/"),
     "audit-logs": ("/audit/",),
     "security": ("/audit/",),
     "data-quality": ("/audit/data-quality/",),

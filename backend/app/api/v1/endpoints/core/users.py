@@ -211,6 +211,14 @@ def list_users(
         "NOT EXISTS (SELECT 1 FROM user_roles ur_sa WHERE ur_sa.user_id = u.id AND ur_sa.role = 'SUPER_ADMIN')",
     ]
     params: dict = {"tenant_id": tenant_id}
+    from app.core.cycle_scope import is_cycle_restricted
+    if is_cycle_restricted(current_user):
+        # Périmètre par cycle : un compte restreint ne liste que les comptes du personnel (au moins un
+        # rôle autre qu'élève, parent ou ancien) — jamais les familles, qui relèvent d'autres cycles.
+        where_clauses.append(
+            "EXISTS (SELECT 1 FROM user_roles ur_st WHERE ur_st.user_id = u.id AND ur_st.tenant_id = u.tenant_id "
+            "AND ur_st.role NOT IN ('STUDENT', 'PARENT', 'ALUMNI'))"
+        )
 
     if search:
         # Use LOWER() + LIKE for SQLite compatibility (ILIKE is PostgreSQL-only)

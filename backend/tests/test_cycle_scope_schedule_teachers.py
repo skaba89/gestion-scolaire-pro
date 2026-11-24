@@ -38,6 +38,7 @@ SCHEDULE_ROUTE_TESTS = {
     ("POST", "/teachers/"): "test_teacher_assignment_writes_need_a_class_of_the_scope",
     ("PUT", "/teachers/{assignment_id}/"): "test_teacher_assignment_writes_need_a_class_of_the_scope",
     ("DELETE", "/teachers/{assignment_id}/"): "test_teacher_assignment_writes_need_a_class_of_the_scope",
+    ("GET", "/users/"): "test_user_list_shows_only_staff_accounts_to_a_restricted_account",
 }
 
 
@@ -163,3 +164,21 @@ def test_teacher_assignment_writes_need_a_class_of_the_scope(school, timetable):
     assert call(school, "director", "DELETE", f"/teachers/{created.json()['id']}/").status_code == 200
     # Compte non restreint : affectation sans classe toujours possible.
     assert call(school, "admin_residual", "POST", "/teachers/", json=payload).status_code == 201
+
+
+@needs_postgres
+def test_user_list_shows_only_staff_accounts_to_a_restricted_account(school, timetable):
+    """L'écran Enseignants charge GET /users/ (parcours E2E 23) : un compte restreint ne voit que le
+    personnel, jamais les élèves, parents ou anciens élèves ; la gestion des comptes reste refusée."""
+    people = school["people"]
+    for who in RESTRICTED:
+        response = call(school, who, "GET", "/users/", params={"page_size": 100})
+        assert response.status_code == 200, (who, response.text)
+        seen = {item["id"] for item in response.json()["items"]}
+        assert str(people["teacher"]) in seen and str(people["accountant_free"]) in seen, who
+        assert str(people["student"]) not in seen and str(people["parent"]) not in seen, who
+        assert call(school, who, "GET", "/users/pending/").status_code == 403, who
+    free = {item["id"] for item in call(school, "secretary_free", "GET", "/users/",
+                                         params={"page_size": 100}).json()["items"]}
+    assert {str(people["student"]), str(people["parent"])} <= free
+
