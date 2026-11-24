@@ -259,6 +259,20 @@ ROUTE_POLICIES: dict[tuple[str, str], Policy] = {
               "/communication/whatsapp-threads/", "/communication/whatsapp-threads/{thread_id}/messages/"),
     **_routes(Policy.FILTERED, "POST", "/communication/conversations/",
               "/communication/conversations/{conversation_id}/reply-whatsapp/"),
+    # --- Emploi du temps et enseignants (Q-B3-2, deuxième module) ---------------------------------
+    # Créneaux et affectations des seules classes du périmètre ; classe vérifiée avant toute écriture
+    # (actuelle et cible) ; affectation sans classe refusée (tout l'établissement) ; conflits contrôlés
+    # sur tout l'établissement avec un message générique (Q-S1). /teachers/dashboard/ : portail
+    # enseignant, reste DENY (Q-B3-1).
+    **_routes(Policy.FILTERED, "GET POST", "/schedule/", "/teachers/"),
+    **_routes(Policy.FILTERED, "GET", "/schedule-slots/", "/schedule/{slot_id}/roster/",
+              "/teachers/{teacher_id}/schedule/"),
+    **_routes(Policy.FILTERED, "PUT DELETE", "/schedule/{slot_id}/", "/teachers/{assignment_id}/"),
+    **_routes(Policy.FILTERED, "PUT", "/schedule/classes/{class_id}/replace/"),
+    # Lectures de structure appelées par ces écrans (matières d'un niveau, départements, niveaux et
+    # prérequis d'une matière) : aucune donnée d'élève, comme les autres lectures de structure.
+    **_routes(Policy.INDEPENDENT, "GET", "/levels/{level_id}/subjects/", "/subjects/{subject_id}/departments/",
+              "/subjects/{subject_id}/levels/", "/subjects/{subject_id}/prerequisites/"),
     # Restent DENY : publication et suppression d'annonces et courriels groupés (tout l'établissement,
     # donc tous les cycles), forums (e-learning), destinataires « enseignant ».
 }

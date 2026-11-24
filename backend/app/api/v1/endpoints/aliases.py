@@ -23,7 +23,7 @@ from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
 from app.core.parent_scope import parent_student_filter
 from app.core.cycle_scope import (
-    class_scope_sql, is_cycle_restricted, require_class_in_scope, require_classes_in_scope,
+    class_scope_and, class_scope_sql, is_cycle_restricted, require_class_in_scope, require_classes_in_scope,
     require_enrollment_in_scope, require_student_in_scope, require_students_in_scope,
     require_invoice_in_scope, require_submission_in_scope, scoped_class_ids, student_scope_and,
     student_scope_clause, student_scope_sql,
@@ -1481,10 +1481,13 @@ def list_schedule_slots_alias(
     params = {"tenant_id": tid}
 
     if class_id and class_id != "none":
+        # Périmètre par cycle : même règle que GET /schedule/.
+        require_class_in_scope(db, tid, current_user, class_id)
         where_clauses.append("s.class_id = :class_id")
         params["class_id"] = class_id
+    scope_sql, scope_binds = class_scope_and(db, tid, current_user, "s.class_id", tag="sls")
 
-    where_sql = " AND ".join(where_clauses)
+    where_sql = " AND ".join(where_clauses) + scope_sql
     sql = sql_text(f"""
         SELECT
             s.*,
@@ -1498,7 +1501,7 @@ def list_schedule_slots_alias(
         LEFT JOIN users u ON u.id = s.teacher_id
         WHERE {where_sql}
         ORDER BY s.day_of_week, s.start_time
-    """)
+    """).bindparams(*scope_binds)
 
     try:
         rows = db.execute(sql, params).fetchall()

@@ -79,6 +79,8 @@ SCOPE_HELPERS = (
     "_require_alert_classes_in_scope",
     # Messagerie : destinataires et fils WhatsApp du périmètre.
     "_recipient_scope_sql", "_require_thread_in_scope",
+    # Emploi du temps et enseignants.
+    "_require_slot_in_scope", "_require_assignment_class_in_scope", "_require_existing_assignment_in_scope",
 )
 
 

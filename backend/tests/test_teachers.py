@@ -77,6 +77,7 @@ def _as(user: dict) -> dict:
     TenantMiddleware enforces its own bearer-token check ahead of FastAPI's
     dependency injection, so an override alone isn't enough (same pattern as
     test_operational_pagination.py / test_ministry.py)."""
+    user = {**user, "_cycle_ids": user.get("_cycle_ids")}  # compte non restreint par défaut
     app.dependency_overrides[get_current_user] = lambda: user
     token = create_access_token({"sub": user["id"], "tenant_id": user.get("tenant_id"), "roles": user.get("roles", [])})
     return {"Authorization": f"Bearer {token}"}

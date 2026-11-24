@@ -11,6 +11,7 @@ from uuid import UUID
 
 logger = logging.getLogger(__name__)
 
+from app.core.cycle_scope import class_scope_and, is_cycle_restricted, require_class_in_scope
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
 from app.core.tenant_refs import ensure_refs_in_tenant
@@ -37,10 +38,14 @@ def list_schedule(
     params = {"tenant_id": tenant_id}
     
     if class_id and class_id != "none":
+        # Périmètre par cycle : une classe hors périmètre demandée explicitement répond 404.
+        require_class_in_scope(db, tenant_id, current_user, class_id)
         where_clauses.append("s.class_id = :class_id")
         params["class_id"] = class_id
-        
-    where_sql = " AND ".join(where_clauses)
+    # Périmètre par cycle : créneaux des seules classes du périmètre (compte restreint).
+    scope_sql, scope_binds = class_scope_and(db, tenant_id, current_user, "s.class_id", tag="sch")
+
+    where_sql = " AND ".join(where_clauses) + scope_sql
     sql = text(f"""
         SELECT 
             s.*,
@@ -54,8 +59,8 @@ def list_schedule(
         LEFT JOIN users u ON u.id = s.teacher_id
         WHERE {where_sql}
         ORDER BY s.day_of_week, s.start_time
-    """)
-    
+    """).bindparams(*scope_binds)
+
     rows = db.execute(sql, params).fetchall()
     
     return [
@@ -158,6 +163,18 @@ def _serialize_slot(slot: ScheduleSlot) -> dict:
     }
 
 
+def _require_slot_in_scope(db: Session, tenant_id: str, user: dict, class_id, *,
+                           detail: str = "Slot not found") -> None:
+    """Périmètre par cycle : la classe d'un créneau existant doit être dans le périmètre ; sinon
+    404 identique à un créneau inexistant (aucun oracle d'existence)."""
+    if not is_cycle_restricted(user):
+        return
+    try:
+        require_class_in_scope(db, tenant_id, user, class_id)
+    except HTTPException:
+        raise HTTPException(status_code=404, detail=detail) from None
+
+
 _OVERLAP_DETAIL = "Ce créneau chevauche un cours existant (enseignant, salle ou classe déjà occupé)"
 
 
@@ -180,9 +197,13 @@ def create_schedule_slot(
         raise HTTPException(status_code=403, detail="No tenant context")
     if payload.end_time <= payload.start_time:
         raise HTTPException(status_code=422, detail="L'heure de fin doit suivre l'heure de début")
+    # Périmètre par cycle : la classe du créneau, avant toute écriture.
+    require_class_in_scope(db, tenant_id, current_user, payload.class_id)
     _validate_slot_refs(db, tenant_id=tenant_id, class_id=payload.class_id, subject_id=payload.subject_id,
                         teacher_id=payload.teacher_id, room_id=payload.room_id)
 
+    # Conflits contrôlés sur tout l'établissement (Q-S1) : message générique, aucune information
+    # sur le créneau d'un autre cycle.
     conflict = _find_schedule_conflict(
         db, tenant_id=tenant_id, day_of_week=payload.day_of_week,
         start_time=payload.start_time, end_time=payload.end_time,
@@ -224,6 +245,8 @@ def replace_class_schedule(
     """Atomically replace one class schedule after validating every slot."""
     try:
         tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+        # Périmètre par cycle : la classe dont l'emploi du temps est remplacé.
+        require_class_in_scope(db, tenant_id, current_user, class_id)
         classroom = db.query(Classroom.id).filter(
             Classroom.id == class_id, Classroom.tenant_id == tenant_id
         ).with_for_update().first()
@@ -329,10 +352,15 @@ def update_schedule_slot(
     ).with_for_update().first()
     if not slot:
         raise HTTPException(status_code=404, detail="Slot not found")
+    # Périmètre par cycle : classe actuelle du créneau (404 identique à un créneau inexistant).
+    _require_slot_in_scope(db, tenant_id, current_user, slot.class_id)
 
     changes = {k: v for k, v in payload.model_dump(exclude_unset=True).items() if v is not None}
     if not changes:
         raise HTTPException(status_code=400, detail="No fields to update")
+    if changes.get("class_id") is not None:
+        # … et classe de destination, avant toute écriture.
+        require_class_in_scope(db, tenant_id, current_user, changes["class_id"])
     _validate_slot_refs(db, tenant_id=tenant_id, class_id=changes.get("class_id"),
                         subject_id=changes.get("subject_id"), teacher_id=changes.get("teacher_id"),
                         room_id=changes.get("room_id"))
@@ -368,6 +396,12 @@ def delete_schedule_slot(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    if is_cycle_restricted(current_user):
+        existing = db.query(ScheduleSlot.class_id).filter(
+            ScheduleSlot.id == slot_id, ScheduleSlot.tenant_id == tenant_id).first()
+        if existing is None:
+            raise HTTPException(status_code=404, detail="Slot not found")
+        _require_slot_in_scope(db, tenant_id, current_user, existing.class_id)
 
     result = db.execute(
         text("DELETE FROM schedule WHERE id = :slot_id AND tenant_id = :tenant_id"),
@@ -430,6 +464,7 @@ def get_schedule_slot_roster(
     """), {"slot_id": slot_id, "tenant_id": tenant_id}).mappings().first()
     if not slot:
         raise HTTPException(status_code=404, detail="Créneau introuvable")
+    _require_slot_in_scope(db, tenant_id, current_user, slot["class_id"], detail="Créneau introuvable")
     if not _can_view_roster(db, current_user=current_user, slot=slot, tenant_id=tenant_id):
         raise HTTPException(status_code=403, detail="Accès non autorisé à la liste de cette classe")
 

@@ -707,6 +707,7 @@ def test_every_filtered_route_has_a_behavioural_test():
     import test_cycle_scope_analytics as analytics
     import test_cycle_scope_department_portal as portal
     import test_cycle_scope_messaging as messaging
+    import test_cycle_scope_schedule_teachers as schedule
     import test_cycle_scope_finance as finance
     import test_cycle_scope_school_life as school_life
     import test_cycle_scope_schooling as schooling
@@ -728,6 +729,8 @@ def test_every_filtered_route_has_a_behavioural_test():
     declared |= {(method, f"{API}{path}") for method, path in portal.PORTAL_ROUTE_TESTS}
     # Messagerie (Q-B3-2) : test_cycle_scope_messaging.
     declared |= {(method, f"{API}{path}") for method, path in messaging.MESSAGING_ROUTE_TESTS}
+    # Emploi du temps et enseignants : test_cycle_scope_schedule_teachers.
+    declared |= {(method, f"{API}{path}") for method, path in schedule.SCHEDULE_ROUTE_TESTS}
     assert filtered == declared, (
         f"Routes FILTERED sans test comportemental : {sorted(filtered - declared)} ; "
         f"entrées orphelines : {sorted(declared - filtered)}"
@@ -755,4 +758,7 @@ def test_every_filtered_route_has_a_behavioural_test():
         assert callable(candidate) and name.startswith("test_"), f"test introuvable : {name}"
     for name in set(messaging.MESSAGING_ROUTE_TESTS.values()):
         candidate = getattr(messaging, name, None)
+        assert callable(candidate) and name.startswith("test_"), f"test introuvable : {name}"
+    for name in set(schedule.SCHEDULE_ROUTE_TESTS.values()):
+        candidate = getattr(schedule, name, None)
         assert callable(candidate) and name.startswith("test_"), f"test introuvable : {name}"

@@ -8,6 +8,9 @@ from typing import List, Optional
 from pydantic import BaseModel
 from uuid import UUID
 
+from app.core.cycle_scope import (
+    class_scope_and, class_scope_clause, is_cycle_restricted, require_class_in_scope, scoped_class_ids,
+)
 from app.core.database import get_db
 from app.core.security import get_current_user, require_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
@@ -64,6 +67,9 @@ def get_teacher_schedule(
             .filter(
                 ScheduleSlot.teacher_id == teacher_id,
                 ScheduleSlot.tenant_id == tenant_id,
+                # Périmètre par cycle : créneaux des seules classes du périmètre (compte restreint).
+                *([class_scope_clause(ScheduleSlot.class_id, scoped_class_ids(db, tenant_id, current_user))]
+                  if is_cycle_restricted(current_user) else []),
             )
             .order_by(ScheduleSlot.day_of_week, ScheduleSlot.start_time, ScheduleSlot.id)
             .all()
@@ -110,6 +116,33 @@ def _validate_assignment_fks(db: Session, *, tenant_id: str, teacher_id: Optiona
             raise HTTPException(status_code=404, detail="Matière introuvable dans cet établissement")
 
 
+def _require_assignment_class_in_scope(db: Session, tenant_id: str, user: dict, class_id) -> None:
+    """Périmètre par cycle (compte restreint) : une affectation doit porter sur une classe de son
+    périmètre ; sans classe, elle vaut pour tout l'établissement (donc d'autres cycles) : 403."""
+    if not is_cycle_restricted(user):
+        return
+    if not class_id:
+        raise HTTPException(status_code=403, detail=(
+            "Une affectation sans classe concerne tout l'établissement : choisissez une classe de votre périmètre."))
+    require_class_in_scope(db, tenant_id, user, class_id)
+
+
+def _require_existing_assignment_in_scope(db: Session, tenant_id: str, user: dict, assignment_id) -> None:
+    """Affectation existante : sa classe doit être dans le périmètre ; sinon 404 identique à une
+    affectation inexistante."""
+    if not is_cycle_restricted(user):
+        return
+    row = db.execute(text(
+        "SELECT classroom_id FROM teacher_assignments WHERE id = :aid AND tenant_id = :tid"
+    ), {"aid": str(assignment_id), "tid": tenant_id}).first()
+    try:
+        if row is None or row.classroom_id is None:
+            raise HTTPException(status_code=404)
+        require_class_in_scope(db, tenant_id, user, row.classroom_id)
+    except HTTPException:
+        raise HTTPException(status_code=404, detail="Teacher assignment not found") from None
+
+
 class TeacherAssignmentCreate(BaseModel):
     teacher_id: str
     class_id: Optional[str] = None
@@ -130,7 +163,10 @@ def list_teachers(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=100),
     db: Session = Depends(get_db),
-    current_user: dict = Depends(require_permission("settings:read")),
+    # TEACHERS-LIST-01 (2026-11-24) : était settings:read, que détiennent aussi élèves et parents —
+    # tout compte listait les affectations et les e-mails des enseignants. users:read : tout le
+    # personnel (enseignants compris), aucune famille ; aucun écran élève ou parent ne l'appelle.
+    current_user: dict = Depends(require_permission("users:read")),
 ):
     """List teacher assignments with pagination and filters."""
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
@@ -141,6 +177,8 @@ def list_teachers(
     params = {"tid": tenant_id}
 
     if class_id:
+        # Périmètre par cycle : une classe hors périmètre demandée explicitement répond 404.
+        require_class_in_scope(db, tenant_id, current_user, class_id)
         where_clauses.append("ta.classroom_id = :class_id")
         params["class_id"] = class_id
     if subject_id:
@@ -150,14 +188,17 @@ def list_teachers(
         where_clauses.append("(u.first_name ILIKE :s OR u.last_name ILIKE :s OR u.email ILIKE :s)")
         params["s"] = f"%{search}%"
 
-    where_sql = " AND ".join(where_clauses)
+    # Périmètre par cycle : affectations des seules classes du périmètre (sans classe : exclue),
+    # avant LIMIT et avant le comptage.
+    scope_sql, scope_binds = class_scope_and(db, tenant_id, current_user, "ta.classroom_id", tag="tch")
+    where_sql = " AND ".join(where_clauses) + scope_sql
 
     # Count
     count_result = db.execute(text(f"""
         SELECT COUNT(*) FROM teacher_assignments ta
         JOIN users u ON u.id = ta.user_id
         WHERE {where_sql}
-    """), params).scalar()
+    """).bindparams(*scope_binds), params).scalar()
 
     offset = (page - 1) * page_size
     params["limit"] = page_size
@@ -176,7 +217,7 @@ def list_teachers(
         WHERE {where_sql}
         ORDER BY u.last_name, u.first_name
         LIMIT :limit OFFSET :offset
-    """), params).fetchall()
+    """).bindparams(*scope_binds), params).fetchall()
 
     import math
     total = count_result or 0
@@ -203,6 +244,7 @@ def create_teacher_assignment(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    _require_assignment_class_in_scope(db, tenant_id, current_user, assignment.class_id)
     _validate_assignment_fks(db, tenant_id=tenant_id, teacher_id=assignment.teacher_id,
                               class_id=assignment.class_id, subject_id=assignment.subject_id)
     try:
@@ -239,6 +281,9 @@ def update_teacher_assignment(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    _require_existing_assignment_in_scope(db, tenant_id, current_user, assignment_id)
+    if assignment.class_id is not None:
+        _require_assignment_class_in_scope(db, tenant_id, current_user, assignment.class_id)
     _validate_assignment_fks(db, tenant_id=tenant_id, teacher_id=None,
                               class_id=assignment.class_id, subject_id=assignment.subject_id)
     try:
@@ -285,6 +330,7 @@ def delete_teacher_assignment(
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     if not tenant_id:
         raise HTTPException(status_code=403, detail="No tenant context")
+    _require_existing_assignment_in_scope(db, tenant_id, current_user, assignment_id)
     try:
         result = db.execute(text(
             "DELETE FROM teacher_assignments WHERE id = :aid AND tenant_id = :tid"

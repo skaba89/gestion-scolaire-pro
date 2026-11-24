@@ -1479,3 +1479,17 @@ dans le périmètre). Restent DENY : publication et suppression d'annonces, cour
 (tout l'établissement), forums (e-learning), destinataires « enseignant ». Aucune permission ni
 migration. Tests : `backend/tests/test_cycle_scope_messaging.py` (3 rouges sans le filtre).
 
+### Emploi du temps et enseignants pour les comptes limités à des cycles (2026-11-24, Q-B3-2)
+
+FILTERED : `GET|POST /schedule/`, `GET /schedule-slots/`, `GET /schedule/{slot_id}/roster/`,
+`PUT|DELETE /schedule/{slot_id}/`, `PUT /schedule/classes/{class_id}/replace/`, `GET|POST /teachers/`,
+`PUT|DELETE /teachers/{assignment_id}/`, `GET /teachers/{teacher_id}/schedule/`. Créneaux et
+affectations des seules classes du périmètre ; classe actuelle et cible vérifiées avant toute
+écriture (404 identique hors périmètre) ; affectation sans classe refusée à un compte restreint
+(403, elle vaut pour tout l'établissement) ; conflits de salle ou d'enseignant contrôlés sur tout
+l'établissement avec le message générique existant (Q-S1). `GET /teachers/dashboard/` reste DENY
+(portail enseignant, Q-B3-1). INDEPENDENT : lectures de structure `GET /levels/{id}/subjects/`,
+`/subjects/{id}/departments|levels|prerequisites/`. **TEACHERS-LIST-01** : `GET /teachers/` exige
+`users:read` (auparavant `settings:read`, détenue aussi par élèves et parents). Aucune migration.
+Tests : `backend/tests/test_cycle_scope_schedule_teachers.py` (4 rouges sans le filtrage).
+
