@@ -1532,3 +1532,10 @@ La règle métier de l’auto-pointage reste à valider.
   indisponibles (messagerie en premier à ouvrir, décision Q-B3-2). Parcours E2E 23 : un
   secrétariat limité à un cycle parcourt tout son menu sans aucun refus de l'API.
 
+- **2026-11-24 — messagerie ouverte aux comptes limités à des cycles (Q-B3-2). Non
+  déployé.** Un directeur ou un secrétariat limité à des cycles retrouve sa messagerie : il
+  écrit à tout le personnel et aux familles de ses cycles (jamais à celles des autres), lit ses
+  conversations et les fils WhatsApp de ses élèves. La publication d'annonces reste réservée
+  aux comptes non restreints. En chemin, le parcours E2E 23 (B3) avait révélé que le badge des
+  messages non lus renvoyait 403 sur chaque écran d'un compte restreint : corrigé dans B3.
+

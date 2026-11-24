@@ -4721,7 +4721,7 @@
         "TEACHER": "Teacher",
         "TENANT_ADMIN": "Administrator"
       },
-      "activeNotice": "An account limited to cycles only sees the students, classes, grades, attendance, finances and indicators of its cycles. Still unavailable for now: messaging and announcements, human resources, library, inventory, e-learning, clubs, surveys, alumni, user and teacher management, admissions (except statistics), timetable. An account that also holds a teacher or parent role loses those portals while restricted. Removing all cycles from an account restores full access at its next sign-in."
+      "activeNotice": "An account limited to cycles only sees the students, classes, grades, attendance, finances and indicators of its cycles. Still unavailable for now: publishing announcements (messaging is available, limited to the families of its cycles), human resources, library, inventory, e-learning, clubs, surveys, alumni, user and teacher management, admissions (except statistics), timetable. An account that also holds a teacher or parent role loses those portals while restricted. Removing all cycles from an account restores full access at its next sign-in."
     }
   },
   "teachingAdmin": {

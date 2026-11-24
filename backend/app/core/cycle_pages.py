@@ -66,7 +66,7 @@ ADMIN_PAGE_ROUTES: dict[str, tuple[str, ...]] = {
     "teachers": ("/teachers/",),
     "teacher-hours": ("/hr/teacher-work-hours/",),
     "hr": ("/hr/employees/",),
-    "messages": ("/communication/conversations/",),
+    "messages": ("/communication/conversations/", "/communication/messaging/recipients/"),
     "announcements": ("/communication/announcements/",),
     "forums": ("/communication/forums/",),
     "library": ("/library/resources/",),

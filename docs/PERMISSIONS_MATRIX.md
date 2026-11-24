@@ -1467,3 +1467,15 @@ Tests : `backend/tests/test_cycle_pages.py` (complétude du menu et du routeur, 
 accès déduit, `my-scope`), Vitest (`cycle-scope-screens`, `useEducationModules.cycle-scope`),
 parcours E2E 23 (secrétariat restreint : menu, aucun 403, écran hors périmètre).
 
+### Messagerie pour les comptes limités à des cycles (2026-11-24, décision Q-B3-2)
+
+Premier module ouvert après B3. INDEPENDENT (données des seules conversations dont le compte est
+participant, contrôle déjà présent) : liste des conversations, messages (lecture et envoi),
+réactions, saisie en cours, recherche, présence, non-lus, sondage, lecture des annonces.
+FILTERED : `GET /messaging/recipients/` et `/messaging/users/` (tout le personnel ; parents d'un
+enfant du périmètre ; élèves du périmètre ; jamais les anciens élèves), `POST /conversations/`
+(destinataire de cette liste, sinon 404 sans écriture), fils WhatsApp et réponse (élève du fil
+dans le périmètre). Restent DENY : publication et suppression d'annonces, courriels groupés
+(tout l'établissement), forums (e-learning), destinataires « enseignant ». Aucune permission ni
+migration. Tests : `backend/tests/test_cycle_scope_messaging.py` (3 rouges sans le filtre).
+
