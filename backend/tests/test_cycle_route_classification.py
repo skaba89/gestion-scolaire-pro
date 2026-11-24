@@ -77,6 +77,8 @@ SCOPE_HELPERS = (
     # CYCLE-PORTAL-GAP-01 : portail de département (point unique d'intersection).
     "_get_department_classroom_ids", "_validate_exam_fks", "_require_exam_writable",
     "_require_alert_classes_in_scope",
+    # Messagerie : destinataires et fils WhatsApp du périmètre.
+    "_recipient_scope_sql", "_require_thread_in_scope",
 )
 
 

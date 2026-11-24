@@ -8,7 +8,7 @@ import { API, api, credentials, loginThroughUi, ulsUrl } from './helpers';
  * secrétariat à ce cycle. Le secrétariat se reconnecte (la restriction ferme ses
  * sessions) puis :
  * - son menu ne contient que des écrans accessibles selon GET /education/my-scope/ et
- *   perd au moins une entrée qu'il avait sans restriction (messagerie) ;
+ *   perd au moins une entrée qu'il avait sans restriction (admissions) ;
  * - chaque entrée visible s'ouvre sans aucun refus 403 de l'API ;
  * - un écran hors périmètre ouvert par son URL affiche « Écran hors de votre périmètre ».
  * La restriction, le rattachement du niveau et le cycle sont retirés en fin de parcours.
@@ -69,7 +69,7 @@ test.describe('Lot B3 — menus d\'un compte limité à un cycle', () => {
       };
       const outside = links.filter((href) => scope.pages[pageOf(href)] !== true);
       expect(outside, 'entrées de menu hors périmètre').toEqual([]);
-      expect(links.some((href) => href.endsWith('/admin/messages')), 'messagerie masquée').toBe(false);
+      expect(links.some((href) => href.endsWith('/admin/admissions')), 'admissions masquées').toBe(false);
       expect(links.some((href) => href.endsWith('/admin/students')), 'élèves visibles').toBe(true);
 
       const refused: string[] = [];
@@ -78,7 +78,7 @@ test.describe('Lot B3 — menus d\'un compte limité à un cycle', () => {
       }
       expect(refused, 'refus de l\'API sur un écran du menu').toEqual([]);
 
-      await page.goto(ulsUrl('/admin/messages'));
+      await page.goto(ulsUrl('/admin/admissions'));
       await expect(page.getByRole('alert')).toContainText('Écran hors de votre périmètre');
     } finally {
       const current = (await (await admin.get('/education/staff-cycles/?limit=500')).json()).items

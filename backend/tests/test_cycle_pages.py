@@ -56,7 +56,9 @@ def test_screen_access_is_derived_from_the_route_classification():
         assert policies[page] is expected, page
     # Repères : écrans adaptés ouverts, modules encore refusés masqués, aide toujours visible.
     assert policies["students"] and policies["finances"] and policies["grades"] and policies[""]
-    assert not policies["users"] and not policies["messages"] and not policies["admissions"]
+    assert not policies["users"] and not policies["hr"] and not policies["admissions"]
+    # Messagerie ouverte aux comptes restreints (Q-B3-2) ; annonces en lecture seule.
+    assert policies["messages"] and policies["announcements"]
     assert policies["documentation"] and policies["profile"]
 
 
