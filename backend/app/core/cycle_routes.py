@@ -245,6 +245,22 @@ ROUTE_POLICIES: dict[tuple[str, str], Policy] = {
     # conversations dont le compte est participant (aucune donnée d'un autre cycle). Révélé par le
     # parcours E2E 23 (refus 403 sur chaque page d'un compte restreint).
     **_routes(Policy.INDEPENDENT, "GET", "/communication/messaging/poll/", "/communication/messaging/unread-count/"),
+    # --- Messagerie (décision Q-B3-2, premier module ouvert) ---------------------------------------
+    # Conversations, messages, réactions, saisie en cours, recherche, présence : données des seules
+    # conversations dont le compte est participant (contrôle déjà présent dans chaque route).
+    **_routes(Policy.INDEPENDENT, "GET", "/communication/conversations/",
+              "/communication/conversations/{conversation_id}/typing/", "/communication/messages/search/",
+              "/communication/presence/{user_id}/", "/communication/announcements/"),
+    **_routes(Policy.INDEPENDENT, "GET POST", "/communication/conversations/{conversation_id}/messages/"),
+    **_routes(Policy.INDEPENDENT, "GET POST DELETE", "/communication/messages/{message_id}/reactions/"),
+    # Destinataires : personnel + parents et élèves du périmètre ; nouvelle conversation limitée à
+    # ces destinataires ; fils WhatsApp dont l'élève est dans le périmètre.
+    **_routes(Policy.FILTERED, "GET", "/communication/messaging/recipients/", "/communication/messaging/users/",
+              "/communication/whatsapp-threads/", "/communication/whatsapp-threads/{thread_id}/messages/"),
+    **_routes(Policy.FILTERED, "POST", "/communication/conversations/",
+              "/communication/conversations/{conversation_id}/reply-whatsapp/"),
+    # Restent DENY : publication et suppression d'annonces et courriels groupés (tout l'établissement,
+    # donc tous les cycles), forums (e-learning), destinataires « enseignant ».
 }
 
 # Familles refusées d'office (préfixes). Toute route qui n'est pas dans

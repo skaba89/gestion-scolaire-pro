@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from uuid import UUID
 import datetime, json
 
+from app.core.cycle_scope import is_cycle_restricted, scoped_class_ids, student_scope_clause, student_scope_sql
 from app.core.database import get_db
 from app.core.idempotency import get_idempotent_response_or_lock, store_idempotent_response
 from app.core.security import get_current_user, require_permission
@@ -147,6 +148,43 @@ def delete_announcement(
 
 # ─── Messaging Helper endpoints ───────────────────────────────────────────────
 
+def _recipient_scope_sql(db: Session, tenant_id: str, user: dict, alias: str = "u"):
+    """Périmètre par cycle des destinataires (messagerie, décision Q-B3-2) : ``("", [])`` pour un
+    compte non restreint. Compte restreint : tout le personnel (rôle autre qu'élève, parent ou
+    ancien) ; un parent seulement s'il a un enfant dans le périmètre ; un élève seulement s'il est
+    lui-même dans le périmètre ; jamais un ancien élève. Paramètres liés uniquement."""
+    if not is_cycle_restricted(user):
+        return "", []
+    class_ids = scoped_class_ids(db, tenant_id, user)
+    child_sql, child_binds = student_scope_sql("ps_r.student_id", class_ids, tenant_id=tenant_id, tag="mrp")
+    self_sql, self_binds = student_scope_sql("st_r.id", class_ids, tenant_id=tenant_id, tag="mrs")
+    sql = (
+        f" AND ("
+        f"EXISTS (SELECT 1 FROM user_roles ur_r WHERE ur_r.user_id = {alias}.id "
+        f"AND ur_r.role NOT IN ('STUDENT', 'PARENT', 'ALUMNI'))"
+        f" OR EXISTS (SELECT 1 FROM parent_students ps_r WHERE ps_r.parent_id = {alias}.id "
+        f"AND ps_r.tenant_id = :tenant_id AND {child_sql})"
+        f" OR EXISTS (SELECT 1 FROM students st_r WHERE st_r.user_id = {alias}.id "
+        f"AND st_r.tenant_id = :tenant_id AND {self_sql})"
+        f")"
+    )
+    return sql, [*child_binds, *self_binds]
+
+
+def _require_thread_in_scope(db: Session, tenant_id: str, user: dict, thread) -> None:
+    """Fil WhatsApp : pour un compte restreint, l'élève du fil doit être dans le périmètre ; fil
+    sans élève ou hors périmètre : 404 identique à un fil inexistant."""
+    if not is_cycle_restricted(user):
+        return
+    from app.models import Student
+    in_scope = thread.student_id is not None and db.query(Student.id).filter(
+        Student.id == thread.student_id, Student.tenant_id == tenant_id,
+        student_scope_clause(Student.id, scoped_class_ids(db, tenant_id, user), tenant_id=tenant_id),
+    ).first() is not None
+    if not in_scope:
+        raise HTTPException(status_code=404, detail="Conversation introuvable")
+
+
 @router.get("/messaging/users/")
 def get_messaging_users(
     request: Request,
@@ -165,16 +203,18 @@ def get_messaging_users(
 ):
     try:
         tenant_id = str(resolve_current_tenant_id(request, current_user, db))
-        rows = db.execute(text("""
+        # Périmètre par cycle : personnel, parents et élèves des cycles du compte seulement.
+        scope_sql, scope_binds = _recipient_scope_sql(db, tenant_id, current_user)
+        rows = db.execute(text(f"""
             SELECT u.id, u.first_name, u.last_name, u.email,
                    array_agg(DISTINCT ur.role) AS roles
             FROM users u
             LEFT JOIN user_roles ur ON ur.user_id = u.id
-            WHERE u.tenant_id = :tenant_id
+            WHERE u.tenant_id = :tenant_id{scope_sql}
             GROUP BY u.id, u.first_name, u.last_name, u.email
             ORDER BY u.last_name, u.first_name
             LIMIT :limit OFFSET :offset
-        """), {
+        """).bindparams(*scope_binds), {
             "tenant_id": tenant_id, "limit": page_size, "offset": (page - 1) * page_size,
         }).mappings().all()
         return [
@@ -209,17 +249,19 @@ def get_messaging_recipients(
     from app.core.security import user_has_permission
     full = user_has_permission(current_user, "users:read")
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+    # Périmètre par cycle : personnel, parents et élèves des cycles du compte seulement.
+    scope_sql, scope_binds = _recipient_scope_sql(db, tenant_id, current_user)
     rows = db.execute(text(f"""
         SELECT u.id, u.first_name, u.last_name, u.email,
                array_agg(DISTINCT ur.role) AS roles
         FROM users u
         LEFT JOIN user_roles ur ON ur.user_id = u.id
-        WHERE u.tenant_id = :tenant_id AND u.is_active
+        WHERE u.tenant_id = :tenant_id AND u.is_active{scope_sql}
         GROUP BY u.id, u.first_name, u.last_name, u.email
         {"" if full else "HAVING bool_or(ur.role NOT IN ('STUDENT', 'ALUMNI'))"}
         ORDER BY u.last_name, u.first_name
         LIMIT :limit OFFSET :offset
-    """), {"tenant_id": tenant_id, "limit": page_size, "offset": (page - 1) * page_size}).mappings().all()
+    """).bindparams(*scope_binds), {"tenant_id": tenant_id, "limit": page_size, "offset": (page - 1) * page_size}).mappings().all()
     out = []
     for r in rows:
         item = {"id": str(r["id"]), "first_name": r["first_name"], "last_name": r["last_name"],
@@ -365,6 +407,13 @@ def create_or_find_conversation(
     # (clé étrangère vérifiée sans RLS) ; un identifiant inconnu donnait 500.
     tenant_id = str(resolve_current_tenant_id(request, current_user, db))
     ensure_in_tenant(db, tenant_id, "users", body.recipient_id)
+    # Périmètre par cycle : un compte restreint n'écrit qu'aux destinataires de sa liste filtrée
+    # (même 404 qu'un utilisateur d'un autre établissement, sans écriture).
+    scope_sql, scope_binds = _recipient_scope_sql(db, tenant_id, current_user)
+    if scope_sql and db.execute(text(
+        f"SELECT 1 FROM users u WHERE u.id = :rid AND u.tenant_id = :tenant_id{scope_sql}"
+    ).bindparams(*scope_binds), {"rid": str(body.recipient_id), "tenant_id": tenant_id}).first() is None:
+        raise HTTPException(status_code=404, detail="Utilisateur introuvable dans cet établissement")
     if str(body.recipient_id) == str(current_user.get("id")):
         raise HTTPException(status_code=422, detail="Impossible d'ouvrir une conversation avec soi-même")
     try:
@@ -595,13 +644,12 @@ def list_whatsapp_threads(
         if not (_WHATSAPP_REPLY_ROLES & set(roles)):
             raise HTTPException(status_code=403, detail="Accès refusé")
 
-        threads = (
-            db.query(MessageThread)
-            .filter(MessageThread.tenant_id == tenant_id)
-            .order_by(MessageThread.updated_at.desc())
-            .limit(200)
-            .all()
-        )
+        query = db.query(MessageThread).filter(MessageThread.tenant_id == tenant_id)
+        if is_cycle_restricted(current_user):
+            # Périmètre par cycle : fils dont l'élève est dans le périmètre (fil sans élève exclu).
+            query = query.filter(student_scope_clause(
+                MessageThread.student_id, scoped_class_ids(db, tenant_id, current_user), tenant_id=tenant_id))
+        threads = query.order_by(MessageThread.updated_at.desc()).limit(200).all()
 
         result = []
         for thread in threads:
@@ -659,6 +707,7 @@ def list_whatsapp_thread_messages(
         )
         if not thread:
             raise HTTPException(status_code=404, detail="Conversation introuvable")
+        _require_thread_in_scope(db, tenant_id, current_user, thread)
 
         items = (
             db.query(MessageItem)
@@ -713,6 +762,7 @@ async def reply_whatsapp(
         )
         if not thread:
             raise HTTPException(status_code=404, detail="Conversation introuvable")
+        _require_thread_in_scope(db, tenant_id, current_user, thread)
 
         is_participant = str(thread.created_by) == str(current_user.get("id")) if thread.created_by else False
         if not is_allowed_role and not is_participant:
