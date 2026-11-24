@@ -64,6 +64,12 @@ def test_my_scope_route_is_independent():
     assert policy_for("GET", "/api/v1/education/my-scope/") is Policy.INDEPENDENT
 
 
+def test_layout_wide_messaging_badge_never_fails_for_a_restricted_account():
+    """La mise en page interroge ces routes sur chaque écran (parcours E2E 23)."""
+    for route in ("/api/v1/communication/messaging/poll/", "/api/v1/communication/messaging/unread-count/"):
+        assert policy_for("GET", route) is Policy.INDEPENDENT, route
+
+
 @needs_postgres
 def test_my_scope_hides_nothing_for_an_unrestricted_account(school):
     response = client.get("/api/v1/education/my-scope/", headers=school["headers"]("secretary_free"))

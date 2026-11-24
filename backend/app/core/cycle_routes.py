@@ -241,6 +241,10 @@ ROUTE_POLICIES: dict[tuple[str, str], Policy] = {
     **_routes(Policy.FILTERED, "PUT DELETE", "/department-portal/exams/{exam_id}/"),
     # --- Lot B3 : périmètre du compte connecté (présentation des menus, aucune donnée d'élève) ----
     **_routes(Policy.INDEPENDENT, "GET", "/education/my-scope/"),
+    # Badge des messages non lus, interrogé par la mise en page sur CHAQUE écran : données des seules
+    # conversations dont le compte est participant (aucune donnée d'un autre cycle). Révélé par le
+    # parcours E2E 23 (refus 403 sur chaque page d'un compte restreint).
+    **_routes(Policy.INDEPENDENT, "GET", "/communication/messaging/poll/", "/communication/messaging/unread-count/"),
 }
 
 # Familles refusées d'office (préfixes). Toute route qui n'est pas dans
