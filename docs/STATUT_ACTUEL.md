@@ -1539,3 +1539,10 @@ La règle métier de l’auto-pointage reste à valider.
   aux comptes non restreints. En chemin, le parcours E2E 23 (B3) avait révélé que le badge des
   messages non lus renvoyait 403 sur chaque écran d'un compte restreint : corrigé dans B3.
 
+- **2026-11-24 — messagerie enseignant : parents retrouvés, liste réservée au personnel
+  (TEACHER-RECIPIENTS-STATUS-01). Non déployé.** La liste des destinataires d'un enseignant
+  comparait le statut d'inscription en minuscules (stocké en majuscules) : aucun parent n'y
+  figurait. Elle ne filtrait pas l'établissement sur les liens parent-élève, et tout compte, élève
+  ou parent compris, obtenait la liste de tous les enseignants avec leurs e-mails. Corrigé
+  (`users:read`). Tests : 3 rouges avant correctif.
+
