@@ -373,7 +373,7 @@ def test_require_helpers_are_noop_for_unrestricted_and_404_out_of_scope(school, 
 
 DATA_ROUTES = [
     "/api/v1/parents/payment-schedules/", "/api/v1/billing/requests/", "/api/v1/students/dashboard/", "/api/v1/hr/employees/",
-    "/api/v1/school-life/gamification/stats/", "/api/v1/notifications/settings/", "/api/v1/teachers/", "/api/v1/school-events/",
+    "/api/v1/school-life/gamification/stats/", "/api/v1/notifications/settings/", "/api/v1/teachers/dashboard/", "/api/v1/school-events/",
     "/api/v1/parents/children/", "/api/v1/parents/dashboard/",
 ]
 
@@ -385,7 +385,7 @@ def test_data_routes_are_denied_to_a_restricted_account(school, url):
 
 @pytest.mark.parametrize("who,url", [
     ("director_teacher", "/api/v1/school-life/gamification/stats/"),
-    ("director_teacher", "/api/v1/teachers/"),
+    ("director_teacher", "/api/v1/teachers/dashboard/"),  # portail enseignant (Q-B3-1) ; /teachers/ est FILTERED
     ("secretary_parent", "/api/v1/parents/children/"),
     ("secretary_parent", "/api/v1/parents/dashboard/"),
 ])
