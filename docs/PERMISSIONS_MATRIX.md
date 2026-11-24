@@ -1467,3 +1467,11 @@ Tests : `backend/tests/test_cycle_pages.py` (complétude du menu et du routeur, 
 accès déduit, `my-scope`), Vitest (`cycle-scope-screens`, `useEducationModules.cycle-scope`),
 parcours E2E 23 (secrétariat restreint : menu, aucun 403, écran hors périmètre).
 
+### TEACHER-RECIPIENTS-STATUS-01 (2026-11-24)
+
+`GET /communication/messaging/teacher-recipients/` exige **`users:read`** (auparavant tout compte
+connecté) : détenue par tout le personnel, enseignants et chefs de département compris, et par
+aucune famille (décision Q-T1). `communications:write` n'a pas été retenue : ni TEACHER ni
+DEPARTMENT_HEAD ne la détiennent. Aucun écran élève ou parent n'appelait la route ; aucun
+changement de `ROLE_PERMISSIONS`. Tests : `backend/tests/test_teacher_recipients.py`.
+

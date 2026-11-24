@@ -1532,3 +1532,10 @@ La règle métier de l’auto-pointage reste à valider.
   indisponibles (messagerie en premier à ouvrir, décision Q-B3-2). Parcours E2E 23 : un
   secrétariat limité à un cycle parcourt tout son menu sans aucun refus de l'API.
 
+- **2026-11-24 — messagerie enseignant : parents retrouvés, liste réservée au personnel
+  (TEACHER-RECIPIENTS-STATUS-01). Non déployé.** La liste des destinataires d'un enseignant
+  comparait le statut d'inscription en minuscules (stocké en majuscules) : aucun parent n'y
+  figurait. Elle ne filtrait pas l'établissement sur les liens parent-élève, et tout compte, élève
+  ou parent compris, obtenait la liste de tous les enseignants avec leurs e-mails. Corrigé
+  (`users:read`). Tests : 3 rouges avant correctif.
+

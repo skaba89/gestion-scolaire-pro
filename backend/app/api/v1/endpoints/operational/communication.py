@@ -234,27 +234,39 @@ def get_messaging_recipients(
 def get_teacher_recipients(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    # TEACHER-RECIPIENTS-STATUS-01 (Q-T1, 2026-11-24) : était get_current_user seul — un élève ou
+    # un parent obtenait la liste de tous les enseignants, e-mails compris. users:read est détenue
+    # par tout le personnel (enseignant et chef de département compris) et par aucune famille ;
+    # aucun écran élève ou parent n'appelle cette route.
+    current_user: dict = Depends(require_permission("users:read")),
 ):
     try:
         user_id = current_user.get("id")
         tenant_id = str(resolve_current_tenant_id(request, current_user, db))
+        # Parents des élèves des classes de l'enseignant. Correctif : statut comparé en majuscules
+        # (stocké « ACTIVE » : la liste était vide), inscription de l'année en cours (toute
+        # inscription active s'il n'y en a pas), établissement imposé sur chaque table jointe.
         parents = db.execute(text("""
             SELECT DISTINCT u.id, u.first_name, u.last_name, u.email, 'Parent' as info
             FROM teacher_assignments ta
-            JOIN enrollments e ON e.class_id = ta.classroom_id AND e.status = 'active'
-            JOIN parent_students ps ON ps.student_id = e.student_id
-            JOIN users u ON u.id = ps.parent_id
+            JOIN enrollments e ON e.class_id = ta.classroom_id AND e.tenant_id = ta.tenant_id
+                AND UPPER(e.status) = 'ACTIVE'
+                AND (e.academic_year_id IN (SELECT ay.id FROM academic_years ay
+                                            WHERE ay.tenant_id = ta.tenant_id AND ay.is_current IS TRUE)
+                     OR NOT EXISTS (SELECT 1 FROM academic_years ay
+                                    WHERE ay.tenant_id = ta.tenant_id AND ay.is_current IS TRUE))
+            JOIN parent_students ps ON ps.student_id = e.student_id AND ps.tenant_id = ta.tenant_id
+            JOIN users u ON u.id = ps.parent_id AND u.tenant_id = ta.tenant_id
             WHERE ta.user_id = :user_id AND ta.tenant_id = :tenant_id
         """), {"user_id": user_id, "tenant_id": tenant_id}).mappings().all()
-        
+
         teachers = db.execute(text("""
             SELECT DISTINCT u.id, u.first_name, u.last_name, u.email, 'Enseignant' as info
             FROM teacher_assignments ta
-            JOIN users u ON u.id = ta.user_id
+            JOIN users u ON u.id = ta.user_id AND u.tenant_id = ta.tenant_id
             WHERE ta.tenant_id = :tenant_id AND ta.user_id != :user_id
         """), {"user_id": user_id, "tenant_id": tenant_id}).mappings().all()
-        
+
         def fmt(row):
             return {
                 "id": str(row["id"]),
@@ -265,6 +277,8 @@ def get_teacher_recipients(
                 "info": row.get("info", "")
             }
         return [fmt(r) for r in list(parents) + list(teachers)]
+    except HTTPException:
+        raise
     except Exception as e:
         db.rollback()
         logger.error("Error getting teacher recipients: %s", e)
