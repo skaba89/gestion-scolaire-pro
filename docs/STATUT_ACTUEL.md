@@ -1591,3 +1591,9 @@ La règle métier de l’auto-pointage reste à valider.
   e-mail et téléphone de contact publics modifiables dans l'éditeur du site (l'e-mail sert
   d'adresse de réponse).
 
+- **2026-11-25 (soir) — production sur `12d26b4`.** Tous les lots notés « Non déployé » ci-dessus
+  jusqu'à cette date sont en production : déploiement `adf327a` le matin (cycles : emploi du temps,
+  enseignants, admissions ; site public : PUBLIC-DOMAIN-01, durcissement), puis `12d26b4` le soir
+  (annuaires, lien « Formations », parcours candidat en 5 langues, page contact et réponses aux
+  messages ; migration `20261125_0001`). Statuts du registre des risques mis à jour.
+
