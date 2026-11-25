@@ -14,7 +14,8 @@ vi.mock("react-i18next", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
-import PublicFormSubmissions, { isAnswered, type Submission } from "../PublicFormSubmissions";
+import PublicFormSubmissions from "../PublicFormSubmissions";
+import { isAnswered, type Submission } from "@/lib/contactInbox";
 
 const base = { page_id: null, phone: null, is_read: true, created_at: new Date().toISOString() };
 const MESSAGES: Submission[] = [
