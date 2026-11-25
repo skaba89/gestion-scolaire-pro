@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useParams, Link } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
@@ -47,16 +49,16 @@ interface UploadedDocument {
 }
 
 const BASE_REQUIRED_DOCUMENTS: RequiredDocument[] = [
-  { type: "birth_certificate", label: "Extrait de naissance ou carte d'identité" },
-  { type: "id_photo", label: "Photo d'identité récente" },
+  { type: "birth_certificate", label: "publicJourney.form.docs.birth" },
+  { type: "id_photo", label: "publicJourney.form.docs.photo" },
 ];
 
 // Un candidat qui postule à un niveau autre que le tout premier de
 // l'établissement est considéré comme un transfert : on exige en plus
 // le dossier scolaire de l'année précédente.
 const TRANSFER_REQUIRED_DOCUMENTS: RequiredDocument[] = [
-  { type: "previous_transcript", label: "Relevé de notes de l'année précédente" },
-  { type: "previous_school_certificate", label: "Certificat de scolarité (établissement précédent)" },
+  { type: "previous_transcript", label: "publicJourney.form.docs.transcript" },
+  { type: "previous_school_certificate", label: "publicJourney.form.docs.certificate" },
 ];
 
 function getRequiredDocuments(levelId: string, levels: any[] | undefined): RequiredDocument[] {
@@ -69,16 +71,16 @@ function getRequiredDocuments(levelId: string, levels: any[] | undefined): Requi
 }
 
 const applicationSchema = z.object({
-  student_first_name: z.string().min(2, "Le prénom doit contenir au moins 2 caractères").max(50),
-  student_last_name: z.string().min(2, "Le nom doit contenir au moins 2 caractères").max(50),
-  student_date_of_birth: z.string().min(1, "La date de naissance est requise"),
-  student_gender: z.string().min(1, "Le genre est requis"),
+  student_first_name: z.string().min(2, "publicJourney.form.errors.firstName").max(50),
+  student_last_name: z.string().min(2, "publicJourney.form.errors.lastName").max(50),
+  student_date_of_birth: z.string().min(1, "publicJourney.form.errors.birthDate"),
+  student_gender: z.string().min(1, "publicJourney.form.errors.gender"),
   student_address: z.string().max(200).optional(),
   student_previous_school: z.string().max(100).optional(),
-  parent_first_name: z.string().min(2, "Le prénom doit contenir au moins 2 caractères").max(50),
-  parent_last_name: z.string().min(2, "Le nom doit contenir au moins 2 caractères").max(50),
-  parent_email: z.string().email("Email invalide").max(100),
-  parent_phone: z.string().min(8, "Numéro de téléphone invalide").max(20),
+  parent_first_name: z.string().min(2, "publicJourney.form.errors.firstName").max(50),
+  parent_last_name: z.string().min(2, "publicJourney.form.errors.lastName").max(50),
+  parent_email: z.string().email("publicJourney.form.errors.email").max(100),
+  parent_phone: z.string().min(8, "publicJourney.form.errors.phone").max(20),
   parent_address: z.string().max(200).optional(),
   parent_occupation: z.string().max(100).optional(),
   level_id: z.string().optional(),
@@ -88,6 +90,8 @@ const applicationSchema = z.object({
 type ApplicationFormData = z.infer<typeof applicationSchema>;
 
 const AdmissionForm = () => {
+  const { t } = useTranslation();
+
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
   const { studentLabel, StudentLabel, studentsLabel, StudentsLabel } = useStudentLabel();
   const [submitted, setSubmitted] = useState(false);
@@ -151,7 +155,7 @@ const AdmissionForm = () => {
 
   const uploadMutation = useMutation({
     mutationFn: async ({ file, documentType }: { file: File; documentType: string }) => {
-      if (!tenant?.id) throw new Error("Établissement non chargé");
+      if (!tenant?.id) throw new Error(t("publicJourney.form.notLoaded"));
       const form = new FormData();
       form.append("tenant_id", tenant.id);
       form.append("document_type", documentType);
@@ -168,7 +172,7 @@ const AdmissionForm = () => {
       setDocumentsError(null);
     },
     onError: (error: any) => {
-      const msg = error.response?.data?.detail || "Échec de l'envoi du document. Réessayez.";
+      const msg = error.response?.data?.detail || t("publicJourney.form.uploadError");
       toast.error(msg);
     },
     onSettled: () => setUploadingType(null),
@@ -205,10 +209,10 @@ const AdmissionForm = () => {
     },
     onSuccess: () => {
       setSubmitted(true);
-      toast.success("Candidature soumise avec succès!");
+      toast.success(t("publicJourney.form.submittedToast"));
     },
     onError: (error: any) => {
-      const msg = error.response?.data?.detail || "Erreur lors de la soumission. Veuillez réessayer.";
+      const msg = error.response?.data?.detail || t("publicJourney.form.submitError");
       toast.error(msg);
     },
   });
@@ -221,9 +225,9 @@ const AdmissionForm = () => {
     const missingDocs = requiredDocuments.filter((doc) => !documents[doc.type]);
     if (missingDocs.length > 0) {
       setDocumentsError(
-        `Documents manquants : ${missingDocs.map((d) => d.label).join(", ")}`
+        t("publicJourney.form.missingDocs", { list: missingDocs.map((d) => t(d.label)).join(", ") })
       );
-      toast.error("Veuillez téléverser tous les documents obligatoires");
+      toast.error(t("publicJourney.form.missingDocsToast"));
       return;
     }
 
@@ -236,7 +240,7 @@ const AdmissionForm = () => {
         }
       });
       setErrors(fieldErrors);
-      toast.error("Veuillez corriger les erreurs dans le formulaire");
+      toast.error(t("publicJourney.form.fixErrors"));
       return;
     }
 
@@ -264,14 +268,14 @@ const AdmissionForm = () => {
         <Card className="max-w-md">
           <CardContent className="p-8 text-center">
             <GraduationCap className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <h1 className="text-xl font-bold mb-2">Établissement non trouvé</h1>
+            <h1 className="text-xl font-bold mb-2">{t("publicJourney.form.notFoundTitle")}</h1>
             <p className="text-muted-foreground mb-4">
-              L'établissement que vous recherchez n'existe pas ou n'est plus actif.
+              {t("publicJourney.form.notFoundText")}
             </p>
             <Link to="/">
               <Button variant="outline">
                 <ArrowLeft className="w-4 h-4 mr-2" />
-                Retour à l'accueil
+                {t("publicJourney.form.backHome")}
               </Button>
             </Link>
           </CardContent>
@@ -289,19 +293,18 @@ const AdmissionForm = () => {
               <CheckCircle className="w-8 h-8 text-green-600" />
             </div>
             <h1 className="text-2xl font-display font-bold mb-2">
-              Candidature Soumise!
+              {t("publicJourney.form.successTitle")}
             </h1>
             <p className="text-muted-foreground mb-6">
-              Votre candidature pour {tenant.name} a été enregistrée avec succès.
-              Vous recevrez un email de confirmation à l'adresse {formData.parent_email}.
+              {t("publicJourney.form.successText", { school: tenant.name, email: formData.parent_email })}
             </p>
             <p className="text-sm text-muted-foreground mb-6">
-              L'équipe d'admission examinera votre dossier et vous contactera prochainement.
+              {t("publicJourney.form.successNext")}
             </p>
             <Link to="/">
               <Button>
                 <ArrowLeft className="w-4 h-4 mr-2" />
-                Retour à l'accueil
+                {t("publicJourney.form.backHome")}
               </Button>
             </Link>
           </CardContent>
@@ -317,8 +320,9 @@ const AdmissionForm = () => {
         <div className="container mx-auto px-4">
           <Link to="/" className="inline-flex items-center gap-2 text-primary-foreground/80 hover:text-primary-foreground mb-4">
             <ArrowLeft className="w-4 h-4" />
-            Retour
+            {t("publicJourney.form.back")}
           </Link>
+          <div className="float-right"><LanguageSwitcher /></div>
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 rounded-xl bg-background/20 flex items-center justify-center">
               <GraduationCap className="w-8 h-8 text-primary-foreground" />
@@ -327,7 +331,7 @@ const AdmissionForm = () => {
               <h1 className="text-2xl font-display font-bold text-primary-foreground">
                 {tenant.name}
               </h1>
-              <p className="text-primary-foreground/80">Formulaire de Candidature ({studentLabel}s)</p>
+              <p className="text-primary-foreground/80">{t("publicJourney.form.subtitle", { student: studentLabel })}</p>
             </div>
           </div>
         </div>
@@ -341,45 +345,45 @@ const AdmissionForm = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <User className="w-5 h-5" />
-                Informations de l'{StudentLabel}
+                {t("publicJourney.form.studentTitle", { student: StudentLabel })}
               </CardTitle>
               <CardDescription>
-                Renseignez les informations concernant l'{studentLabel} à inscrire
+                {t("publicJourney.form.studentDescription", { student: studentLabel })}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="student_first_name">Prénom *</Label>
+                  <Label htmlFor="student_first_name">{t("publicJourney.form.firstName")}</Label>
                   <Input
                     id="student_first_name"
                     value={formData.student_first_name}
                     onChange={(e) => updateField("student_first_name", e.target.value)}
-                    placeholder={`Prénom de l'${studentLabel}`}
+                    placeholder={t("publicJourney.form.studentFirstNamePlaceholder", { student: studentLabel })}
                     className={errors.student_first_name ? "border-destructive" : ""}
                   />
                   {errors.student_first_name && (
-                    <p className="text-xs text-destructive">{errors.student_first_name}</p>
+                    <p className="text-xs text-destructive">{t(errors.student_first_name)}</p>
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="student_last_name">Nom *</Label>
+                  <Label htmlFor="student_last_name">{t("publicJourney.form.lastName")}</Label>
                   <Input
                     id="student_last_name"
                     value={formData.student_last_name}
                     onChange={(e) => updateField("student_last_name", e.target.value)}
-                    placeholder={`Nom de l'${studentLabel}`}
+                    placeholder={t("publicJourney.form.studentLastNamePlaceholder", { student: studentLabel })}
                     className={errors.student_last_name ? "border-destructive" : ""}
                   />
                   {errors.student_last_name && (
-                    <p className="text-xs text-destructive">{errors.student_last_name}</p>
+                    <p className="text-xs text-destructive">{t(errors.student_last_name)}</p>
                   )}
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="student_date_of_birth">Date de naissance *</Label>
+                  <Label htmlFor="student_date_of_birth">{t("publicJourney.form.birthDate")}</Label>
                   <Input
                     id="student_date_of_birth"
                     type="date"
@@ -388,38 +392,38 @@ const AdmissionForm = () => {
                     className={errors.student_date_of_birth ? "border-destructive" : ""}
                   />
                   {errors.student_date_of_birth && (
-                    <p className="text-xs text-destructive">{errors.student_date_of_birth}</p>
+                    <p className="text-xs text-destructive">{t(errors.student_date_of_birth)}</p>
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="student_gender">Genre *</Label>
+                  <Label htmlFor="student_gender">{t("publicJourney.form.gender")}</Label>
                   <Select
                     value={formData.student_gender}
                     onValueChange={(value) => updateField("student_gender", value)}
                   >
                     <SelectTrigger className={errors.student_gender ? "border-destructive" : ""}>
-                      <SelectValue placeholder="Sélectionner" />
+                      <SelectValue placeholder={t("publicJourney.form.select")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="M">Masculin</SelectItem>
-                      <SelectItem value="F">Féminin</SelectItem>
+                      <SelectItem value="M">{t("publicJourney.form.male")}</SelectItem>
+                      <SelectItem value="F">{t("publicJourney.form.female")}</SelectItem>
                     </SelectContent>
                   </Select>
                   {errors.student_gender && (
-                    <p className="text-xs text-destructive">{errors.student_gender}</p>
+                    <p className="text-xs text-destructive">{t(errors.student_gender)}</p>
                   )}
                 </div>
               </div>
 
               {levels && levels.length > 0 && (
                 <div className="space-y-2">
-                  <Label htmlFor="level_id">Niveau souhaité</Label>
+                  <Label htmlFor="level_id">{t("publicJourney.form.level")}</Label>
                   <Select
                     value={formData.level_id}
                     onValueChange={(value) => updateField("level_id", value)}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Sélectionner un niveau" />
+                      <SelectValue placeholder={t("publicJourney.form.levelPlaceholder")} />
                     </SelectTrigger>
                     <SelectContent>
                       {levels.map((level) => (
@@ -433,22 +437,22 @@ const AdmissionForm = () => {
               )}
 
               <div className="space-y-2">
-                <Label htmlFor="student_address">Adresse</Label>
+                <Label htmlFor="student_address">{t("publicJourney.form.address")}</Label>
                 <Input
                   id="student_address"
                   value={formData.student_address}
                   onChange={(e) => updateField("student_address", e.target.value)}
-                  placeholder="Adresse de résidence"
+                  placeholder={t("publicJourney.form.addressPlaceholder")}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="student_previous_school">École précédente</Label>
+                <Label htmlFor="student_previous_school">{t("publicJourney.form.previousSchool")}</Label>
                 <Input
                   id="student_previous_school"
                   value={formData.student_previous_school}
                   onChange={(e) => updateField("student_previous_school", e.target.value)}
-                  placeholder={`Nom de l'école précédente (si applicable)`}
+                  placeholder={t("publicJourney.form.previousSchoolPlaceholder")}
                 />
               </div>
             </CardContent>
@@ -459,45 +463,45 @@ const AdmissionForm = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Users className="w-5 h-5" />
-                Informations du Parent/Tuteur
+                {t("publicJourney.form.parentTitle")}
               </CardTitle>
               <CardDescription>
-                Renseignez les coordonnées du parent ou tuteur légal
+                {t("publicJourney.form.parentDescription")}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="parent_first_name">Prénom *</Label>
+                  <Label htmlFor="parent_first_name">{t("publicJourney.form.firstName")}</Label>
                   <Input
                     id="parent_first_name"
                     value={formData.parent_first_name}
                     onChange={(e) => updateField("parent_first_name", e.target.value)}
-                    placeholder="Prénom du parent"
+                    placeholder={t("publicJourney.form.parentFirstNamePlaceholder")}
                     className={errors.parent_first_name ? "border-destructive" : ""}
                   />
                   {errors.parent_first_name && (
-                    <p className="text-xs text-destructive">{errors.parent_first_name}</p>
+                    <p className="text-xs text-destructive">{t(errors.parent_first_name)}</p>
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="parent_last_name">Nom *</Label>
+                  <Label htmlFor="parent_last_name">{t("publicJourney.form.lastName")}</Label>
                   <Input
                     id="parent_last_name"
                     value={formData.parent_last_name}
                     onChange={(e) => updateField("parent_last_name", e.target.value)}
-                    placeholder="Nom du parent"
+                    placeholder={t("publicJourney.form.parentLastNamePlaceholder")}
                     className={errors.parent_last_name ? "border-destructive" : ""}
                   />
                   {errors.parent_last_name && (
-                    <p className="text-xs text-destructive">{errors.parent_last_name}</p>
+                    <p className="text-xs text-destructive">{t(errors.parent_last_name)}</p>
                   )}
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="parent_email">Email *</Label>
+                  <Label htmlFor="parent_email">{t("publicJourney.form.email")}</Label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
@@ -510,11 +514,11 @@ const AdmissionForm = () => {
                     />
                   </div>
                   {errors.parent_email && (
-                    <p className="text-xs text-destructive">{errors.parent_email}</p>
+                    <p className="text-xs text-destructive">{t(errors.parent_email)}</p>
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="parent_phone">Téléphone *</Label>
+                  <Label htmlFor="parent_phone">{t("publicJourney.form.phone")}</Label>
                   <div className="relative">
                     <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
@@ -526,30 +530,30 @@ const AdmissionForm = () => {
                     />
                   </div>
                   {errors.parent_phone && (
-                    <p className="text-xs text-destructive">{errors.parent_phone}</p>
+                    <p className="text-xs text-destructive">{t(errors.parent_phone)}</p>
                   )}
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="parent_occupation">Profession</Label>
+                <Label htmlFor="parent_occupation">{t("publicJourney.form.occupation")}</Label>
                 <Input
                   id="parent_occupation"
                   value={formData.parent_occupation}
                   onChange={(e) => updateField("parent_occupation", e.target.value)}
-                  placeholder="Profession du parent"
+                  placeholder={t("publicJourney.form.occupationPlaceholder")}
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="parent_address">Adresse</Label>
+                <Label htmlFor="parent_address">{t("publicJourney.form.address")}</Label>
                 <div className="relative">
                   <MapPin className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
                   <Input
                     id="parent_address"
                     value={formData.parent_address}
                     onChange={(e) => updateField("parent_address", e.target.value)}
-                    placeholder="Adresse complète"
+                    placeholder={t("publicJourney.form.fullAddressPlaceholder")}
                     className="pl-10"
                   />
                 </div>
@@ -562,12 +566,12 @@ const AdmissionForm = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <FileText className="w-5 h-5" />
-                Documents à fournir
+                {t("publicJourney.form.documentsTitle")}
               </CardTitle>
               <CardDescription>
                 {formData.level_id
-                  ? "Documents obligatoires pour le niveau sélectionné"
-                  : "Sélectionnez un niveau ci-dessus pour connaître les documents requis"}
+                  ? t("publicJourney.form.documentsForLevel")
+                  : t("publicJourney.form.documentsSelectLevel")}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -577,14 +581,14 @@ const AdmissionForm = () => {
                 return (
                   <div key={doc.type} className="flex items-center justify-between gap-4 rounded-lg border p-3">
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium">{doc.label} *</p>
+                      <p className="text-sm font-medium">{t(doc.label)} *</p>
                       {uploaded ? (
                         <p className="text-xs text-green-600 truncate flex items-center gap-1 mt-1">
                           <CheckCircle className="w-3 h-3 flex-shrink-0" />
                           {uploaded.filename}
                         </p>
                       ) : (
-                        <p className="text-xs text-muted-foreground mt-1">PDF, JPG ou PNG — 8 Mo max</p>
+                        <p className="text-xs text-muted-foreground mt-1">{t("publicJourney.form.fileHint")}</p>
                       )}
                     </div>
                     {uploaded ? (
@@ -606,7 +610,7 @@ const AdmissionForm = () => {
                         ) : (
                           <Upload className="w-4 h-4" />
                         )}
-                        Téléverser
+                        {t("publicJourney.form.upload")}
                         <input
                           id={`doc-${doc.type}`}
                           type="file"
@@ -629,19 +633,19 @@ const AdmissionForm = () => {
           {/* Additional Notes */}
           <Card>
             <CardHeader>
-              <CardTitle>Informations Complémentaires</CardTitle>
+              <CardTitle>{t("publicJourney.form.moreTitle")}</CardTitle>
               <CardDescription>
-                Ajoutez toute information pertinente pour la candidature
+                {t("publicJourney.form.moreDescription")}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                <Label htmlFor="notes">Notes additionnelles</Label>
+                <Label htmlFor="notes">{t("publicJourney.form.notes")}</Label>
                 <Textarea
                   id="notes"
                   value={formData.notes}
                   onChange={(e) => updateField("notes", e.target.value)}
-                  placeholder="Informations supplémentaires, besoins spéciaux, etc."
+                  placeholder={t("publicJourney.form.notesPlaceholder")}
                   rows={4}
                 />
               </div>
@@ -652,7 +656,7 @@ const AdmissionForm = () => {
           <div className="flex justify-end gap-4">
             <Link to="/">
               <Button type="button" variant="outline">
-                Annuler
+                {t("publicJourney.form.cancel")}
               </Button>
             </Link>
             <Button
@@ -663,12 +667,12 @@ const AdmissionForm = () => {
               {submitMutation.isPending ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Envoi en cours...
+                  {t("publicJourney.form.sending")}
                 </>
               ) : (
                 <>
                   <CheckCircle className="w-4 h-4 mr-2" />
-                  Soumettre la Candidature
+                  {t("publicJourney.form.submit")}
                 </>
               )}
             </Button>

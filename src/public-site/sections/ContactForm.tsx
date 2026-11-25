@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Send } from "lucide-react";
 import { apiClient } from "@/api/client";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,8 @@ interface ContactFormProps {
  * POST /tenants/public/:slug/submit-form/, honeypot `website` field,
  * server persists + notifies. Not a stub. */
 export function ContactForm({ section, tokens, tenantSlug }: ContactFormProps) {
+  const { t } = useTranslation();
+
   const [formData, setFormData] = useState({ name: "", email: "", phone: "", subject: "", message: "", website: "" });
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -38,7 +41,7 @@ export function ContactForm({ section, tokens, tenantSlug }: ContactFormProps) {
       });
       setSubmitted(true);
     } catch {
-      setError("Une erreur est survenue. Merci de réessayer ou de nous contacter directement.");
+      setError(t("publicJourney.contactForm.error"));
     } finally {
       setSubmitting(false);
     }
@@ -78,9 +81,9 @@ export function ContactForm({ section, tokens, tenantSlug }: ContactFormProps) {
             >
               <Send className="w-8 h-8" style={{ color: tokens.primaryColor }} />
             </div>
-            <h3 className="text-xl font-bold mb-2" style={{ color: tokens.textColor }}>Message envoyé !</h3>
+            <h3 className="text-xl font-bold mb-2" style={{ color: tokens.textColor }}>{t("publicJourney.contactForm.sentTitle")}</h3>
             <p style={{ color: tokens.mutedColor }}>
-              Merci pour votre message. Nous vous répondrons dans les plus brefs délais.
+              {t("publicJourney.contactForm.sentText")}
             </p>
           </div>
         ) : (
@@ -93,7 +96,7 @@ export function ContactForm({ section, tokens, tenantSlug }: ContactFormProps) {
                 never fills this in; see PublicPageView.tsx's identical
                 pattern for the full rationale. */}
             <div className="absolute w-px h-px overflow-hidden opacity-0 -z-10" style={{ left: "-9999px" }} aria-hidden="true">
-              <label htmlFor="cf-website">Ne pas remplir ce champ</label>
+              <label htmlFor="cf-website">{t("publicJourney.contactForm.honeypot")}</label>
               <input
                 id="cf-website"
                 name="website"
@@ -107,32 +110,32 @@ export function ContactForm({ section, tokens, tenantSlug }: ContactFormProps) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5">
               <div>
                 <label className="block text-sm font-medium mb-1.5" style={{ color: tokens.textColor }}>
-                  Nom complet <span className="text-red-500">*</span>
+                  {t("publicJourney.contactForm.name")} <span className="text-red-500">*</span>
                 </label>
-                <Input required placeholder="Votre nom" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
+                <Input required placeholder={t("publicJourney.contactForm.namePlaceholder")} value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1.5" style={{ color: tokens.textColor }}>
-                  Email <span className="text-red-500">*</span>
+                  {t("publicJourney.contactForm.email")} <span className="text-red-500">*</span>
                 </label>
                 <Input required type="email" placeholder="votre@email.com" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1.5" style={{ color: tokens.textColor }}>Téléphone</label>
+                <label className="block text-sm font-medium mb-1.5" style={{ color: tokens.textColor }}>{t("publicJourney.contactForm.phone")}</label>
                 <Input type="tel" placeholder="+224 6XX XX XX XX" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1.5" style={{ color: tokens.textColor }}>
-                  Sujet <span className="text-red-500">*</span>
+                  {t("publicJourney.contactForm.subject")} <span className="text-red-500">*</span>
                 </label>
-                <Input required placeholder="Sujet de votre message" value={formData.subject} onChange={(e) => setFormData({ ...formData, subject: e.target.value })} />
+                <Input required placeholder={t("publicJourney.contactForm.subjectPlaceholder")} value={formData.subject} onChange={(e) => setFormData({ ...formData, subject: e.target.value })} />
               </div>
             </div>
             <div className="mt-4 md:mt-5">
               <label className="block text-sm font-medium mb-1.5" style={{ color: tokens.textColor }}>
-                Message <span className="text-red-500">*</span>
+                {t("publicJourney.contactForm.message")} <span className="text-red-500">*</span>
               </label>
-              <Textarea required rows={5} placeholder="Décrivez votre demande..." value={formData.message} onChange={(e) => setFormData({ ...formData, message: e.target.value })} />
+              <Textarea required rows={5} placeholder={t("publicJourney.contactForm.messagePlaceholder")} value={formData.message} onChange={(e) => setFormData({ ...formData, message: e.target.value })} />
             </div>
             {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
             <Button
@@ -142,7 +145,7 @@ export function ContactForm({ section, tokens, tenantSlug }: ContactFormProps) {
               style={{ backgroundColor: tokens.primaryColor, color: "white", borderRadius: tokens.buttonRadius }}
             >
               <Send className="w-5 h-5" />
-              {submitting ? "Envoi..." : "Envoyer le message"}
+              {submitting ? t("publicJourney.contactForm.sending") : t("publicJourney.contactForm.send")}
             </Button>
           </form>
         )}

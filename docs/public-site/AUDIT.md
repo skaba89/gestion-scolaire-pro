@@ -26,7 +26,7 @@ Données publiques : `GET /tenants/public/` (annuaire), `GET /tenants/public/{sl
 | Formations et implantations | `/ecole/:slug/offre` | Fonctionnelle | Cycles et niveaux, filières, facultés et départements, campus si l'établissement les publie (`show_campuses`, désactivé par défaut). Aucun responsable publié. Accessible depuis l'annuaire et le menu des 7 modèles d'accueil. |
 | Site d'un établissement | `/ecole/:slug`, `/:slug` | Fonctionnelle en dev | Cassée en production jusqu'au déploiement de #600 (PUBLIC-DOMAIN-01). |
 | Pages libres | via `PublicPageView` | Fonctionnelle | Publié / non publié ; pas de brouillon versionné ni de relecture. |
-| Admissions, statut, réinscription | `/admissions/:slug`, `/inscription/:slug…` | Fonctionnelles | Réutilisent le module d'admissions. |
+| Admissions, statut, réinscription | `/admissions/:slug`, `/info/:slug`, `/inscription/:slug…` | Fonctionnelles | Réutilisent le module d'admissions. Traduites en 5 langues avec sélecteur de langue (2026-11-25, sous-lot T1). |
 | Programmes, calendrier, contact | `/programmes|calendrier|contact/:slug` | Fonctionnelles | Programmes = niveaux. |
 | Confidentialité, conditions | `/privacy`, `/terms` | Fonctionnelles | Textes non traduits. |
 | Tarifs, inscription d'une école | `/tarifs`, `/inscription` | Fonctionnelles | |
@@ -83,3 +83,18 @@ certificats TLS côté proxy et une vérification DNS automatisée.
 4. SEO : sitemap par établissement, canoniques, Open Graph, données structurées.
 5. Traduction des pages publiques (fr, en, es, ar, zh).
 6. Parcours E2E du site public et mesures Lighthouse.
+
+## 7. Traduction des pages publiques
+
+- **T1 (parcours candidat, 2026-11-25)** : informations d'admission, formulaire de candidature,
+  portail d'inscription, statut du dossier, réinscription, contact et formulaire de contact des
+  modèles premium — espace de noms `publicJourney`, 5 langues, sélecteur de langue sur chaque page.
+- À faire : T2 (annuaire, connexion, inscription d'une école), T3 (modèles d'accueil et sections
+  premium), T4 (pages légales : texte français faisant foi, avertissement traduit — Q-T1).
+- **Relecture** : les traductions anglaise, espagnole, arabe et chinoise ont été rédigées sans
+  relecture par un locuteur natif ; à faire relire avant un lancement national ou international.
+- **Contenus génériques à vérifier** (repérés pendant T1, non modifiés) : la page d'informations
+  d'admission affiche des délais (5 à 10 jours), des pièces et des modes de paiement (virement,
+  espèces, chèque) identiques pour tous les établissements ; la page `/contact/:slug` affiche des
+  horaires fixes (8 h – 17 h) et **n'envoie pas** le message (envoi simulé, CONTACT-FAKE-SEND-01).
+

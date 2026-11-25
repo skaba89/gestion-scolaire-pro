@@ -5015,5 +5015,308 @@
     "allRegions": "所有地区",
     "prefecture": "省",
     "allPrefectures": "所有省"
+  },
+  "publicJourney": {
+    "common": {
+      "rights": "版权所有。"
+    },
+    "contact": {
+      "address": "地址",
+      "apply": "申请",
+      "applyNow": "立即申请",
+      "backHome": "返回首页",
+      "breadcrumb": "联系我们",
+      "closed": "休息",
+      "email": "电子邮箱 *",
+      "emailLabel": "电子邮箱",
+      "errors": {
+        "email": "电子邮箱无效",
+        "message": "留言至少需要 10 个字符",
+        "name": "姓名至少需要 2 个字符",
+        "subject": "主题至少需要 3 个字符"
+      },
+      "formTitle": "给我们留言",
+      "home": "首页",
+      "hours": "开放时间",
+      "infoTitle": "联系方式",
+      "intro": "有问题？需要信息？我们的团队随时为您提供帮助。",
+      "message": "留言 *",
+      "messagePlaceholder": "请在此填写您的留言……",
+      "name": "姓名 *",
+      "namePlaceholder": "您的姓名",
+      "notFound": "未找到该机构",
+      "phone": "电话",
+      "readyText": "只需几步即可提交申请。",
+      "readyTitle": "准备好加入我们了吗？",
+      "saturday": "周六",
+      "send": "发送留言",
+      "sendError": "发送留言时出错",
+      "sending": "正在发送……",
+      "sent": "留言发送成功！",
+      "sentText": "我们已收到您的留言，将尽快回复您。",
+      "sentTitle": "留言已发送！",
+      "subject": "主题 *",
+      "subjectPlaceholder": "留言主题",
+      "sunday": "周日",
+      "title": "联系我们",
+      "website": "网站",
+      "weekdays": "周一至周五"
+    },
+    "contactForm": {
+      "email": "电子邮箱",
+      "error": "发生错误。请重试或直接与我们联系。",
+      "honeypot": "请勿填写此字段",
+      "message": "留言",
+      "messagePlaceholder": "请描述您的需求……",
+      "name": "姓名",
+      "namePlaceholder": "您的姓名",
+      "phone": "电话",
+      "send": "发送留言",
+      "sending": "正在发送……",
+      "sentText": "感谢您的留言。我们将尽快回复您。",
+      "sentTitle": "留言已发送！",
+      "subject": "主题",
+      "subjectPlaceholder": "留言主题"
+    },
+    "form": {
+      "address": "地址",
+      "addressPlaceholder": "居住地址",
+      "back": "返回",
+      "backHome": "返回首页",
+      "birthDate": "出生日期 *",
+      "cancel": "取消",
+      "docs": {
+        "birth": "出生证明或身份证",
+        "certificate": "在读证明（原就读机构）",
+        "photo": "近期证件照",
+        "transcript": "上一学年成绩单"
+      },
+      "documentsForLevel": "所选年级的必需材料",
+      "documentsSelectLevel": "请先在上方选择年级以查看所需材料",
+      "documentsTitle": "需提交的材料",
+      "email": "电子邮箱 *",
+      "errors": {
+        "birthDate": "出生日期为必填项",
+        "email": "电子邮箱无效",
+        "firstName": "名字至少需要 2 个字符",
+        "gender": "性别为必填项",
+        "lastName": "姓氏至少需要 2 个字符",
+        "phone": "电话号码无效"
+      },
+      "female": "女",
+      "fileHint": "PDF、JPG 或 PNG — 最大 8 MB",
+      "firstName": "名字 *",
+      "fixErrors": "请更正表单中的错误",
+      "fullAddressPlaceholder": "完整地址",
+      "gender": "性别 *",
+      "lastName": "姓氏 *",
+      "level": "申请年级",
+      "levelPlaceholder": "选择年级",
+      "male": "男",
+      "missingDocs": "缺少的材料：{{list}}",
+      "missingDocsToast": "请上传所有必需材料",
+      "moreDescription": "请补充与申请相关的任何信息",
+      "moreTitle": "补充信息",
+      "notFoundText": "您查找的机构不存在或已停用。",
+      "notFoundTitle": "未找到该机构",
+      "notLoaded": "机构信息未加载",
+      "notes": "补充说明",
+      "notesPlaceholder": "补充信息、特殊需求等",
+      "occupation": "职业",
+      "occupationPlaceholder": "家长职业",
+      "parentDescription": "请填写家长或法定监护人的联系方式",
+      "parentFirstNamePlaceholder": "家长名字",
+      "parentLastNamePlaceholder": "家长姓氏",
+      "parentTitle": "家长/监护人信息",
+      "phone": "电话 *",
+      "previousSchool": "原就读学校",
+      "previousSchoolPlaceholder": "原就读学校名称（如有）",
+      "select": "请选择",
+      "sending": "正在发送……",
+      "studentDescription": "请填写要注册的{{student}}的信息",
+      "studentFirstNamePlaceholder": "{{student}}的名字",
+      "studentLastNamePlaceholder": "{{student}}的姓氏",
+      "studentTitle": "{{student}}信息",
+      "submit": "提交申请",
+      "submitError": "提交时出错，请重试。",
+      "submittedToast": "申请提交成功！",
+      "subtitle": "申请表（{{student}}）",
+      "successNext": "招生团队将审核您的材料并尽快与您联系。",
+      "successText": "您向 {{school}} 提交的申请已成功登记。确认邮件将发送至 {{email}}。",
+      "successTitle": "申请已提交！",
+      "upload": "上传",
+      "uploadError": "材料上传失败，请重试。"
+    },
+    "hub": {
+      "alreadySubmitted": "已经提交过申请？",
+      "apply": {
+        "action": "提交申请",
+        "text": "新生？请提交申请材料。我们的团队将进行审核并与您联系。",
+        "title": "新申请"
+      },
+      "backHome": "返回首页",
+      "chooseSituation": "请在下方选择您的情况",
+      "closed": "注册已关闭",
+      "enrolled": {
+        "action": "登录",
+        "text": "已有有效的学生账户？直接进入您的个人空间。",
+        "title": "我已注册"
+      },
+      "loadError": "无法加载机构信息。",
+      "notFound": "未找到该机构。请检查网址后重试。",
+      "oops": "出错了！",
+      "open": "正在接受注册",
+      "reenroll": {
+        "text": "已在本机构就读？请提交新学年的续注册申请。",
+        "title": "续注册"
+      },
+      "schoolYear": "学年：",
+      "title": "在线注册门户",
+      "trackLink": "查询我的申请状态 →",
+      "types": {
+        "high_school": "高中",
+        "middle_school": "初中",
+        "primary_school": "小学",
+        "school": "学校",
+        "training_center": "培训中心",
+        "university": "大学"
+      },
+      "website": "网站"
+    },
+    "info": {
+      "address": "地址",
+      "applyNow": "立即申请",
+      "backHome": "返回首页",
+      "contactTitle": "招生联系方式",
+      "currentYear": "当前学年：",
+      "docs": {
+        "birth": "出生证明摘录或身份证复印件",
+        "photos": "近期证件照（护照规格）",
+        "residence": "住址证明",
+        "schoolCertificate": "原就读机构出具的在读证明",
+        "transcript": "上一学年成绩单",
+        "vaccination": "疫苗接种本复印件"
+      },
+      "documentsDescription": "提交申请前请准备好以下材料",
+      "documentsTitle": "所需材料",
+      "email": "电子邮箱",
+      "faq": {
+        "duration": {
+          "a": "完整材料的审核通常需要 5 至 10 个工作日。审核结果将通过电子邮件通知您。",
+          "q": "材料审核需要多长时间？"
+        },
+        "edit": {
+          "a": "申请提交后无法直接修改。如需修改，请联系招生办公室。",
+          "q": "提交后还能修改申请吗？"
+        },
+        "payment": {
+          "a": "我们接受银行转账、现金和支票付款。申请获批后，我们会告知具体付款方式。",
+          "q": "接受哪些付款方式？"
+        },
+        "when": {
+          "a": "全年均可提交申请，视名额而定。建议尽早为所需学年提交申请。",
+          "q": "什么时候可以提交申请？"
+        }
+      },
+      "faqTitle": "常见问题",
+      "levelsTitle": "可选年级",
+      "notFoundText": "您查找的机构不存在或已停用。",
+      "notFoundTitle": "未找到该机构",
+      "phone": "电话",
+      "processDescription": "按照以下步骤完成注册",
+      "processTitle": "录取流程",
+      "readyText": "立即开始申请",
+      "readyTitle": "准备好加入我们了吗？",
+      "steps": {
+        "decision": {
+          "description": "您将收到关于申请是否获批的电子邮件通知。",
+          "title": "结果通知"
+        },
+        "documents": {
+          "description": "上传所需材料（出生证明、照片等）。",
+          "title": "提交材料"
+        },
+        "finalize": {
+          "description": "如获录取，请缴纳费用并完成注册。",
+          "title": "完成注册"
+        },
+        "form": {
+          "description": "请完整填写申请表中的所有必填信息。",
+          "title": "在线填写申请表"
+        },
+        "review": {
+          "description": "我们的团队将在 5 至 10 个工作日内审核您的申请。",
+          "title": "材料审核"
+        }
+      },
+      "submitApplication": "提交我的申请",
+      "subtitle": "注册指南 - 实用信息",
+      "types": {
+        "high_school": "高中",
+        "middle_school": "初中",
+        "primary_school": "小学",
+        "school": "学校",
+        "training_center": "培训中心",
+        "university": "大学"
+      }
+    },
+    "reenroll": {
+      "back": "返回",
+      "backToPortal": "返回门户",
+      "closed": "注册目前已关闭。请稍后再来。",
+      "contactLine": "联系方式：{{email}} · {{phone}}",
+      "genericError": "发生错误，请重试。",
+      "intro": "请输入学生的学籍号和家长/监护人的电子邮箱以核实您的身份。",
+      "keepReference": "请保留此参考编号以便查询申请进度。",
+      "level": "申请年级 *",
+      "levelPlaceholder": "选择年级",
+      "notFound": "未找到该机构。",
+      "notMe": "不是我？修改",
+      "notes": "备注",
+      "notesPlaceholder": "给管理部门的补充信息……",
+      "optional": "（选填）",
+      "parentEmail": "家长/监护人电子邮箱",
+      "reference": "参考编号",
+      "registrationNumber": "学籍号",
+      "registrationPlaceholder": "例如：2024-SCH-0042",
+      "schoolYear": "学年",
+      "sending": "正在发送……",
+      "studentLine": "学籍号 {{number}} · 当前年级：{{level}}",
+      "submit": "提交续注册申请",
+      "submitted": "申请已提交！",
+      "title": "续注册",
+      "track": "查询我的申请",
+      "verified": "身份已核实",
+      "verify": "核实我的身份",
+      "verifyError": "无法核实信息。请联系管理部门。",
+      "verifying": "正在核实……"
+    },
+    "status": {
+      "backToPortal": "返回门户",
+      "check": "查询状态",
+      "found_other": "找到 {{count}} 份申请",
+      "genericError": "发生错误，请重试。",
+      "intro": "请输入您提交申请时使用的电子邮箱。",
+      "newApplication": "新申请",
+      "noResult": "未找到与该电子邮箱相关的申请。",
+      "notFound": "未找到该机构。",
+      "optional": "（选填）",
+      "parentEmail": "家长/监护人电子邮箱",
+      "reenrollment": "续注册",
+      "ref": "编号：{{id}}",
+      "reference": "参考编号",
+      "referencePlaceholder": "留空以查看您的全部申请",
+      "searching": "正在查询……",
+      "statuses": {
+        "ACCEPTED": "已录取",
+        "CONVERTED_TO_STUDENT": "已注册",
+        "DRAFT": "草稿",
+        "REJECTED": "未录取",
+        "SUBMITTED": "已提交",
+        "UNDER_REVIEW": "审核中"
+      },
+      "submittedOn": "提交日期：{{date}}",
+      "title": "申请进度查询"
+    }
   }
 }

@@ -4936,5 +4936,309 @@
         "allRegions": "Toutes les régions",
         "prefecture": "Préfecture",
         "allPrefectures": "Toutes les préfectures"
+    },
+    "publicJourney": {
+        "common": {
+            "rights": "Tous droits réservés."
+        },
+        "contact": {
+            "address": "Adresse",
+            "apply": "Postuler",
+            "applyNow": "Postuler maintenant",
+            "backHome": "Retour à l'accueil",
+            "breadcrumb": "Contact",
+            "closed": "Fermé",
+            "email": "Email *",
+            "emailLabel": "Email",
+            "errors": {
+                "email": "Email invalide",
+                "message": "Le message doit contenir au moins 10 caractères",
+                "name": "Le nom doit contenir au moins 2 caractères",
+                "subject": "Le sujet doit contenir au moins 3 caractères"
+            },
+            "formTitle": "Envoyez-nous un message",
+            "home": "Accueil",
+            "hours": "Horaires d'ouverture",
+            "infoTitle": "Informations de contact",
+            "intro": "Une question ? Besoin d'informations ? Notre équipe est à votre disposition pour vous accompagner.",
+            "message": "Message *",
+            "messagePlaceholder": "Écrivez votre message ici...",
+            "name": "Nom complet *",
+            "namePlaceholder": "Votre nom",
+            "notFound": "Établissement non trouvé",
+            "phone": "Téléphone",
+            "readyText": "Déposez votre candidature en quelques clics.",
+            "readyTitle": "Prêt à nous rejoindre ?",
+            "saturday": "Samedi",
+            "send": "Envoyer le message",
+            "sendError": "Erreur lors de l'envoi du message",
+            "sending": "Envoi en cours...",
+            "sent": "Message envoyé avec succès!",
+            "sentText": "Nous avons bien reçu votre message et vous répondrons dans les plus brefs délais.",
+            "sentTitle": "Message envoyé!",
+            "subject": "Sujet *",
+            "subjectPlaceholder": "Objet de votre message",
+            "sunday": "Dimanche",
+            "title": "Contactez-nous",
+            "website": "Site web",
+            "weekdays": "Lundi - Vendredi"
+        },
+        "contactForm": {
+            "email": "Email",
+            "error": "Une erreur est survenue. Merci de réessayer ou de nous contacter directement.",
+            "honeypot": "Ne pas remplir ce champ",
+            "message": "Message",
+            "messagePlaceholder": "Décrivez votre demande...",
+            "name": "Nom complet",
+            "namePlaceholder": "Votre nom",
+            "phone": "Téléphone",
+            "send": "Envoyer le message",
+            "sending": "Envoi...",
+            "sentText": "Merci pour votre message. Nous vous répondrons dans les plus brefs délais.",
+            "sentTitle": "Message envoyé !",
+            "subject": "Sujet",
+            "subjectPlaceholder": "Sujet de votre message"
+        },
+        "form": {
+            "address": "Adresse",
+            "addressPlaceholder": "Adresse de résidence",
+            "back": "Retour",
+            "backHome": "Retour à l'accueil",
+            "birthDate": "Date de naissance *",
+            "cancel": "Annuler",
+            "docs": {
+                "birth": "Extrait de naissance ou carte d'identité",
+                "certificate": "Certificat de scolarité (établissement précédent)",
+                "photo": "Photo d'identité récente",
+                "transcript": "Relevé de notes de l'année précédente"
+            },
+            "documentsForLevel": "Documents obligatoires pour le niveau sélectionné",
+            "documentsSelectLevel": "Sélectionnez un niveau ci-dessus pour connaître les documents requis",
+            "documentsTitle": "Documents à fournir",
+            "email": "Email *",
+            "errors": {
+                "birthDate": "La date de naissance est requise",
+                "email": "Email invalide",
+                "firstName": "Le prénom doit contenir au moins 2 caractères",
+                "gender": "Le genre est requis",
+                "lastName": "Le nom doit contenir au moins 2 caractères",
+                "phone": "Numéro de téléphone invalide"
+            },
+            "female": "Féminin",
+            "fileHint": "PDF, JPG ou PNG — 8 Mo max",
+            "firstName": "Prénom *",
+            "fixErrors": "Veuillez corriger les erreurs dans le formulaire",
+            "fullAddressPlaceholder": "Adresse complète",
+            "gender": "Genre *",
+            "lastName": "Nom *",
+            "level": "Niveau souhaité",
+            "levelPlaceholder": "Sélectionner un niveau",
+            "male": "Masculin",
+            "missingDocs": "Documents manquants : {{list}}",
+            "missingDocsToast": "Veuillez téléverser tous les documents obligatoires",
+            "moreDescription": "Ajoutez toute information pertinente pour la candidature",
+            "moreTitle": "Informations Complémentaires",
+            "notFoundText": "L'établissement que vous recherchez n'existe pas ou n'est plus actif.",
+            "notFoundTitle": "Établissement non trouvé",
+            "notLoaded": "Établissement non chargé",
+            "notes": "Notes additionnelles",
+            "notesPlaceholder": "Informations supplémentaires, besoins spéciaux, etc.",
+            "occupation": "Profession",
+            "occupationPlaceholder": "Profession du parent",
+            "parentDescription": "Renseignez les coordonnées du parent ou tuteur légal",
+            "parentFirstNamePlaceholder": "Prénom du parent",
+            "parentLastNamePlaceholder": "Nom du parent",
+            "parentTitle": "Informations du Parent/Tuteur",
+            "phone": "Téléphone *",
+            "previousSchool": "École précédente",
+            "previousSchoolPlaceholder": "Nom de l'école précédente (si applicable)",
+            "select": "Sélectionner",
+            "sending": "Envoi en cours...",
+            "studentDescription": "Renseignez les informations concernant l'{{student}} à inscrire",
+            "studentFirstNamePlaceholder": "Prénom de l'{{student}}",
+            "studentLastNamePlaceholder": "Nom de l'{{student}}",
+            "studentTitle": "Informations de l'{{student}}",
+            "submit": "Soumettre la Candidature",
+            "submitError": "Erreur lors de la soumission. Veuillez réessayer.",
+            "submittedToast": "Candidature soumise avec succès!",
+            "subtitle": "Formulaire de Candidature ({{student}}s)",
+            "successNext": "L'équipe d'admission examinera votre dossier et vous contactera prochainement.",
+            "successText": "Votre candidature pour {{school}} a été enregistrée avec succès. Vous recevrez un email de confirmation à l'adresse {{email}}.",
+            "successTitle": "Candidature Soumise!",
+            "upload": "Téléverser",
+            "uploadError": "Échec de l'envoi du document. Réessayez."
+        },
+        "hub": {
+            "alreadySubmitted": "Vous avez déjà soumis un dossier ?",
+            "apply": {
+                "action": "Déposer un dossier",
+                "text": "Nouvel étudiant ? Déposez votre dossier de candidature. Notre équipe l'examinera et vous contactera.",
+                "title": "Nouvelle candidature"
+            },
+            "backHome": "Retour à l'accueil",
+            "chooseSituation": "Choisissez votre situation ci-dessous",
+            "closed": "Inscriptions fermées",
+            "enrolled": {
+                "action": "Se connecter",
+                "text": "Vous avez un compte étudiant actif ? Accédez directement à votre espace personnel.",
+                "title": "Je suis déjà inscrit"
+            },
+            "loadError": "Impossible de charger les informations de l'établissement.",
+            "notFound": "Établissement introuvable. Vérifiez l'adresse et réessayez.",
+            "oops": "Oups !",
+            "open": "Inscriptions ouvertes",
+            "reenroll": {
+                "text": "Étudiant déjà scolarisé dans cet établissement ? Faites votre demande de réinscription pour la nouvelle année.",
+                "title": "Réinscription"
+            },
+            "schoolYear": "Année scolaire :",
+            "title": "Portail d'inscription en ligne",
+            "trackLink": "Suivre l'état de ma candidature →",
+            "types": {
+                "high_school": "Lycée",
+                "middle_school": "Collège",
+                "primary_school": "École Primaire",
+                "school": "Établissement Scolaire",
+                "training_center": "Centre de Formation",
+                "university": "Université"
+            },
+            "website": "Site web"
+        },
+        "info": {
+            "address": "Adresse",
+            "applyNow": "Postuler maintenant",
+            "backHome": "Retour à l'accueil",
+            "contactTitle": "Contact Admissions",
+            "currentYear": "Année académique en cours:",
+            "docs": {
+                "birth": "Extrait d'acte de naissance ou copie de la carte d'identité",
+                "photos": "Photos d'identité récentes (format passeport)",
+                "residence": "Justificatif de domicile",
+                "schoolCertificate": "Certificat de scolarité de l'établissement d'origine",
+                "transcript": "Relevé de notes de l'année précédente",
+                "vaccination": "Photocopie du carnet de vaccination"
+            },
+            "documentsDescription": "Préparez ces documents avant de soumettre votre candidature",
+            "documentsTitle": "Documents Requis",
+            "email": "Email",
+            "faq": {
+                "duration": {
+                    "a": "L'examen d'un dossier complet prend généralement entre 5 et 10 jours ouvrables. Vous serez notifié par email de la décision.",
+                    "q": "Combien de temps prend l'examen du dossier ?"
+                },
+                "edit": {
+                    "a": "Une fois soumise, vous ne pouvez plus modifier directement votre candidature. Veuillez contacter le service des admissions pour toute modification.",
+                    "q": "Puis-je modifier ma candidature après soumission ?"
+                },
+                "payment": {
+                    "a": "Nous acceptons les paiements par virement bancaire, espèces, et chèque. Les modalités de paiement vous seront communiquées lors de l'acceptation de votre dossier.",
+                    "q": "Quels sont les modes de paiement acceptés ?"
+                },
+                "when": {
+                    "a": "Les candidatures sont acceptées tout au long de l'année, sous réserve de disponibilité. Nous vous recommandons de postuler le plus tôt possible pour l'année académique souhaitée.",
+                    "q": "Quand puis-je soumettre ma candidature ?"
+                }
+            },
+            "faqTitle": "Questions Fréquentes",
+            "levelsTitle": "Niveaux d'Études Disponibles",
+            "notFoundText": "L'établissement que vous recherchez n'existe pas ou n'est plus actif.",
+            "notFoundTitle": "Établissement non trouvé",
+            "phone": "Téléphone",
+            "processDescription": "Suivez ces étapes pour finaliser votre inscription",
+            "processTitle": "Processus d'Admission",
+            "readyText": "Commencez votre candidature dès maintenant",
+            "readyTitle": "Prêt à nous rejoindre ?",
+            "steps": {
+                "decision": {
+                    "description": "Vous recevrez une notification par email concernant l'acceptation de votre dossier.",
+                    "title": "Notification de décision"
+                },
+                "documents": {
+                    "description": "Téléchargez les documents requis (acte de naissance, photos, etc.).",
+                    "title": "Soumettre les documents"
+                },
+                "finalize": {
+                    "description": "En cas d'acceptation, procédez au paiement des frais et finalisez l'inscription.",
+                    "title": "Finalisation de l'inscription"
+                },
+                "form": {
+                    "description": "Complétez le formulaire de candidature avec toutes les informations requises.",
+                    "title": "Remplir le formulaire en ligne"
+                },
+                "review": {
+                    "description": "Notre équipe examine votre candidature dans un délai de 5 à 10 jours ouvrables.",
+                    "title": "Examen du dossier"
+                }
+            },
+            "submitApplication": "Soumettre ma candidature",
+            "subtitle": "Guide d'Inscription - Informations Pratiques",
+            "types": {
+                "high_school": "Lycée",
+                "middle_school": "Collège",
+                "primary_school": "École Primaire",
+                "school": "Établissement Scolaire",
+                "training_center": "Centre de Formation",
+                "university": "Université"
+            }
+        },
+        "reenroll": {
+            "back": "Retour",
+            "backToPortal": "Retour au portail",
+            "closed": "Les inscriptions sont actuellement fermées. Revenez plus tard.",
+            "contactLine": "Contact : {{email}} · {{phone}}",
+            "genericError": "Une erreur est survenue. Veuillez réessayer.",
+            "intro": "Entrez le numéro d'immatriculation de l'étudiant et l'e-mail du parent/tuteur pour vérifier votre identité.",
+            "keepReference": "Conservez cette référence pour suivre votre dossier.",
+            "level": "Niveau souhaité *",
+            "levelPlaceholder": "Sélectionner un niveau",
+            "notFound": "Établissement introuvable.",
+            "notMe": "Ce n'est pas moi ? Modifier",
+            "notes": "Remarques",
+            "notesPlaceholder": "Informations complémentaires pour l'administration…",
+            "optional": "(facultatif)",
+            "parentEmail": "E-mail du parent / tuteur",
+            "reference": "Numéro de référence",
+            "registrationNumber": "Numéro d'immatriculation",
+            "registrationPlaceholder": "ex: 2024-SCH-0042",
+            "schoolYear": "Année scolaire",
+            "sending": "Envoi en cours…",
+            "studentLine": "N° {{number}} · Niveau actuel : {{level}}",
+            "submit": "Soumettre ma demande de réinscription",
+            "submitted": "Demande soumise !",
+            "title": "Réinscription",
+            "track": "Suivre mon dossier",
+            "verified": "Identité vérifiée",
+            "verify": "Vérifier mon identité",
+            "verifyError": "Impossible de vérifier les informations. Contactez l'administration.",
+            "verifying": "Vérification…"
+        },
+        "status": {
+            "backToPortal": "Retour au portail",
+            "check": "Consulter le statut",
+            "found_one": "{{count}} dossier trouvé",
+            "found_other": "{{count}} dossiers trouvés",
+            "genericError": "Une erreur est survenue. Veuillez réessayer.",
+            "intro": "Entrez l'adresse e-mail que vous avez utilisée lors de votre dépôt de dossier.",
+            "newApplication": "Nouvelle candidature",
+            "noResult": "Aucune candidature trouvée pour cet e-mail.",
+            "notFound": "Établissement introuvable.",
+            "optional": "(facultatif)",
+            "parentEmail": "E-mail du parent / tuteur",
+            "reenrollment": "Réinscription",
+            "ref": "Réf : {{id}}",
+            "reference": "Numéro de référence",
+            "referencePlaceholder": "Laissez vide pour voir tous vos dossiers",
+            "searching": "Recherche…",
+            "statuses": {
+                "ACCEPTED": "Accepté",
+                "CONVERTED_TO_STUDENT": "Inscrit",
+                "DRAFT": "Brouillon",
+                "REJECTED": "Refusé",
+                "SUBMITTED": "Soumis",
+                "UNDER_REVIEW": "En cours d'examen"
+            },
+            "submittedOn": "Soumis le : {{date}}",
+            "title": "Suivi de candidature"
+        }
     }
 }

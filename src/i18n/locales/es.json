@@ -4981,5 +4981,309 @@
     "allRegions": "Todas las regiones",
     "prefecture": "Prefectura",
     "allPrefectures": "Todas las prefecturas"
+  },
+  "publicJourney": {
+    "common": {
+      "rights": "Todos los derechos reservados."
+    },
+    "contact": {
+      "address": "Dirección",
+      "apply": "Solicitar",
+      "applyNow": "Solicitar ahora",
+      "backHome": "Volver al inicio",
+      "breadcrumb": "Contacto",
+      "closed": "Cerrado",
+      "email": "Correo electrónico *",
+      "emailLabel": "Correo electrónico",
+      "errors": {
+        "email": "Correo electrónico no válido",
+        "message": "El mensaje debe tener al menos 10 caracteres",
+        "name": "El nombre debe tener al menos 2 caracteres",
+        "subject": "El asunto debe tener al menos 3 caracteres"
+      },
+      "formTitle": "Envíenos un mensaje",
+      "home": "Inicio",
+      "hours": "Horario de atención",
+      "infoTitle": "Información de contacto",
+      "intro": "¿Una pregunta? ¿Necesita información? Nuestro equipo está a su disposición para acompañarle.",
+      "message": "Mensaje *",
+      "messagePlaceholder": "Escriba su mensaje aquí...",
+      "name": "Nombre completo *",
+      "namePlaceholder": "Su nombre",
+      "notFound": "Centro no encontrado",
+      "phone": "Teléfono",
+      "readyText": "Presente su solicitud en pocos clics.",
+      "readyTitle": "¿Listo para unirse a nosotros?",
+      "saturday": "Sábado",
+      "send": "Enviar el mensaje",
+      "sendError": "Error al enviar el mensaje",
+      "sending": "Enviando...",
+      "sent": "¡Mensaje enviado con éxito!",
+      "sentText": "Hemos recibido su mensaje y le responderemos lo antes posible.",
+      "sentTitle": "¡Mensaje enviado!",
+      "subject": "Asunto *",
+      "subjectPlaceholder": "Asunto de su mensaje",
+      "sunday": "Domingo",
+      "title": "Contáctenos",
+      "website": "Sitio web",
+      "weekdays": "Lunes - Viernes"
+    },
+    "contactForm": {
+      "email": "Correo electrónico",
+      "error": "Se produjo un error. Inténtelo de nuevo o contáctenos directamente.",
+      "honeypot": "No rellene este campo",
+      "message": "Mensaje",
+      "messagePlaceholder": "Describa su solicitud...",
+      "name": "Nombre completo",
+      "namePlaceholder": "Su nombre",
+      "phone": "Teléfono",
+      "send": "Enviar el mensaje",
+      "sending": "Enviando...",
+      "sentText": "Gracias por su mensaje. Le responderemos lo antes posible.",
+      "sentTitle": "¡Mensaje enviado!",
+      "subject": "Asunto",
+      "subjectPlaceholder": "Asunto de su mensaje"
+    },
+    "form": {
+      "address": "Dirección",
+      "addressPlaceholder": "Dirección de residencia",
+      "back": "Volver",
+      "backHome": "Volver al inicio",
+      "birthDate": "Fecha de nacimiento *",
+      "cancel": "Cancelar",
+      "docs": {
+        "birth": "Partida de nacimiento o documento de identidad",
+        "certificate": "Certificado de escolaridad (centro anterior)",
+        "photo": "Foto de identidad reciente",
+        "transcript": "Boletín de notas del año anterior"
+      },
+      "documentsForLevel": "Documentos obligatorios para el nivel seleccionado",
+      "documentsSelectLevel": "Seleccione un nivel arriba para conocer los documentos requeridos",
+      "documentsTitle": "Documentos que debe aportar",
+      "email": "Correo electrónico *",
+      "errors": {
+        "birthDate": "La fecha de nacimiento es obligatoria",
+        "email": "Correo electrónico no válido",
+        "firstName": "El nombre debe tener al menos 2 caracteres",
+        "gender": "El sexo es obligatorio",
+        "lastName": "El apellido debe tener al menos 2 caracteres",
+        "phone": "Número de teléfono no válido"
+      },
+      "female": "Femenino",
+      "fileHint": "PDF, JPG o PNG — 8 MB máx.",
+      "firstName": "Nombre *",
+      "fixErrors": "Corrija los errores del formulario",
+      "fullAddressPlaceholder": "Dirección completa",
+      "gender": "Sexo *",
+      "lastName": "Apellido *",
+      "level": "Nivel deseado",
+      "levelPlaceholder": "Seleccionar un nivel",
+      "male": "Masculino",
+      "missingDocs": "Documentos que faltan: {{list}}",
+      "missingDocsToast": "Suba todos los documentos obligatorios",
+      "moreDescription": "Añada cualquier información pertinente para la solicitud",
+      "moreTitle": "Información complementaria",
+      "notFoundText": "El centro que busca no existe o ya no está activo.",
+      "notFoundTitle": "Centro no encontrado",
+      "notLoaded": "Centro no cargado",
+      "notes": "Notas adicionales",
+      "notesPlaceholder": "Información adicional, necesidades especiales, etc.",
+      "occupation": "Profesión",
+      "occupationPlaceholder": "Profesión del padre/madre",
+      "parentDescription": "Indique los datos de contacto del padre, la madre o el tutor legal",
+      "parentFirstNamePlaceholder": "Nombre del padre/madre",
+      "parentLastNamePlaceholder": "Apellido del padre/madre",
+      "parentTitle": "Información del padre/madre/tutor",
+      "phone": "Teléfono *",
+      "previousSchool": "Centro anterior",
+      "previousSchoolPlaceholder": "Nombre del centro anterior (si procede)",
+      "select": "Seleccionar",
+      "sending": "Enviando...",
+      "studentDescription": "Indique la información del {{student}} que desea inscribir",
+      "studentFirstNamePlaceholder": "Nombre del {{student}}",
+      "studentLastNamePlaceholder": "Apellido del {{student}}",
+      "studentTitle": "Información del {{student}}",
+      "submit": "Enviar la solicitud",
+      "submitError": "Error al enviar. Inténtelo de nuevo.",
+      "submittedToast": "¡Solicitud enviada con éxito!",
+      "subtitle": "Formulario de solicitud ({{student}}s)",
+      "successNext": "El equipo de admisiones examinará su expediente y se pondrá en contacto con usted en breve.",
+      "successText": "Su solicitud para {{school}} se ha registrado correctamente. Recibirá un correo de confirmación en {{email}}.",
+      "successTitle": "¡Solicitud enviada!",
+      "upload": "Subir",
+      "uploadError": "No se pudo enviar el documento. Inténtelo de nuevo."
+    },
+    "hub": {
+      "alreadySubmitted": "¿Ya ha presentado una solicitud?",
+      "apply": {
+        "action": "Presentar una solicitud",
+        "text": "¿Nuevo alumno? Presente su solicitud. Nuestro equipo la examinará y se pondrá en contacto con usted.",
+        "title": "Nueva solicitud"
+      },
+      "backHome": "Volver al inicio",
+      "chooseSituation": "Elija su situación a continuación",
+      "closed": "Inscripciones cerradas",
+      "enrolled": {
+        "action": "Iniciar sesión",
+        "text": "¿Tiene una cuenta de alumno activa? Acceda directamente a su espacio personal.",
+        "title": "Ya estoy inscrito"
+      },
+      "loadError": "No se pudo cargar la información del centro.",
+      "notFound": "Centro no encontrado. Compruebe la dirección e inténtelo de nuevo.",
+      "oops": "¡Vaya!",
+      "open": "Inscripciones abiertas",
+      "reenroll": {
+        "text": "¿Ya estudia en este centro? Solicite su reinscripción para el nuevo curso.",
+        "title": "Reinscripción"
+      },
+      "schoolYear": "Curso escolar:",
+      "title": "Portal de inscripción en línea",
+      "trackLink": "Seguir el estado de mi solicitud →",
+      "types": {
+        "high_school": "Liceo",
+        "middle_school": "Colegio",
+        "primary_school": "Escuela primaria",
+        "school": "Centro escolar",
+        "training_center": "Centro de formación",
+        "university": "Universidad"
+      },
+      "website": "Sitio web"
+    },
+    "info": {
+      "address": "Dirección",
+      "applyNow": "Solicitar ahora",
+      "backHome": "Volver al inicio",
+      "contactTitle": "Contacto de admisiones",
+      "currentYear": "Curso académico actual:",
+      "docs": {
+        "birth": "Partida de nacimiento o copia del documento de identidad",
+        "photos": "Fotos de identidad recientes (formato pasaporte)",
+        "residence": "Justificante de domicilio",
+        "schoolCertificate": "Certificado de escolaridad del centro de origen",
+        "transcript": "Boletín de notas del año anterior",
+        "vaccination": "Fotocopia de la cartilla de vacunación"
+      },
+      "documentsDescription": "Prepare estos documentos antes de presentar su solicitud",
+      "documentsTitle": "Documentos requeridos",
+      "email": "Correo electrónico",
+      "faq": {
+        "duration": {
+          "a": "El examen de un expediente completo suele tardar entre 5 y 10 días hábiles. Se le notificará la decisión por correo electrónico.",
+          "q": "¿Cuánto tarda el examen del expediente?"
+        },
+        "edit": {
+          "a": "Una vez enviada, ya no puede modificar directamente su solicitud. Contacte con el servicio de admisiones para cualquier cambio.",
+          "q": "¿Puedo modificar mi solicitud después de enviarla?"
+        },
+        "payment": {
+          "a": "Aceptamos pagos por transferencia bancaria, en efectivo y con cheque. Las modalidades de pago se le comunicarán cuando se acepte su expediente.",
+          "q": "¿Qué formas de pago se aceptan?"
+        },
+        "when": {
+          "a": "Las solicitudes se aceptan durante todo el año, según disponibilidad. Le recomendamos presentar la solicitud lo antes posible para el curso deseado.",
+          "q": "¿Cuándo puedo presentar mi solicitud?"
+        }
+      },
+      "faqTitle": "Preguntas frecuentes",
+      "levelsTitle": "Niveles de estudio disponibles",
+      "notFoundText": "El centro que busca no existe o ya no está activo.",
+      "notFoundTitle": "Centro no encontrado",
+      "phone": "Teléfono",
+      "processDescription": "Siga estos pasos para completar su inscripción",
+      "processTitle": "Proceso de admisión",
+      "readyText": "Comience su solicitud ahora",
+      "readyTitle": "¿Listo para unirse a nosotros?",
+      "steps": {
+        "decision": {
+          "description": "Recibirá una notificación por correo electrónico sobre la aceptación de su expediente.",
+          "title": "Notificación de la decisión"
+        },
+        "documents": {
+          "description": "Suba los documentos requeridos (partida de nacimiento, fotos, etc.).",
+          "title": "Enviar los documentos"
+        },
+        "finalize": {
+          "description": "Si es aceptado, pague las tasas y finalice la inscripción.",
+          "title": "Finalización de la inscripción"
+        },
+        "form": {
+          "description": "Complete el formulario de solicitud con toda la información requerida.",
+          "title": "Rellenar el formulario en línea"
+        },
+        "review": {
+          "description": "Nuestro equipo examina su solicitud en un plazo de 5 a 10 días hábiles.",
+          "title": "Examen del expediente"
+        }
+      },
+      "submitApplication": "Enviar mi solicitud",
+      "subtitle": "Guía de inscripción - Información práctica",
+      "types": {
+        "high_school": "Liceo",
+        "middle_school": "Colegio",
+        "primary_school": "Escuela primaria",
+        "school": "Centro escolar",
+        "training_center": "Centro de formación",
+        "university": "Universidad"
+      }
+    },
+    "reenroll": {
+      "back": "Volver",
+      "backToPortal": "Volver al portal",
+      "closed": "Las inscripciones están cerradas actualmente. Vuelva más tarde.",
+      "contactLine": "Contacto: {{email}} · {{phone}}",
+      "genericError": "Se produjo un error. Inténtelo de nuevo.",
+      "intro": "Introduzca el número de matrícula del alumno y el correo del padre/madre/tutor para verificar su identidad.",
+      "keepReference": "Conserve esta referencia para seguir su expediente.",
+      "level": "Nivel deseado *",
+      "levelPlaceholder": "Seleccionar un nivel",
+      "notFound": "Centro no encontrado.",
+      "notMe": "¿No es usted? Modificar",
+      "notes": "Observaciones",
+      "notesPlaceholder": "Información adicional para la administración…",
+      "optional": "(opcional)",
+      "parentEmail": "Correo del padre/madre/tutor",
+      "reference": "Número de referencia",
+      "registrationNumber": "Número de matrícula",
+      "registrationPlaceholder": "ej.: 2024-SCH-0042",
+      "schoolYear": "Curso escolar",
+      "sending": "Enviando…",
+      "studentLine": "N.º {{number}} · Nivel actual: {{level}}",
+      "submit": "Enviar mi solicitud de reinscripción",
+      "submitted": "¡Solicitud enviada!",
+      "title": "Reinscripción",
+      "track": "Seguir mi expediente",
+      "verified": "Identidad verificada",
+      "verify": "Verificar mi identidad",
+      "verifyError": "No se pudo verificar la información. Contacte con la administración.",
+      "verifying": "Verificando…"
+    },
+    "status": {
+      "backToPortal": "Volver al portal",
+      "check": "Consultar el estado",
+      "found_one": "{{count}} expediente encontrado",
+      "found_other": "{{count}} expedientes encontrados",
+      "genericError": "Se produjo un error. Inténtelo de nuevo.",
+      "intro": "Introduzca la dirección de correo que utilizó al presentar su expediente.",
+      "newApplication": "Nueva solicitud",
+      "noResult": "No se encontró ninguna solicitud para este correo.",
+      "notFound": "Centro no encontrado.",
+      "optional": "(opcional)",
+      "parentEmail": "Correo del padre/madre/tutor",
+      "reenrollment": "Reinscripción",
+      "ref": "Ref.: {{id}}",
+      "reference": "Número de referencia",
+      "referencePlaceholder": "Déjelo vacío para ver todos sus expedientes",
+      "searching": "Buscando…",
+      "statuses": {
+        "ACCEPTED": "Aceptado",
+        "CONVERTED_TO_STUDENT": "Inscrito",
+        "DRAFT": "Borrador",
+        "REJECTED": "Rechazado",
+        "SUBMITTED": "Enviado",
+        "UNDER_REVIEW": "En revisión"
+      },
+      "submittedOn": "Enviado el: {{date}}",
+      "title": "Seguimiento de la solicitud"
+    }
   }
 }
