@@ -24,6 +24,24 @@ from app.workers.tasks import build_admission_email, send_admission_email  # noq
 
 needs_postgres = pytest.mark.skipif(engine.dialect.name != "postgresql", reason="SQL brut PostgreSQL")
 QUEUED: list = []
+CREATED_TENANTS: list = []
+
+
+@pytest.fixture(autouse=True)
+def _cleanup():
+    """Supprime dossiers, comptes et établissements créés : un compte relecteur encore référencé par
+    un dossier ferait échouer les tests qui vident `users` (ex. test_bootstrap)."""
+    yield
+    from sqlalchemy import text
+
+    with engine.begin() as conn:
+        for tenant_id in CREATED_TENANTS:
+            conn.execute(text("DELETE FROM admission_applications WHERE tenant_id = :t"), {"t": tenant_id})
+            conn.execute(text("DELETE FROM audit_logs WHERE tenant_id = :t"), {"t": tenant_id})
+            conn.execute(text("DELETE FROM jobs WHERE tenant_id = :t"), {"t": tenant_id})
+            conn.execute(text("DELETE FROM users WHERE tenant_id = :t"), {"t": tenant_id})
+            conn.execute(text("DELETE FROM tenants WHERE id = :t"), {"t": tenant_id})
+    CREATED_TENANTS.clear()
 
 
 @pytest.fixture(autouse=True)
@@ -46,6 +64,7 @@ def _school(contact_email="admissions@lycee.gn"):
         db.add(Tenant(id=tenant_id, name="Lycée <i>Kaloum</i>", slug=f"adm-{tenant_id[:8]}", type="high",
                       country="GN", is_active=True, settings={"landing": landing}))
         db.commit()
+    CREATED_TENANTS.append(tenant_id)
     return tenant_id
 
 
