@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
   Search,
   School,
@@ -12,8 +13,9 @@ import {
   Users,
   LogIn,
   ExternalLink,
+  Layers,
 } from "lucide-react";
-import { usePublicTenants } from "@/hooks/usePublicTenant";
+import { usePublicDirectoryFacets, usePublicTenants } from "@/hooks/usePublicTenant";
 import { resolveUploadUrl } from "@/utils/url";
 import { getTenantTypeLabel, getTenantTypeBadgeColor } from "@/lib/tenantTemplateGroup";
 
@@ -26,7 +28,9 @@ interface PublicTenant {
   name: string;
   slug: string;
   type?: string;
-  city?: string;
+  city?: string | null;
+  region?: string | null;
+  prefecture?: string | null;
   country?: string;
   description?: string;
   logo_url?: string;
@@ -162,6 +166,7 @@ function EmptyState({ query, tab }: { query: string; tab: FilterTab }) {
 
 function InstitutionCard({ tenant }: { tenant: PublicTenant }) {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const TypeIcon = getTenantTypeIcon(tenant.type);
   const badgeColor = getTenantTypeBadgeColor(tenant.type);
 
@@ -183,10 +188,10 @@ function InstitutionCard({ tenant }: { tenant: PublicTenant }) {
             {tenant.name}
           </h3>
           {/* Location */}
-          {(tenant.city || tenant.country) && (
+          {(tenant.city || tenant.prefecture || tenant.region || tenant.country) && (
             <p className="flex items-center gap-1 text-gray-400 text-xs mb-2">
               <MapPin className="w-3 h-3 flex-shrink-0" />
-              {[tenant.city, tenant.country].filter(Boolean).join(", ")}
+              {Array.from(new Set([tenant.city, tenant.prefecture, tenant.region, tenant.country].filter(Boolean))).join(", ")}
             </p>
           )}
           {/* Type badge */}
@@ -228,6 +233,15 @@ function InstitutionCard({ tenant }: { tenant: PublicTenant }) {
           <ExternalLink className="w-4 h-4" />
           <span className="hidden sm:inline">Page publique</span>
         </button>
+        {/* Annuaires : offre de formation et implantations de l'établissement. */}
+        <Link
+          to={`/ecole/${tenant.slug}/offre`}
+          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 text-sm font-medium rounded-xl hover:bg-gray-200 transition-all"
+          aria-label={t("publicOffer.linkAria", { name: tenant.name })}
+        >
+          <Layers className="w-4 h-4" />
+          <span className="hidden sm:inline">{t("publicOffer.link")}</span>
+        </Link>
       </div>
     </div>
   );
@@ -246,12 +260,17 @@ const FILTER_TABS: { key: FilterTab; label: string; icon: React.FC<{ className?:
 ];
 
 export default function PublicDirectory() {
+  const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
+  // Annuaires : filtres par région et préfecture appliqués par le serveur.
+  const [region, setRegion] = useState("");
+  const [prefecture, setPrefecture] = useState("");
+  const { data: facets } = usePublicDirectoryFacets();
   const [sort, setSort] = useState<SortOption>("az");
 
   // Load tenants from the sovereign API
-  const { data: apiTenants, isLoading, isError, refetch, isFetching } = usePublicTenants();
+  const { data: apiTenants, isLoading, isError, refetch, isFetching } = usePublicTenants({ region, prefecture });
 
   // Jamais d'établissements fictifs (lot durcissement du site public, 2026-11-25) : un annuaire
   // vide affiche l'état vide existant, une erreur affiche l'état d'erreur avec « Réessayer ».
@@ -342,6 +361,38 @@ export default function PublicDirectory() {
               </button>
             )}
           </div>
+
+          {/* Région / préfecture (listes issues de l'annuaire réel) */}
+          {(facets?.regions?.length || facets?.prefectures?.length) ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+              <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">
+                {t("publicDirectory.region")}
+                <select
+                  value={region}
+                  onChange={(e) => setRegion(e.target.value)}
+                  className="px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">{t("publicDirectory.allRegions")}</option>
+                  {(facets?.regions ?? []).map((f) => (
+                    <option key={f.value} value={f.value}>{`${f.value} (${f.count})`}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-xs font-medium text-gray-600">
+                {t("publicDirectory.prefecture")}
+                <select
+                  value={prefecture}
+                  onChange={(e) => setPrefecture(e.target.value)}
+                  className="px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">{t("publicDirectory.allPrefectures")}</option>
+                  {(facets?.prefectures ?? []).map((f) => (
+                    <option key={f.value} value={f.value}>{`${f.value} (${f.count})`}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          ) : null}
 
           {/* Filter tabs + sort */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

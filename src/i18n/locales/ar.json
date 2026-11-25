@@ -1549,7 +1549,9 @@
     "showPrograms": "عرض البرامج",
     "showProgramsDesc": "قائمة الدورات والمستويات المتاحة.",
     "showGallery": "عرض معرض الصور",
-    "showGalleryDesc": "قسم صور المؤسسة."
+    "showGalleryDesc": "قسم صور المؤسسة.",
+    "showCampuses": "نشر المقرات (الحرم)",
+    "showCampusesDesc": "يعرض اسم حرمكم وعنوانه ورقم هاتفه في صفحة «التكوينات» بموقعكم العام."
   },
   "publicPages": {
     "pageTitle": "الصفحات العامة",
@@ -4953,5 +4955,30 @@
     "chartStudents": "التلاميذ",
     "chartClassAverage": "معدل القسم",
     "chartBestAverage": "أفضل معدل"
+  },
+  "publicOffer": {
+    "link": "التكوينات",
+    "linkAria": "تكوينات ومقرات {{name}}",
+    "loading": "جارٍ التحميل…",
+    "notFound": "المؤسسة غير موجودة",
+    "backToDirectory": "العودة إلى الدليل",
+    "backToSchool": "العودة إلى المؤسسة",
+    "eyebrow": "التكوينات والمقرات",
+    "subtitle": "المراحل والمستويات والشعب والكليات والحرم التي نشرتها المؤسسة.",
+    "empty": "لم تنشر المؤسسة عرضها التكويني بعد.",
+    "cycles": "المراحل والمستويات",
+    "noLevels": "لا يوجد مستوى منشور لهذه المرحلة.",
+    "programs": "الشعب",
+    "programsDetail": "عرض البرامج والرسوم",
+    "faculties": "الكليات والأقسام",
+    "departmentsOf": "أقسام {{name}}",
+    "campuses": "الحرم والمقرات",
+    "mainCampus": "الحرم الرئيسي"
+  },
+  "publicDirectory": {
+    "region": "الجهة",
+    "allRegions": "كل الجهات",
+    "prefecture": "المحافظة",
+    "allPrefectures": "كل المحافظات"
   }
 }

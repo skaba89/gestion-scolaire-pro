@@ -403,6 +403,99 @@ class TestPublicRoutesUnderRestrictedRole:
         assert resp.status_code == 200
         assert {seeded["A"]["slug"], seeded["B"]["slug"]} <= {card["slug"] for card in resp.json()}
 
+    # -- annuaires (2026-11-25) ------------------------------------------------
+
+    @pytest.fixture
+    def offer(self, seeded):
+        """A : cycle « Primaire » (CP1-A rattaché), filière, faculté → département, campus avec téléphone ;
+        B : même nom de cycle et un campus — rien de B ne doit apparaître chez A. Localisation pour l'annuaire."""
+        from sqlalchemy.orm import sessionmaker as _sm
+        from app.models import Campus, Department, EducationCycle, Faculty, Program
+        a, b = seeded["A"], seeded["B"]
+        ids = {k: _uid() for k in ("cyc_a", "cyc_b", "prog_a", "fac_a", "dep_a", "dep_a_loose", "camp_a", "camp_b")}
+        with _sm(bind=engine)() as db:
+            db.add_all([
+                EducationCycle(id=ids["cyc_a"], tenant_id=a["id"], code="PRIM", name="Primaire A",
+                               institution_type="primary", period_type="trimester"),
+                EducationCycle(id=ids["cyc_b"], tenant_id=b["id"], code="PRIM", name="Primaire B",
+                               institution_type="primary", period_type="trimester"),
+                Program(id=ids["prog_a"], tenant_id=a["id"], name="Filière Sciences A", code="SCI"),
+                Faculty(id=ids["fac_a"], tenant_id=a["id"], name="Faculté des sciences A",
+                        dean_id=a["admin_id"]),
+                Campus(id=ids["camp_a"], tenant_id=a["id"], name="Campus Kaloum A", address="Kaloum",
+                       phone="+224620000001", is_main=True),
+                Campus(id=ids["camp_b"], tenant_id=b["id"], name="Campus B", address="Ratoma", phone="+224620000002"),
+            ])
+            db.flush()
+            db.add_all([
+                Department(id=ids["dep_a"], tenant_id=a["id"], name="Mathématiques A", faculty_id=ids["fac_a"],
+                           head_id=a["admin_id"]),
+                Department(id=ids["dep_a_loose"], tenant_id=a["id"], name="Langues A"),
+            ])
+            db.execute(text("UPDATE levels SET cycle_id = :c WHERE tenant_id = :t AND name = 'CP1-A'"),
+                       {"c": ids["cyc_a"], "t": a["id"]})
+            db.execute(text("UPDATE tenants SET region = 'Conakry', prefecture = 'Kaloum', city = 'Conakry' WHERE id = :t"),
+                       {"t": a["id"]})
+            db.execute(text("UPDATE tenants SET region = 'Kindia', prefecture = 'Coyah', city = 'Coyah' WHERE id = :t"),
+                       {"t": b["id"]})
+            db.commit()
+        yield ids
+        with engine.begin() as conn:
+            conn.execute(text("UPDATE levels SET cycle_id = NULL WHERE tenant_id IN (:a, :b)"), {"a": a["id"], "b": b["id"]})
+            for table in ("departments", "faculties", "programs", "campuses", "education_cycles"):
+                conn.execute(text(f"DELETE FROM {table} WHERE tenant_id IN (:a, :b)"), {"a": a["id"], "b": b["id"]})
+            conn.execute(text("UPDATE tenants SET region = NULL, prefecture = NULL, city = NULL, settings = '{}' "
+                              "WHERE id IN (:a, :b)"), {"a": a["id"], "b": b["id"]})
+
+    def test_public_offer_lists_cycles_programs_faculties_of_this_tenant_only(self, seeded, offer):
+        a = seeded["A"]
+        body = client.get(f"/api/v1/tenants/public/{a['slug']}/").json()
+        assert [c["name"] for c in body["cycles"]] == ["Primaire A"]
+        assert [lvl["name"] for lvl in body["cycles"][0]["levels"]] == ["CP1-A"]
+        assert [p["name"] for p in body["programs_detail"]] == ["Filière Sciences A"]
+        assert [f["name"] for f in body["faculties"]] == ["Faculté des sciences A"]
+        assert [d["name"] for d in body["faculties"][0]["departments"]] == ["Mathématiques A"]
+        # Aucun responsable publié (doyen, chef de département), rien de l'établissement B.
+        resp_text = str(body)
+        assert seeded["A"]["admin_id"] not in resp_text and "dean" not in resp_text and "head_id" not in resp_text
+        assert "Primaire B" not in resp_text and "Campus B" not in resp_text
+        # Q-AN1 : campus non publiés par défaut.
+        assert body["campuses"] == []
+        assert "+224620000001" not in resp_text
+
+    def test_campuses_are_published_only_when_the_tenant_opts_in(self, seeded, offer):
+        a = seeded["A"]
+        with engine.begin() as conn:
+            conn.execute(text("UPDATE tenants SET settings = '{\"landing\": {\"show_campuses\": true}}' WHERE id = :t"),
+                         {"t": a["id"]})
+        body = client.get(f"/api/v1/tenants/slug/{a['slug']}/").json()
+        assert [(c["name"], c["phone"], c["is_main"]) for c in body["campuses"]] == [("Campus Kaloum A", "+224620000001", True)]
+
+    def test_directory_filters_and_facets(self, seeded, offer):
+        a, b = seeded["A"], seeded["B"]
+        def slugs(**params):
+            resp = client.get("/api/v1/tenants/public/", params=params)
+            assert resp.status_code == 200, resp.text
+            return {card["slug"] for card in resp.json()}
+        assert a["slug"] in slugs(region="conakry") and b["slug"] not in slugs(region="Conakry")
+        assert slugs(prefecture="Coyah", city="coyah") & {a["slug"], b["slug"]} == {b["slug"]}
+        assert slugs(q="école a") & {a["slug"], b["slug"]} == {a["slug"]}
+        assert slugs(q="%") & {a["slug"], b["slug"]} == set()  # pas de joker SQL
+        card = next(c for c in client.get("/api/v1/tenants/public/", params={"region": "Conakry"}).json()
+                    if c["slug"] == a["slug"])
+        assert (card["region"], card["prefecture"], card["city"]) == ("Conakry", "Kaloum", "Conakry")
+        facets = client.get("/api/v1/tenants/public/facets/").json()
+        regions = {f["value"]: f["count"] for f in facets["regions"]}
+        assert regions.get("Conakry", 0) >= 1 and regions.get("Kindia", 0) >= 1
+        with engine.begin() as conn:
+            conn.execute(text("UPDATE tenants SET is_active = false WHERE id = :t"), {"t": b["id"]})
+        try:
+            after = {f["value"]: f["count"] for f in client.get("/api/v1/tenants/public/facets/").json()["regions"]}
+            assert after.get("Kindia", 0) == regions["Kindia"] - 1  # établissement inactif : hors annuaire
+        finally:
+            with engine.begin() as conn:
+                conn.execute(text("UPDATE tenants SET is_active = true WHERE id = :t"), {"t": b["id"]})
+
     # -- public self-registration ---------------------------------------------
 
     def test_register_school_creates_tenant_and_admin(self):

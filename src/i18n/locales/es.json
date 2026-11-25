@@ -1549,7 +1549,9 @@
     "showPrograms": "Mostrar programas",
     "showProgramsDesc": "Lista de formaciones y niveles disponibles.",
     "showGallery": "Mostrar galería de fotos",
-    "showGalleryDesc": "Sección de fotos del centro."
+    "showGalleryDesc": "Sección de fotos del centro.",
+    "showCampuses": "Publicar las sedes (campus)",
+    "showCampusesDesc": "Muestra el nombre, la dirección y el teléfono de sus campus en la página «Formación» de su sitio público."
   },
   "publicPages": {
     "pageTitle": "Páginas públicas",
@@ -4953,5 +4955,30 @@
     "chartStudents": "Alumnos",
     "chartClassAverage": "Promedio de la clase",
     "chartBestAverage": "Mejor promedio"
+  },
+  "publicOffer": {
+    "link": "Formación",
+    "linkAria": "Formación y sedes de {{name}}",
+    "loading": "Cargando…",
+    "notFound": "Centro no encontrado",
+    "backToDirectory": "Volver al directorio",
+    "backToSchool": "Volver al centro",
+    "eyebrow": "Formación y sedes",
+    "subtitle": "Ciclos, niveles, carreras, facultades y campus publicados por el centro.",
+    "empty": "El centro aún no ha publicado su oferta de formación.",
+    "cycles": "Ciclos y niveles",
+    "noLevels": "Ningún nivel publicado para este ciclo.",
+    "programs": "Carreras",
+    "programsDetail": "Ver los programas y las tarifas",
+    "faculties": "Facultades y departamentos",
+    "departmentsOf": "Departamentos de {{name}}",
+    "campuses": "Campus y sedes",
+    "mainCampus": "Campus principal"
+  },
+  "publicDirectory": {
+    "region": "Región",
+    "allRegions": "Todas las regiones",
+    "prefecture": "Prefectura",
+    "allPrefectures": "Todas las prefecturas"
   }
 }

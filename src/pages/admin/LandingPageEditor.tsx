@@ -73,6 +73,7 @@ interface LandingSettings {
   show_stats?: boolean;
   show_programs?: boolean;
   show_gallery?: boolean;
+  show_campuses?: boolean;
   // Website Builder premium
   site_template_id?: string;
 }
@@ -804,6 +805,12 @@ function TabOptions({
         label={t("landingPageEditor.showGallery")}
         description={t("landingPageEditor.showGalleryDesc")}
       />
+      <Toggle
+        checked={data.show_campuses ?? false}
+        onChange={(v) => onChange({ show_campuses: v })}
+        label={t("landingPageEditor.showCampuses")}
+        description={t("landingPageEditor.showCampusesDesc")}
+      />
     </div>
   );
 }
@@ -929,6 +936,7 @@ export default function LandingPageEditor() {
         show_stats: tenantData.landing?.show_stats ?? true,
         show_programs: tenantData.landing?.show_programs ?? true,
         show_gallery: tenantData.landing?.show_gallery ?? true,
+        show_campuses: tenantData.landing?.show_campuses ?? false,
         site_template_id: tenantData.landing?.site_template_id ?? undefined,
       });
     }

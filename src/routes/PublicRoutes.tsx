@@ -12,6 +12,7 @@ const EnrollmentHub = lazy(() => import("@/pages/public/EnrollmentHub"));
 const ApplicationStatus = lazy(() => import("@/pages/public/ApplicationStatus"));
 const ReEnrollment = lazy(() => import("@/pages/public/ReEnrollment"));
 const Programs = lazy(() => import("@/pages/public/Programs"));
+const PublicOffer = lazy(() => import("@/pages/public/PublicOffer"));
 const PublicCalendar = lazy(() => import("@/pages/public/PublicCalendar"));
 const Contact = lazy(() => import("@/pages/public/Contact"));
 const Install = lazy(() => import("@/pages/Install"));
@@ -49,6 +50,8 @@ export const PublicRoutes = () => {
                 </ProtectedRoute>
             } />
             <Route path="/ecole/:tenantSlug" element={<TenantLanding />} />
+            {/* Annuaires (2026-11-25) : formations et implantations d'un établissement. */}
+            <Route path="/ecole/:tenantSlug/offre" element={<PublicOffer />} />
             <Route path="/info/:tenantSlug" element={<AdmissionInfo />} />
             <Route path="/admissions/:tenantSlug" element={<AdmissionForm />} />
 

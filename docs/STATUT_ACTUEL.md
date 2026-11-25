@@ -1571,3 +1571,8 @@ La règle métier de l’auto-pointage reste à valider.
   l'API (PUBLIC-STATS-01) ; erreurs du profil public journalisées ; annuaire plafonné et sans
   écoles fictives. Audit, architecture et maturité du site public : `docs/public-site/AUDIT.md`.
 
+- **2026-11-25 — annuaires publics, étape 1. Non déployé.** L'annuaire des établissements se
+  filtre par région et préfecture (côté serveur) et affiche la localisation ; chaque établissement
+  a une page « Formations et implantations » (`/ecole/<slug>/offre` : cycles et niveaux, filières,
+  facultés et départements, campus seulement si l'établissement les publie). Aucune migration.
+

@@ -50,6 +50,8 @@ from app.schemas.tenants import (
     TenantLandingSettings,
     TenantLandingAnnouncement,
     TenantPublicCard,
+    TenantPublicFacet,
+    TenantPublicFacets,
     TenantPublicStats,
     TenantPublicResponse,
     TenantWithAdminCreate,
@@ -695,6 +697,41 @@ async def update_security_settings(
     return updated_security
 
 
+def _public_directory_query(db: Session):
+    """Établissements visibles dans l'annuaire public : actifs seulement."""
+    return db.query(Tenant).filter(Tenant.is_active == True)  # noqa: E712
+
+
+def _normalized_filter(value: Optional[str]) -> Optional[str]:
+    value = (value or "").strip()
+    return value.lower() if value else None
+
+
+@router.get("/public/facets/", response_model=TenantPublicFacets)
+@public_browsing_limiter.limit("300/minute")
+async def public_directory_facets(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Annuaires (2026-11-25) : types, régions, préfectures et villes présents dans l'annuaire
+    (établissements actifs), avec leur nombre — pour les listes de filtres. Aucune donnée privée."""
+    def facet(column) -> List[TenantPublicFacet]:
+        rows = (
+            _public_directory_query(db)
+            .with_entities(column, func.count(Tenant.id))
+            .filter(column.isnot(None), func.trim(column) != "")
+            .group_by(column)
+            .order_by(column)
+            .all()
+        )
+        return [TenantPublicFacet(value=value, count=count) for value, count in rows]
+
+    return TenantPublicFacets(
+        types=facet(Tenant.type), regions=facet(Tenant.region),
+        prefectures=facet(Tenant.prefecture), cities=facet(Tenant.city),
+    )
+
+
 @router.get("/public/", response_model=List[TenantPublicCard])
 @public_browsing_limiter.limit("300/minute")
 async def list_public_tenants(
@@ -704,13 +741,24 @@ async def list_public_tenants(
     page: int = Query(1, ge=1),
     # Plafond (lot durcissement du site public, 2026-11-25) : aucune taille arbitraire.
     page_size: int = Query(100, ge=1, le=200),
+    # Annuaires (2026-11-25) : filtres facultatifs, combinables ; sans filtre, réponse inchangée.
+    q: Optional[str] = Query(None, max_length=100),
+    type: Optional[str] = Query(None, max_length=50),
+    region: Optional[str] = Query(None, max_length=100),
+    prefecture: Optional[str] = Query(None, max_length=100),
+    city: Optional[str] = Query(None, max_length=255),
 ):
     """Public directory listing — returns all active tenants as lightweight cards."""
-    query = (
-        db.query(Tenant)
-        .filter(Tenant.is_active == True)
-        .order_by(Tenant.name)
-    )
+    query = _public_directory_query(db)
+    search = _normalized_filter(q)
+    if search:
+        query = query.filter(func.lower(Tenant.name).contains(search, autoescape=True))
+    for column, value in ((Tenant.type, type), (Tenant.region, region),
+                          (Tenant.prefecture, prefecture), (Tenant.city, city)):
+        wanted = _normalized_filter(value)
+        if wanted:
+            query = query.filter(func.lower(func.trim(column)) == wanted)
+    query = query.order_by(Tenant.name)
 
     # response_model is a plain list, so the total always goes in a header
     # instead of wrapping the body — a dict body here used to violate
@@ -746,10 +794,65 @@ async def list_public_tenants(
                 logo_url=landing_raw.get("logo_url"),
                 description=landing_raw.get("description"),
                 primary_color=landing_raw.get("primary_color", "#1e3a5f"),
+                city=t.city,
+                region=t.region,
+                prefecture=t.prefecture,
             )
         )
 
     return cards
+
+
+def _public_offer(db: Session, tenant: Any, landing: TenantLandingSettings, levels: list,
+                  level_cycles: Dict[str, Optional[str]], departments: list) -> Dict[str, list]:
+    """Annuaires (2026-11-25) : offre publique d'un établissement — cycles et leurs niveaux, filières,
+    facultés et leurs départements, campus si l'établissement les publie (Q-AN1). Lu dans le contexte
+    RLS de cet établissement (appelant) ; aucun responsable (doyen, chef) ni donnée personnelle."""
+    offer: Dict[str, list] = {"cycles": [], "programs_detail": [], "faculties": [], "campuses": []}
+    try:
+        rows = db.execute(
+            text("SELECT id, name, code FROM education_cycles WHERE tenant_id = :tid AND is_active = true "
+                 "ORDER BY order_index, name"),
+            {"tid": tenant.id},
+        ).fetchall()
+        offer["cycles"] = [{
+            "id": str(r[0]), "name": r[1], "code": r[2],
+            "levels": [lvl for lvl in levels if level_cycles.get(lvl["id"]) == str(r[0])],
+        } for r in rows]
+    except Exception:
+        logger.error("Profil public : lecture des cycles impossible pour l'établissement %s", tenant.id, exc_info=True)
+    try:
+        rows = db.execute(
+            text("SELECT id, name, code, description FROM programs WHERE tenant_id = :tid ORDER BY name"),
+            {"tid": tenant.id},
+        ).fetchall()
+        offer["programs_detail"] = [{"id": str(r[0]), "name": r[1], "code": r[2], "description": r[3]} for r in rows]
+    except Exception:
+        logger.error("Profil public : lecture des filières impossible pour l'établissement %s", tenant.id, exc_info=True)
+    try:
+        rows = db.execute(
+            text("SELECT id, name, code, description FROM faculties WHERE tenant_id = :tid ORDER BY name"),
+            {"tid": tenant.id},
+        ).fetchall()
+        offer["faculties"] = [{
+            "id": str(r[0]), "name": r[1], "code": r[2], "description": r[3],
+            "departments": [{"id": d["id"], "name": d["name"], "description": d["description"]}
+                            for d in departments if d.get("faculty_id") == str(r[0])],
+        } for r in rows]
+    except Exception:
+        logger.error("Profil public : lecture des facultés impossible pour l'établissement %s", tenant.id, exc_info=True)
+    if landing.show_campuses:
+        try:
+            rows = db.execute(
+                text("SELECT id, name, address, phone, is_main FROM campuses WHERE tenant_id = :tid "
+                     "ORDER BY is_main DESC, name"),
+                {"tid": tenant.id},
+            ).fetchall()
+            offer["campuses"] = [{"id": str(r[0]), "name": r[1], "address": r[2], "phone": r[3],
+                                  "is_main": bool(r[4])} for r in rows]
+        except Exception:
+            logger.error("Profil public : lecture des campus impossible pour l'établissement %s", tenant.id, exc_info=True)
+    return offer
 
 
 def _build_public_response(tenant: Any, db: Session) -> TenantPublicResponse:
@@ -796,13 +899,15 @@ def _build_public_response(tenant: Any, db: Session) -> TenantPublicResponse:
 
     # Programs = levels for public display
     programs = []
+    level_cycles: Dict[str, Optional[str]] = {}
     try:
         rows = db.execute(
-            text("SELECT id, name FROM levels WHERE tenant_id = :tid ORDER BY order_index"),
+            text("SELECT id, name, cycle_id FROM levels WHERE tenant_id = :tid ORDER BY order_index"),
             {"tid": tenant.id},
         ).fetchall()
         # Ensure we return objects as expected by the new frontend mapping
         programs = [{"id": str(r[0]), "name": r[1]} for r in rows]
+        level_cycles = {str(r[0]): (str(r[2]) if r[2] else None) for r in rows}
     except Exception:
         logger.error("Profil public : lecture des niveaux impossible pour l'établissement %s", tenant.id, exc_info=True)
 
@@ -810,7 +915,7 @@ def _build_public_response(tenant: Any, db: Session) -> TenantPublicResponse:
     departments = []
     try:
         dept_rows = db.execute(
-            text("SELECT id, name, description FROM departments WHERE tenant_id = :tid ORDER BY name"),
+            text("SELECT id, name, description, faculty_id FROM departments WHERE tenant_id = :tid ORDER BY name"),
             {"tid": tenant.id},
         ).fetchall()
 
@@ -843,10 +948,14 @@ def _build_public_response(tenant: Any, db: Session) -> TenantPublicResponse:
                     "id": dept_id,
                     "name": d[1],
                     "description": d[2],
-                    "subjects": subjects_by_dept.get(dept_id, [])
+                    "subjects": subjects_by_dept.get(dept_id, []),
+                    # Annuaires : rattachement à une faculté (hiérarchie publique), jamais le responsable.
+                    "faculty_id": str(d[3]) if d[3] else None,
                 })
     except Exception:
         logger.error("Profil public : lecture des départements impossible pour l'établissement %s", tenant.id, exc_info=True)
+
+    offer = _public_offer(db, tenant, landing, programs, level_cycles, departments)
 
     # SECURITY (P1, national audit): tenant.email/tenant.phone are copies of
     # the registering ADMIN's personal account email/phone (set verbatim
@@ -870,6 +979,7 @@ def _build_public_response(tenant: Any, db: Session) -> TenantPublicResponse:
         programs=programs,
         departments=departments,
         announcements=landing.announcements,
+        **offer,
     )
 
 

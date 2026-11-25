@@ -1628,7 +1628,9 @@
         "showPrograms": "Afficher les programmes",
         "showProgramsDesc": "Liste des formations et niveaux disponibles.",
         "showGallery": "Afficher la galerie photos",
-        "showGalleryDesc": "Section photos de l'établissement."
+        "showGalleryDesc": "Section photos de l'établissement.",
+        "showCampuses": "Publier les implantations (campus)",
+        "showCampusesDesc": "Affiche le nom, l'adresse et le téléphone de vos campus sur la page « Formations » de votre site public."
     },
     "publicPages": {
         "pageTitle": "Pages publiques",
@@ -4908,5 +4910,30 @@
         "chartStudents": "Élèves",
         "chartClassAverage": "Moyenne de classe",
         "chartBestAverage": "Meilleure moyenne"
+    },
+    "publicOffer": {
+        "link": "Formations",
+        "linkAria": "Formations et implantations de {{name}}",
+        "loading": "Chargement…",
+        "notFound": "Établissement introuvable",
+        "backToDirectory": "Retour à l'annuaire",
+        "backToSchool": "Retour à l'établissement",
+        "eyebrow": "Formations et implantations",
+        "subtitle": "Cycles, niveaux, filières, facultés et campus publiés par l'établissement.",
+        "empty": "L'établissement n'a pas encore publié son offre de formation.",
+        "cycles": "Cycles et niveaux",
+        "noLevels": "Aucun niveau publié pour ce cycle.",
+        "programs": "Filières",
+        "programsDetail": "Voir les programmes et les frais",
+        "faculties": "Facultés et départements",
+        "departmentsOf": "Départements de {{name}}",
+        "campuses": "Campus et implantations",
+        "mainCampus": "Campus principal"
+    },
+    "publicDirectory": {
+        "region": "Région",
+        "allRegions": "Toutes les régions",
+        "prefecture": "Préfecture",
+        "allPrefectures": "Toutes les préfectures"
     }
 }
