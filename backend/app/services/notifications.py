@@ -520,7 +520,7 @@ class EmailSender:
         self.from_email = from_email
         self.from_name = from_name
 
-    def _send_via_resend(self, to: str, subject: str, html: str, text: str) -> bool:
+    def _send_via_resend(self, to: str, subject: str, html: str, text: str, reply_to: Optional[str] = None) -> bool:
         """Send via Resend API (https://resend.com) — free 3 000/mois."""
         if not self.resend_key:
             return False
@@ -533,6 +533,7 @@ class EmailSender:
                     "subject": subject,
                     "html": html,
                     "text": text,
+                    **({"reply_to": reply_to} if reply_to else {}),
                 },
                 headers={"Authorization": f"Bearer {self.resend_key}"},
                 timeout=10.0,
@@ -546,7 +547,7 @@ class EmailSender:
             logger.error("Resend error: %s", e)
             return False
 
-    def _send_via_smtp(self, to: str, subject: str, html: str, text: str) -> bool:
+    def _send_via_smtp(self, to: str, subject: str, html: str, text: str, reply_to: Optional[str] = None) -> bool:
         """Send via SMTP (Brevo: smtp-relay.brevo.com:587, or any provider)."""
         if not self.smtp_host or not self.smtp_user:
             return False
@@ -555,6 +556,8 @@ class EmailSender:
             msg["Subject"] = subject
             msg["From"] = f"{self.from_name} <{self.from_email}>"
             msg["To"] = to
+            if reply_to:
+                msg["Reply-To"] = reply_to
             msg.attach(MIMEText(text, "plain", "utf-8"))
             msg.attach(MIMEText(html, "html", "utf-8"))
 
@@ -579,13 +582,18 @@ class EmailSender:
             logger.error("SMTP error: %s", e)
             return False
 
-    def send(self, to: str, subject: str, html: str, text: Optional[str] = None) -> bool:
-        """Try Resend first, then SMTP as fallback."""
+    def send(self, to: str, subject: str, html: str, text: Optional[str] = None,
+             reply_to: Optional[str] = None) -> bool:
+        """Try Resend first, then SMTP as fallback. ``reply_to`` : adresse de réponse facultative
+        (refusée si elle contient un retour à la ligne — aucune injection d'en-tête)."""
         if not to or "@" not in to:
             return False
+        if reply_to and ("\r" in reply_to or "\n" in reply_to or "@" not in reply_to):
+            logger.warning("Email: adresse de réponse invalide ignorée")
+            reply_to = None
         plain = text or html.replace("<br>", "\n").replace("</p>", "\n")
-        return self._send_via_resend(to, subject, html, plain) or \
-               self._send_via_smtp(to, subject, html, plain)
+        return self._send_via_resend(to, subject, html, plain, reply_to) or \
+               self._send_via_smtp(to, subject, html, plain, reply_to)
 
 
 # ─── Message templates ────────────────────────────────────────────────────────

@@ -52,6 +52,10 @@ interface LandingSettings {
   description?: string;
   motto?: string;
   opening_hours?: string;
+  // Coordonnées publiées (2026-11-25) : l'e-mail de contact sert aussi d'adresse de réponse aux
+  // réponses envoyées depuis « Messages reçus ».
+  contact_email?: string;
+  contact_phone?: string;
   founded_year?: number | string;
   accreditation?: string;
   // Médias
@@ -272,6 +276,23 @@ function TabGeneral({
           value={data.opening_hours ?? ""}
           onChange={(v) => onChange({ opening_hours: v })}
           placeholder={t("landingPageEditor.fieldOpeningHoursPlaceholder")}
+        />
+      </FormField>
+
+      <FormField label={t("landingPageEditor.fieldContactEmail")} help={t("landingPageEditor.fieldContactEmailHelp")}>
+        <TextInput
+          value={data.contact_email ?? ""}
+          onChange={(v) => onChange({ contact_email: v })}
+          placeholder="contact@etablissement.gn"
+          type="email"
+        />
+      </FormField>
+
+      <FormField label={t("landingPageEditor.fieldContactPhone")}>
+        <TextInput
+          value={data.contact_phone ?? ""}
+          onChange={(v) => onChange({ contact_phone: v })}
+          placeholder="+224 6XX XX XX XX"
         />
       </FormField>
 
@@ -921,6 +942,8 @@ export default function LandingPageEditor() {
         description: tenantData.description ?? tenantData.landing?.description ?? "",
         motto: tenantData.landing?.motto ?? "",
         opening_hours: tenantData.landing?.opening_hours ?? "",
+        contact_email: tenantData.landing?.contact_email ?? "",
+        contact_phone: tenantData.landing?.contact_phone ?? "",
         founded_year: tenantData.landing?.founded_year ?? "",
         accreditation: tenantData.landing?.accreditation ?? "",
         logo_url: tenantData.logo_url ?? tenantData.landing?.logo_url ?? "",
