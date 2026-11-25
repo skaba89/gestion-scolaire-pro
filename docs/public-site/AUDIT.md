@@ -23,7 +23,7 @@ Données publiques : `GET /tenants/public/` (annuaire), `GET /tenants/public/{sl
 |---|---|---|---|
 | Accueil plateforme | `/` | Fonctionnelle | `SchoolFlowHomePage`. |
 | Annuaire des établissements | `/annuaire` | Fonctionnelle | Données réelles uniquement ; filtres région et préfecture côté serveur (`GET /tenants/public/?q&type&region&prefecture&city`, listes via `GET /tenants/public/facets/`) ; recherche par nom et type ; pas encore de filtre par cycle, statut public/privé ni diplôme. |
-| Formations et implantations | `/ecole/:slug/offre` | Fonctionnelle | Cycles et niveaux, filières, facultés et départements, campus si l'établissement les publie (`show_campuses`, désactivé par défaut). Aucun responsable publié. |
+| Formations et implantations | `/ecole/:slug/offre` | Fonctionnelle | Cycles et niveaux, filières, facultés et départements, campus si l'établissement les publie (`show_campuses`, désactivé par défaut). Aucun responsable publié. Accessible depuis l'annuaire et le menu des 7 modèles d'accueil. |
 | Site d'un établissement | `/ecole/:slug`, `/:slug` | Fonctionnelle en dev | Cassée en production jusqu'au déploiement de #600 (PUBLIC-DOMAIN-01). |
 | Pages libres | via `PublicPageView` | Fonctionnelle | Publié / non publié ; pas de brouillon versionné ni de relecture. |
 | Admissions, statut, réinscription | `/admissions/:slug`, `/inscription/:slug…` | Fonctionnelles | Réutilisent le module d'admissions. |

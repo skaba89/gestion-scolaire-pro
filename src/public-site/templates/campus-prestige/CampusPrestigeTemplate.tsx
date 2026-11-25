@@ -1,5 +1,6 @@
 import { Helmet } from "react-helmet-async";
 import { useCustomNavLinks } from "@/hooks/usePublicPages";
+import { publicOfferNavLink } from "@/lib/publicOffer";
 import { resolveUploadUrl } from "@/utils/url";
 import { resolveTheme } from "../../theme/themeResolver";
 import {
@@ -48,6 +49,7 @@ export function CampusPrestigeTemplate({ tenant, settings }: SiteTemplateRenderP
     { label: "L'Université", href: `/ecole/${slug}#presentation` },
     { label: "Formations", href: `/ecole/${slug}#formations` },
     { label: "Admissions", href: `/admissions/${slug}` },
+    publicOfferNavLink(slug),
     { label: "Actualités", href: `/ecole/${slug}#actualites` },
     { label: "Contact", href: `/ecole/${slug}#contact` },
     ...customNavLinks,

@@ -33,6 +33,7 @@ import { resolveUploadUrl } from "@/utils/url";
 import { useCustomNavLinks } from "@/hooks/usePublicPages";
 import { sortAnnouncementsPinnedFirst } from "@/lib/landingAnnouncements";
 import { LegacyHeroBackground } from "./LegacyHeroBackground";
+import { publicOfferNavLink } from "@/lib/publicOffer";
 
 interface LandingTemplateProps {
   tenant: TenantPublicResponse;
@@ -56,6 +57,7 @@ export const DefaultLandingTemplate = ({ tenant, settings }: LandingTemplateProp
   const navLinks = [
     { label: 'Accueil', href: `/ecole/${slug}`, external: false },
     { label: 'Programmes', href: `/ecole/${slug}#programmes`, external: false },
+    publicOfferNavLink(slug),
     { label: 'Annonces', href: `/ecole/${slug}#annonces`, external: false },
     { label: 'Contact', href: `/ecole/${slug}#contact`, external: false },
     ...customNavLinks,

@@ -4973,7 +4973,8 @@
     "faculties": "الكليات والأقسام",
     "departmentsOf": "أقسام {{name}}",
     "campuses": "الحرم والمقرات",
-    "mainCampus": "الحرم الرئيسي"
+    "mainCampus": "الحرم الرئيسي",
+    "navLabel": "التكوينات والمقرات"
   },
   "publicDirectory": {
     "region": "الجهة",

@@ -4973,7 +4973,8 @@
     "faculties": "Facultades y departamentos",
     "departmentsOf": "Departamentos de {{name}}",
     "campuses": "Campus y sedes",
-    "mainCampus": "Campus principal"
+    "mainCampus": "Campus principal",
+    "navLabel": "Formación y sedes"
   },
   "publicDirectory": {
     "region": "Región",
