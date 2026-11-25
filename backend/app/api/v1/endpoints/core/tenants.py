@@ -702,7 +702,8 @@ async def list_public_tenants(
     response: Response,
     db: Session = Depends(get_db),
     page: int = Query(1, ge=1),
-    page_size: int = Query(100, ge=1),
+    # Plafond (lot durcissement du site public, 2026-11-25) : aucune taille arbitraire.
+    page_size: int = Query(100, ge=1, le=200),
 ):
     """Public directory listing — returns all active tenants as lightweight cards."""
     query = (
@@ -762,31 +763,36 @@ def _build_public_response(tenant: Any, db: Session) -> TenantPublicResponse:
     try:
         landing = TenantLandingSettings(**landing_raw)
     except Exception:
+        # Réglages invalides : page servie avec les valeurs par défaut, mais jamais en silence.
+        logger.warning("Profil public : réglages du site invalides pour l'établissement %s", tenant.id, exc_info=True)
         landing = TenantLandingSettings()
 
-    # Aggregate stats via raw SQL for performance
+    # Aggregate stats via raw SQL for performance.
+    # PUBLIC-STATS-01 : un établissement qui masque ses chiffres (show_stats = false) ne les publie
+    # pas non plus dans l'API (0) — auparavant seuls les modèles les cachaient.
     student_count = 0
     teacher_count = 0
-    try:
-        res = db.execute(
-            text("SELECT COUNT(*) FROM students WHERE tenant_id = :tid"),
-            {"tid": tenant.id},
-        ).scalar()
-        student_count = res or 0
-    except Exception:
-        pass
-    try:
-        res = db.execute(
-            text(
-                "SELECT COUNT(*) FROM users u "
-                "JOIN user_roles ur ON ur.user_id = u.id "
-                "WHERE u.tenant_id = :tid AND ur.role = 'TEACHER'"
-            ),
-            {"tid": tenant.id},
-        ).scalar()
-        teacher_count = res or 0
-    except Exception:
-        pass
+    if landing.show_stats:
+        try:
+            res = db.execute(
+                text("SELECT COUNT(*) FROM students WHERE tenant_id = :tid"),
+                {"tid": tenant.id},
+            ).scalar()
+            student_count = res or 0
+        except Exception:
+            logger.error("Profil public : comptage des élèves impossible pour l'établissement %s", tenant.id, exc_info=True)
+        try:
+            res = db.execute(
+                text(
+                    "SELECT COUNT(*) FROM users u "
+                    "JOIN user_roles ur ON ur.user_id = u.id "
+                    "WHERE u.tenant_id = :tid AND ur.role = 'TEACHER'"
+                ),
+                {"tid": tenant.id},
+            ).scalar()
+            teacher_count = res or 0
+        except Exception:
+            logger.error("Profil public : comptage des enseignants impossible pour l'établissement %s", tenant.id, exc_info=True)
 
     # Programs = levels for public display
     programs = []
@@ -798,7 +804,7 @@ def _build_public_response(tenant: Any, db: Session) -> TenantPublicResponse:
         # Ensure we return objects as expected by the new frontend mapping
         programs = [{"id": str(r[0]), "name": r[1]} for r in rows]
     except Exception:
-        pass
+        logger.error("Profil public : lecture des niveaux impossible pour l'établissement %s", tenant.id, exc_info=True)
 
     # Departments = Faculty/Departments for universities
     departments = []
@@ -840,7 +846,7 @@ def _build_public_response(tenant: Any, db: Session) -> TenantPublicResponse:
                     "subjects": subjects_by_dept.get(dept_id, [])
                 })
     except Exception:
-        pass
+        logger.error("Profil public : lecture des départements impossible pour l'établissement %s", tenant.id, exc_info=True)
 
     # SECURITY (P1, national audit): tenant.email/tenant.phone are copies of
     # the registering ADMIN's personal account email/phone (set verbatim
@@ -886,32 +892,19 @@ async def get_public_tenant_by_slug(
 async def get_tenant_by_domain(
     request: Request,
     domain: str,
-    db: Session = Depends(get_db),
 ):
-    """Lookup a tenant by its custom domain stored in settings->landing->custom_domain (no auth required)."""
-    try:
-        # PostgreSQL JSON operator: settings->'landing'->>'custom_domain'
-        result = db.execute(
-            text(
-                "SELECT id FROM tenants "
-                "WHERE is_active = true "
-                "AND settings->'landing'->>'custom_domain' = :domain "
-                "LIMIT 1"
-            ),
-            {"domain": domain},
-        ).fetchone()
-    except Exception as exc:
-        logger.error("Domain lookup error: %s", exc)
-        raise HTTPException(status_code=500, detail="Domain lookup failed")
+    """Résolution d'un établissement par domaine personnalisé : DÉSACTIVÉE (404).
 
-    if not result:
-        raise HTTPException(status_code=404, detail="Tenant not found for this domain")
-
-    tenant = db.query(Tenant).filter(Tenant.id == result[0]).first()
-    if not tenant:
-        raise HTTPException(status_code=404, detail="Tenant not found")
-
-    return _build_public_response(tenant, db)
+    CUSTOM-DOMAIN-CLAIM-01 (2026-11-25, option B validée) : la résolution lisait
+    ``settings.landing.custom_domain``, champ libre que tout administrateur d'établissement peut
+    remplir — ni vérifié ni unique : une école pouvait déclarer le domaine d'une autre (et deux
+    déclarations donnaient un résultat arbitraire). Les domaines vérifiés (``tenant_domains``) sont
+    sous RLS forcée, illisibles sans contexte d'établissement : leur résolution demande une fonction
+    SQL dédiée (migration) et des certificats TLS, prévus dans un lot « domaines personnalisés ».
+    D'ici là, aucun domaine n'est résolu ; chaque site public est servi par son identifiant
+    (``/ecole/<slug>``, PUBLIC-DOMAIN-01). Contrat inchangé : un domaine inconnu répondait déjà 404.
+    """
+    raise HTTPException(status_code=404, detail="Tenant not found for this domain")
 
 
 def _require_super_admin(current_user: dict):

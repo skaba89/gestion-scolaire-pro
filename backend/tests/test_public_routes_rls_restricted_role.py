@@ -362,6 +362,47 @@ class TestPublicRoutesUnderRestrictedRole:
         )
         assert resp.status_code == 400, f"duplicate email across tenants must be a clean 400, got {resp.status_code}: {resp.text}"
 
+    # -- site public : durcissement (2026-11-25) -------------------------------
+
+    def test_custom_domain_claim_no_longer_routes(self, seeded):
+        """CUSTOM-DOMAIN-CLAIM-01 (option B) : le champ libre ``landing.custom_domain`` — qu'une école
+        peut remplir avec le domaine d'une autre — ne résout plus aucun établissement."""
+        b = seeded["B"]
+        claimed = f"ecole-{_uid()[:8]}.gn"
+        with engine.begin() as conn:
+            conn.execute(text(
+                "UPDATE tenants SET settings = jsonb_build_object('landing', jsonb_build_object('custom_domain', CAST(:d AS text))) "
+                "WHERE id = :t"), {"d": claimed, "t": b["id"]})
+        try:
+            resp = client.get(f"/api/v1/tenants/by-domain/{claimed}/")
+            assert resp.status_code == 404, resp.text
+            assert b["slug"] not in resp.text
+        finally:
+            with engine.begin() as conn:
+                conn.execute(text("UPDATE tenants SET settings = '{}' WHERE id = :t"), {"t": b["id"]})
+
+    def test_hidden_public_stats_are_not_published(self, seeded):
+        """PUBLIC-STATS-01 : un établissement qui masque ses chiffres ne les publie pas dans l'API."""
+        a = seeded["A"]
+        assert client.get(f"/api/v1/tenants/public/{a['slug']}/").json()["stats"]["student_count"] == 1
+        with engine.begin() as conn:
+            conn.execute(text(
+                "UPDATE tenants SET settings = '{\"landing\": {\"show_stats\": false}}' WHERE id = :t"), {"t": a["id"]})
+        try:
+            for url in (f"/api/v1/tenants/public/{a['slug']}/", f"/api/v1/tenants/slug/{a['slug']}/"):
+                resp = client.get(url)
+                assert resp.status_code == 200, resp.text
+                assert resp.json()["stats"] == {"student_count": 0, "teacher_count": 0}, url
+        finally:
+            with engine.begin() as conn:
+                conn.execute(text("UPDATE tenants SET settings = '{}' WHERE id = :t"), {"t": a["id"]})
+
+    def test_directory_page_size_is_capped(self, seeded):
+        assert client.get("/api/v1/tenants/public/?page_size=5000").status_code == 422
+        resp = client.get("/api/v1/tenants/public/")
+        assert resp.status_code == 200
+        assert {seeded["A"]["slug"], seeded["B"]["slug"]} <= {card["slug"] for card in resp.json()}
+
     # -- public self-registration ---------------------------------------------
 
     def test_register_school_creates_tenant_and_admin(self):

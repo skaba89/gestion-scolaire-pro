@@ -70,7 +70,7 @@ describe("PublicDirectory — erreur API vs données de démo", () => {
     expect(mockRefetch).toHaveBeenCalledTimes(1);
   });
 
-  it("utilise les données de démo seulement si l'API répond avec zéro résultat (pas d'erreur)", () => {
+  it("annuaire vide : affiche l'état vide, jamais d'établissements fictifs", () => {
     mockUsePublicTenants.mockReturnValue({
       data: [],
       isLoading: false,
@@ -81,7 +81,8 @@ describe("PublicDirectory — erreur API vs données de démo", () => {
 
     renderDirectory();
 
-    expect(screen.getByText("Université La Source")).toBeInTheDocument();
+    expect(screen.queryByText("Université La Source")).not.toBeInTheDocument();
+    expect(screen.getByText("Aucun établissement trouvé")).toBeInTheDocument();
     expect(screen.queryByText(/Impossible de charger l'annuaire/i)).not.toBeInTheDocument();
   });
 
