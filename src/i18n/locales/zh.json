@@ -5141,10 +5141,11 @@
       "submittedToast": "申请提交成功！",
       "subtitle": "申请表（{{student}}）",
       "successNext": "招生团队将审核您的材料并尽快与您联系。",
-      "successText": "您向 {{school}} 提交的申请已成功登记。确认邮件将发送至 {{email}}。",
+      "successText": "您向 {{school}} 提交的申请已登记。您可以使用 {{email}} 在线查询申请进度。",
       "successTitle": "申请已提交！",
       "upload": "上传",
-      "uploadError": "材料上传失败，请重试。"
+      "uploadError": "材料上传失败，请重试。",
+      "trackLink": "查询我的申请状态"
     },
     "hub": {
       "alreadySubmitted": "已经提交过申请？",
@@ -5188,20 +5189,12 @@
       "backHome": "返回首页",
       "contactTitle": "招生联系方式",
       "currentYear": "当前学年：",
-      "docs": {
-        "birth": "出生证明摘录或身份证复印件",
-        "photos": "近期证件照（护照规格）",
-        "residence": "住址证明",
-        "schoolCertificate": "原就读机构出具的在读证明",
-        "transcript": "上一学年成绩单",
-        "vaccination": "疫苗接种本复印件"
-      },
       "documentsDescription": "提交申请前请准备好以下材料",
       "documentsTitle": "所需材料",
       "email": "电子邮箱",
       "faq": {
         "duration": {
-          "a": "完整材料的审核通常需要 5 至 10 个工作日。审核结果将通过电子邮件通知您。",
+          "a": "所需时间因机构而异。您可以随时在线查询申请进度。",
           "q": "材料审核需要多长时间？"
         },
         "edit": {
@@ -5209,12 +5202,14 @@
           "q": "提交后还能修改申请吗？"
         },
         "payment": {
-          "a": "我们接受银行转账、现金和支票付款。申请获批后，我们会告知具体付款方式。",
+          "a": "申请获批后，机构将告知您付款方式。",
           "q": "接受哪些付款方式？"
         },
         "when": {
-          "a": "全年均可提交申请，视名额而定。建议尽早为所需学年提交申请。",
-          "q": "什么时候可以提交申请？"
+          "q": "什么时候可以提交申请？",
+          "open": "目前正在接受注册：您现在即可提交申请。",
+          "closed": "目前注册已关闭。请稍后再来或联系该机构。",
+          "unknown": "注册状态显示在该机构的注册门户上。"
         }
       },
       "faqTitle": "常见问题",
@@ -5228,15 +5223,15 @@
       "readyTitle": "准备好加入我们了吗？",
       "steps": {
         "decision": {
-          "description": "您将收到关于申请是否获批的电子邮件通知。",
-          "title": "结果通知"
+          "description": "使用申请时填写的电子邮箱在线查询申请进度。",
+          "title": "申请进度查询"
         },
         "documents": {
           "description": "上传所需材料（出生证明、照片等）。",
           "title": "提交材料"
         },
         "finalize": {
-          "description": "如获录取，请缴纳费用并完成注册。",
+          "description": "如获录取，机构将告知您缴费及完成注册的方式。",
           "title": "完成注册"
         },
         "form": {
@@ -5244,7 +5239,7 @@
           "title": "在线填写申请表"
         },
         "review": {
-          "description": "我们的团队将在 5 至 10 个工作日内审核您的申请。",
+          "description": "招生团队将审核您的申请。",
           "title": "材料审核"
         }
       },
@@ -5257,7 +5252,9 @@
         "school": "学校",
         "training_center": "培训中心",
         "university": "大学"
-      }
+      },
+      "transferDocsTitle": "此外，申请非起始年级时还需提交：",
+      "trackLink": "查询我的申请"
     },
     "reenroll": {
       "back": "返回",

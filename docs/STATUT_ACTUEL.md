@@ -1597,3 +1597,9 @@ La règle métier de l’auto-pointage reste à valider.
   (annuaires, lien « Formations », parcours candidat en 5 langues, page contact et réponses aux
   messages ; migration `20261125_0001`). Statuts du registre des risques mis à jour.
 
+- **2026-11-25 — site public : plus de promesses inventées sur les admissions
+  (ADMISSION-EMAIL-PROMISE-01). Non déployé.** La page « Informations d'admission » liste les mêmes
+  pièces que le formulaire, n'annonce plus de délai ni de chèque, et renvoie au suivi en ligne au
+  lieu de promettre des e-mails qui ne sont pas envoyés ; l'écran de confirmation aussi. L'envoi
+  réel d'e-mails d'admission reste à planifier.
+

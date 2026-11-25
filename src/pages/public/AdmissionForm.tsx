@@ -35,11 +35,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { useStudentLabel } from "@/hooks/useStudentLabel";
 import { tenantHeroStyle } from "@/utils/tenantBranding";
-
-interface RequiredDocument {
-  type: string;
-  label: string;
-}
+import { getRequiredDocuments } from "@/lib/admissionDocuments";
 
 interface UploadedDocument {
   key: string;
@@ -48,27 +44,6 @@ interface UploadedDocument {
   document_type: string;
 }
 
-const BASE_REQUIRED_DOCUMENTS: RequiredDocument[] = [
-  { type: "birth_certificate", label: "publicJourney.form.docs.birth" },
-  { type: "id_photo", label: "publicJourney.form.docs.photo" },
-];
-
-// Un candidat qui postule à un niveau autre que le tout premier de
-// l'établissement est considéré comme un transfert : on exige en plus
-// le dossier scolaire de l'année précédente.
-const TRANSFER_REQUIRED_DOCUMENTS: RequiredDocument[] = [
-  { type: "previous_transcript", label: "publicJourney.form.docs.transcript" },
-  { type: "previous_school_certificate", label: "publicJourney.form.docs.certificate" },
-];
-
-function getRequiredDocuments(levelId: string, levels: any[] | undefined): RequiredDocument[] {
-  if (!levelId || !levels || levels.length === 0) return BASE_REQUIRED_DOCUMENTS;
-  const sorted = [...levels].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
-  const isEntryLevel = sorted[0]?.id === levelId;
-  return isEntryLevel
-    ? BASE_REQUIRED_DOCUMENTS
-    : [...BASE_REQUIRED_DOCUMENTS, ...TRANSFER_REQUIRED_DOCUMENTS];
-}
 
 const applicationSchema = z.object({
   student_first_name: z.string().min(2, "publicJourney.form.errors.firstName").max(50),
@@ -301,6 +276,10 @@ const AdmissionForm = () => {
             <p className="text-sm text-muted-foreground mb-6">
               {t("publicJourney.form.successNext")}
             </p>
+            {/* ADMISSION-EMAIL-PROMISE-01 : aucun e-mail n'est envoyé ; le suivi en ligne existe. */}
+            <Link to={`/inscription/${tenantSlug}/statut`} className="block mb-4 text-sm font-medium text-primary hover:underline">
+              {t("publicJourney.form.trackLink")}
+            </Link>
             <Link to="/">
               <Button>
                 <ArrowLeft className="w-4 h-4 mr-2" />

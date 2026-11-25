@@ -5062,10 +5062,11 @@
             "submittedToast": "Candidature soumise avec succès!",
             "subtitle": "Formulaire de Candidature ({{student}}s)",
             "successNext": "L'équipe d'admission examinera votre dossier et vous contactera prochainement.",
-            "successText": "Votre candidature pour {{school}} a été enregistrée avec succès. Vous recevrez un email de confirmation à l'adresse {{email}}.",
+            "successText": "Votre candidature pour {{school}} a été enregistrée. Vous pouvez suivre son état en ligne avec l'adresse {{email}}.",
             "successTitle": "Candidature Soumise!",
             "upload": "Téléverser",
-            "uploadError": "Échec de l'envoi du document. Réessayez."
+            "uploadError": "Échec de l'envoi du document. Réessayez.",
+            "trackLink": "Suivre l'état de ma candidature"
         },
         "hub": {
             "alreadySubmitted": "Vous avez déjà soumis un dossier ?",
@@ -5109,20 +5110,12 @@
             "backHome": "Retour à l'accueil",
             "contactTitle": "Contact Admissions",
             "currentYear": "Année académique en cours:",
-            "docs": {
-                "birth": "Extrait d'acte de naissance ou copie de la carte d'identité",
-                "photos": "Photos d'identité récentes (format passeport)",
-                "residence": "Justificatif de domicile",
-                "schoolCertificate": "Certificat de scolarité de l'établissement d'origine",
-                "transcript": "Relevé de notes de l'année précédente",
-                "vaccination": "Photocopie du carnet de vaccination"
-            },
             "documentsDescription": "Préparez ces documents avant de soumettre votre candidature",
             "documentsTitle": "Documents Requis",
             "email": "Email",
             "faq": {
                 "duration": {
-                    "a": "L'examen d'un dossier complet prend généralement entre 5 et 10 jours ouvrables. Vous serez notifié par email de la décision.",
+                    "a": "Le délai dépend de l'établissement. Vous pouvez suivre l'état de votre dossier en ligne à tout moment.",
                     "q": "Combien de temps prend l'examen du dossier ?"
                 },
                 "edit": {
@@ -5130,12 +5123,14 @@
                     "q": "Puis-je modifier ma candidature après soumission ?"
                 },
                 "payment": {
-                    "a": "Nous acceptons les paiements par virement bancaire, espèces, et chèque. Les modalités de paiement vous seront communiquées lors de l'acceptation de votre dossier.",
+                    "a": "Les modalités de paiement vous sont communiquées par l'établissement lors de l'acceptation de votre dossier.",
                     "q": "Quels sont les modes de paiement acceptés ?"
                 },
                 "when": {
-                    "a": "Les candidatures sont acceptées tout au long de l'année, sous réserve de disponibilité. Nous vous recommandons de postuler le plus tôt possible pour l'année académique souhaitée.",
-                    "q": "Quand puis-je soumettre ma candidature ?"
+                    "q": "Quand puis-je soumettre ma candidature ?",
+                    "open": "Les inscriptions sont actuellement ouvertes : vous pouvez déposer votre candidature dès maintenant.",
+                    "closed": "Les inscriptions sont actuellement fermées. Revenez plus tard ou contactez l'établissement.",
+                    "unknown": "L'état des inscriptions est indiqué sur le portail d'inscription de l'établissement."
                 }
             },
             "faqTitle": "Questions Fréquentes",
@@ -5149,15 +5144,15 @@
             "readyTitle": "Prêt à nous rejoindre ?",
             "steps": {
                 "decision": {
-                    "description": "Vous recevrez une notification par email concernant l'acceptation de votre dossier.",
-                    "title": "Notification de décision"
+                    "description": "Suivez l'état de votre dossier en ligne avec l'adresse e-mail indiquée lors de la candidature.",
+                    "title": "Suivi de votre dossier"
                 },
                 "documents": {
                     "description": "Téléchargez les documents requis (acte de naissance, photos, etc.).",
                     "title": "Soumettre les documents"
                 },
                 "finalize": {
-                    "description": "En cas d'acceptation, procédez au paiement des frais et finalisez l'inscription.",
+                    "description": "En cas d'acceptation, l'établissement vous communique les modalités de paiement et de finalisation de l'inscription.",
                     "title": "Finalisation de l'inscription"
                 },
                 "form": {
@@ -5165,7 +5160,7 @@
                     "title": "Remplir le formulaire en ligne"
                 },
                 "review": {
-                    "description": "Notre équipe examine votre candidature dans un délai de 5 à 10 jours ouvrables.",
+                    "description": "L'équipe d'admission examine votre candidature.",
                     "title": "Examen du dossier"
                 }
             },
@@ -5178,7 +5173,9 @@
                 "school": "Établissement Scolaire",
                 "training_center": "Centre de Formation",
                 "university": "Université"
-            }
+            },
+            "transferDocsTitle": "En plus, pour une entrée dans un niveau autre que le premier :",
+            "trackLink": "Suivre mon dossier"
         },
         "reenroll": {
             "back": "Retour",
