@@ -3,6 +3,8 @@
  * Route: /inscription/:tenantSlug/reinscription
  */
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Loader2, Search, CheckCircle, AlertCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -48,6 +50,8 @@ function getApiBase() {
 }
 
 export default function ReEnrollment() {
+  const { t } = useTranslation();
+
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
   const navigate = useNavigate();
 
@@ -93,7 +97,7 @@ export default function ReEnrollment() {
     } catch (err: any) {
       setVerifyError(
         err.response?.data?.detail ||
-          "Impossible de vérifier les informations. Contactez l'administration."
+          t("publicJourney.reenroll.verifyError")
       );
     } finally {
       setVerifying(false);
@@ -119,7 +123,7 @@ export default function ReEnrollment() {
       setResult(r.data);
     } catch (err: any) {
       setSubmitError(
-        err.response?.data?.detail || "Une erreur est survenue. Veuillez réessayer."
+        err.response?.data?.detail || t("publicJourney.reenroll.genericError")
       );
     } finally {
       setSubmitting(false);
@@ -139,8 +143,8 @@ export default function ReEnrollment() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-amber-50 to-orange-100 p-6">
         <div className="bg-white rounded-2xl shadow p-8 text-center max-w-sm">
           <AlertCircle className="h-10 w-10 text-red-400 mx-auto mb-3" />
-          <p className="text-gray-700 font-medium">Établissement introuvable.</p>
-          <Button className="mt-5" onClick={() => navigate("/connexion")}>Retour</Button>
+          <p className="text-gray-700 font-medium">{t("publicJourney.reenroll.notFound")}</p>
+          <Button className="mt-5" onClick={() => navigate("/connexion")}>{t("publicJourney.reenroll.back")}</Button>
         </div>
       </div>
     );
@@ -152,12 +156,12 @@ export default function ReEnrollment() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-amber-50 to-orange-100 p-6">
         <div className="bg-white rounded-2xl shadow-lg p-10 max-w-md text-center">
           <CheckCircle className="h-14 w-14 text-green-500 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Demande soumise !</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">{t("publicJourney.reenroll.submitted")}</h2>
           <p className="text-gray-600 mb-4">{result.message}</p>
           <div className="bg-gray-50 rounded-xl p-4 text-left mb-6">
-            <p className="text-xs text-gray-500 mb-1">Numéro de référence</p>
+            <p className="text-xs text-gray-500 mb-1">{t("publicJourney.reenroll.reference")}</p>
             <p className="font-mono text-sm font-semibold text-indigo-700 break-all">{result.reference}</p>
-            <p className="text-xs text-gray-400 mt-2">Conservez cette référence pour suivre votre dossier.</p>
+            <p className="text-xs text-gray-400 mt-2">{t("publicJourney.reenroll.keepReference")}</p>
           </div>
           <div className="flex gap-3">
             <Button
@@ -165,10 +169,10 @@ export default function ReEnrollment() {
               className="flex-1"
               onClick={() => navigate(`/inscription/${tenantSlug}/statut`)}
             >
-              Suivre mon dossier
+              {t("publicJourney.reenroll.track")}
             </Button>
             <Button className="flex-1" onClick={() => navigate(`/inscription/${tenantSlug}`)}>
-              Retour au portail
+              {t("publicJourney.reenroll.backToPortal")}
             </Button>
           </div>
         </div>
@@ -185,16 +189,17 @@ export default function ReEnrollment() {
           className="mb-6 text-amber-700 hover:bg-amber-50"
           onClick={() => navigate(`/inscription/${tenantSlug}`)}
         >
-          <ArrowLeft className="h-4 w-4 mr-2" /> Retour au portail
+          <ArrowLeft className="h-4 w-4 mr-2" /> {t("publicJourney.reenroll.backToPortal")}
         </Button>
 
+        <div className="flex justify-end mb-2"><LanguageSwitcher /></div>
         <div className="bg-white rounded-2xl shadow-md p-8">
           <div className="flex items-center gap-3 mb-6">
             <div className="p-2 bg-amber-100 rounded-xl">
               <RefreshCw className="h-6 w-6 text-amber-600" />
             </div>
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Réinscription</h1>
+              <h1 className="text-xl font-bold text-gray-900">{t("publicJourney.reenroll.title")}</h1>
               <p className="text-sm text-gray-500">{school.name}</p>
             </div>
           </div>
@@ -203,7 +208,7 @@ export default function ReEnrollment() {
             <div className="mb-6 flex items-start gap-3 bg-yellow-50 border border-yellow-200 rounded-xl p-4">
               <AlertCircle className="h-5 w-5 text-yellow-600 shrink-0 mt-0.5" />
               <p className="text-sm text-yellow-800">
-                Les inscriptions sont actuellement fermées. Revenez plus tard.
+                {t("publicJourney.reenroll.closed")}
               </p>
             </div>
           )}
@@ -212,15 +217,14 @@ export default function ReEnrollment() {
           {!student && (
             <>
               <p className="text-sm text-gray-600 mb-5">
-                Entrez le numéro d'immatriculation de l'étudiant et l'e-mail du parent/tuteur
-                pour vérifier votre identité.
+                {t("publicJourney.reenroll.intro")}
               </p>
               <form onSubmit={handleVerify} className="space-y-4">
                 <div>
-                  <Label htmlFor="reg">Numéro d'immatriculation</Label>
+                  <Label htmlFor="reg">{t("publicJourney.reenroll.registrationNumber")}</Label>
                   <Input
                     id="reg"
-                    placeholder="ex: 2024-SCH-0042"
+                    placeholder={t("publicJourney.reenroll.registrationPlaceholder")}
                     value={registrationNumber}
                     onChange={(e) => setRegistrationNumber(e.target.value)}
                     required
@@ -229,7 +233,7 @@ export default function ReEnrollment() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="pemail">E-mail du parent / tuteur</Label>
+                  <Label htmlFor="pemail">{t("publicJourney.reenroll.parentEmail")}</Label>
                   <Input
                     id="pemail"
                     type="email"
@@ -249,9 +253,9 @@ export default function ReEnrollment() {
                 )}
                 <Button type="submit" className="w-full" disabled={verifying || !school.admissions_open}>
                   {verifying ? (
-                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Vérification…</>
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> {t("publicJourney.reenroll.verifying")}</>
                   ) : (
-                    <><Search className="h-4 w-4 mr-2" /> Vérifier mon identité</>
+                    <><Search className="h-4 w-4 mr-2" /> {t("publicJourney.reenroll.verify")}</>
                   )}
                 </Button>
               </form>
@@ -265,27 +269,27 @@ export default function ReEnrollment() {
               <div className="mb-6 bg-green-50 border border-green-200 rounded-xl p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <CheckCircle className="h-5 w-5 text-green-600" />
-                  <span className="text-sm font-semibold text-green-800">Identité vérifiée</span>
+                  <span className="text-sm font-semibold text-green-800">{t("publicJourney.reenroll.verified")}</span>
                 </div>
                 <p className="text-sm text-gray-800 font-medium">{student.student_name}</p>
                 <p className="text-xs text-gray-500">
-                  N° {student.registration_number} · Niveau actuel : {student.current_level ?? "—"}
+                  {t("publicJourney.reenroll.studentLine", { number: student.registration_number, level: student.current_level ?? "—" })}
                 </p>
                 <p className="text-xs text-gray-400 mt-1">
-                  Contact : {student.masked_email} · {student.masked_phone}
+                  {t("publicJourney.reenroll.contactLine", { email: student.masked_email, phone: student.masked_phone })}
                 </p>
                 <button
                   type="button"
                   className="mt-2 text-xs text-indigo-600 hover:underline"
                   onClick={() => { setStudent(null); setVerifyError(null); }}
                 >
-                  Ce n'est pas moi ? Modifier
+                  {t("publicJourney.reenroll.notMe")}
                 </button>
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <Label>Année scolaire</Label>
+                  <Label>{t("publicJourney.reenroll.schoolYear")}</Label>
                   <Input
                     value={school.current_academic_year?.name ?? "—"}
                     readOnly
@@ -293,10 +297,10 @@ export default function ReEnrollment() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="level">Niveau souhaité *</Label>
+                  <Label htmlFor="level">{t("publicJourney.reenroll.level")}</Label>
                   <Select value={levelId} onValueChange={setLevelId} required>
                     <SelectTrigger className="mt-1">
-                      <SelectValue placeholder="Sélectionner un niveau" />
+                      <SelectValue placeholder={t("publicJourney.reenroll.levelPlaceholder")} />
                     </SelectTrigger>
                     <SelectContent>
                       {school.levels.map((l) => (
@@ -307,11 +311,11 @@ export default function ReEnrollment() {
                 </div>
                 <div>
                   <Label htmlFor="notes">
-                    Remarques <span className="text-gray-400 font-normal">(facultatif)</span>
+                    {t("publicJourney.reenroll.notes")} <span className="text-gray-400 font-normal">{t("publicJourney.reenroll.optional")}</span>
                   </Label>
                   <Textarea
                     id="notes"
-                    placeholder="Informations complémentaires pour l'administration…"
+                    placeholder={t("publicJourney.reenroll.notesPlaceholder")}
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     className="mt-1"
@@ -326,9 +330,9 @@ export default function ReEnrollment() {
                 )}
                 <Button type="submit" className="w-full bg-amber-600 hover:bg-amber-700" disabled={submitting || !levelId}>
                   {submitting ? (
-                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Envoi en cours…</>
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> {t("publicJourney.reenroll.sending")}</>
                   ) : (
-                    "Soumettre ma demande de réinscription"
+                    t("publicJourney.reenroll.submit")
                   )}
                 </Button>
               </form>

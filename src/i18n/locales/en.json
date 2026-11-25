@@ -4936,5 +4936,309 @@
     "allRegions": "All regions",
     "prefecture": "Prefecture",
     "allPrefectures": "All prefectures"
+  },
+  "publicJourney": {
+    "common": {
+      "rights": "All rights reserved."
+    },
+    "contact": {
+      "address": "Address",
+      "apply": "Apply",
+      "applyNow": "Apply now",
+      "backHome": "Back to home",
+      "breadcrumb": "Contact",
+      "closed": "Closed",
+      "email": "Email *",
+      "emailLabel": "Email",
+      "errors": {
+        "email": "Invalid email",
+        "message": "The message must contain at least 10 characters",
+        "name": "The name must contain at least 2 characters",
+        "subject": "The subject must contain at least 3 characters"
+      },
+      "formTitle": "Send us a message",
+      "home": "Home",
+      "hours": "Opening hours",
+      "infoTitle": "Contact information",
+      "intro": "A question? Need information? Our team is here to help you.",
+      "message": "Message *",
+      "messagePlaceholder": "Write your message here...",
+      "name": "Full name *",
+      "namePlaceholder": "Your name",
+      "notFound": "Institution not found",
+      "phone": "Phone",
+      "readyText": "Submit your application in a few clicks.",
+      "readyTitle": "Ready to join us?",
+      "saturday": "Saturday",
+      "send": "Send the message",
+      "sendError": "Error while sending the message",
+      "sending": "Sending...",
+      "sent": "Message sent successfully!",
+      "sentText": "We have received your message and will reply as soon as possible.",
+      "sentTitle": "Message sent!",
+      "subject": "Subject *",
+      "subjectPlaceholder": "Subject of your message",
+      "sunday": "Sunday",
+      "title": "Contact us",
+      "website": "Website",
+      "weekdays": "Monday - Friday"
+    },
+    "contactForm": {
+      "email": "Email",
+      "error": "An error occurred. Please try again or contact us directly.",
+      "honeypot": "Do not fill in this field",
+      "message": "Message",
+      "messagePlaceholder": "Describe your request...",
+      "name": "Full name",
+      "namePlaceholder": "Your name",
+      "phone": "Phone",
+      "send": "Send the message",
+      "sending": "Sending...",
+      "sentText": "Thank you for your message. We will reply as soon as possible.",
+      "sentTitle": "Message sent!",
+      "subject": "Subject",
+      "subjectPlaceholder": "Subject of your message"
+    },
+    "form": {
+      "address": "Address",
+      "addressPlaceholder": "Home address",
+      "back": "Back",
+      "backHome": "Back to home",
+      "birthDate": "Date of birth *",
+      "cancel": "Cancel",
+      "docs": {
+        "birth": "Birth certificate or identity card",
+        "certificate": "School attendance certificate (previous institution)",
+        "photo": "Recent ID photo",
+        "transcript": "Previous year's transcript"
+      },
+      "documentsForLevel": "Required documents for the selected level",
+      "documentsSelectLevel": "Select a level above to see the required documents",
+      "documentsTitle": "Documents to provide",
+      "email": "Email *",
+      "errors": {
+        "birthDate": "The date of birth is required",
+        "email": "Invalid email",
+        "firstName": "The first name must contain at least 2 characters",
+        "gender": "The gender is required",
+        "lastName": "The last name must contain at least 2 characters",
+        "phone": "Invalid phone number"
+      },
+      "female": "Female",
+      "fileHint": "PDF, JPG or PNG — 8 MB max",
+      "firstName": "First name *",
+      "fixErrors": "Please correct the errors in the form",
+      "fullAddressPlaceholder": "Full address",
+      "gender": "Gender *",
+      "lastName": "Last name *",
+      "level": "Desired level",
+      "levelPlaceholder": "Select a level",
+      "male": "Male",
+      "missingDocs": "Missing documents: {{list}}",
+      "missingDocsToast": "Please upload all required documents",
+      "moreDescription": "Add any information relevant to the application",
+      "moreTitle": "Additional information",
+      "notFoundText": "The institution you are looking for does not exist or is no longer active.",
+      "notFoundTitle": "Institution not found",
+      "notLoaded": "Institution not loaded",
+      "notes": "Additional notes",
+      "notesPlaceholder": "Additional information, special needs, etc.",
+      "occupation": "Occupation",
+      "occupationPlaceholder": "Parent's occupation",
+      "parentDescription": "Enter the contact details of the parent or legal guardian",
+      "parentFirstNamePlaceholder": "Parent's first name",
+      "parentLastNamePlaceholder": "Parent's last name",
+      "parentTitle": "Parent/Guardian information",
+      "phone": "Phone *",
+      "previousSchool": "Previous school",
+      "previousSchoolPlaceholder": "Name of the previous school (if applicable)",
+      "select": "Select",
+      "sending": "Sending...",
+      "studentDescription": "Enter the information about the {{student}} to enroll",
+      "studentFirstNamePlaceholder": "First name of the {{student}}",
+      "studentLastNamePlaceholder": "Last name of the {{student}}",
+      "studentTitle": "{{student}} information",
+      "submit": "Submit the application",
+      "submitError": "Error while submitting. Please try again.",
+      "submittedToast": "Application submitted successfully!",
+      "subtitle": "Application form ({{student}}s)",
+      "successNext": "The admissions team will review your file and contact you shortly.",
+      "successText": "Your application to {{school}} has been recorded. You will receive a confirmation email at {{email}}.",
+      "successTitle": "Application submitted!",
+      "upload": "Upload",
+      "uploadError": "Document upload failed. Please try again."
+    },
+    "hub": {
+      "alreadySubmitted": "Already submitted an application?",
+      "apply": {
+        "action": "Submit an application",
+        "text": "New student? Submit your application. Our team will review it and contact you.",
+        "title": "New application"
+      },
+      "backHome": "Back to home",
+      "chooseSituation": "Choose your situation below",
+      "closed": "Enrollment closed",
+      "enrolled": {
+        "action": "Sign in",
+        "text": "Do you have an active student account? Go directly to your personal space.",
+        "title": "I am already enrolled"
+      },
+      "loadError": "Unable to load the institution's information.",
+      "notFound": "Institution not found. Check the address and try again.",
+      "oops": "Oops!",
+      "open": "Enrollment open",
+      "reenroll": {
+        "text": "Already a student at this institution? Request your re-enrollment for the new year.",
+        "title": "Re-enrollment"
+      },
+      "schoolYear": "School year:",
+      "title": "Online enrollment portal",
+      "trackLink": "Track the status of my application →",
+      "types": {
+        "high_school": "High school",
+        "middle_school": "Middle school",
+        "primary_school": "Primary school",
+        "school": "School",
+        "training_center": "Training center",
+        "university": "University"
+      },
+      "website": "Website"
+    },
+    "info": {
+      "address": "Address",
+      "applyNow": "Apply now",
+      "backHome": "Back to home",
+      "contactTitle": "Admissions contact",
+      "currentYear": "Current academic year:",
+      "docs": {
+        "birth": "Birth certificate extract or copy of the identity card",
+        "photos": "Recent ID photos (passport format)",
+        "residence": "Proof of address",
+        "schoolCertificate": "School attendance certificate from the previous institution",
+        "transcript": "Previous year's transcript",
+        "vaccination": "Photocopy of the vaccination record"
+      },
+      "documentsDescription": "Prepare these documents before submitting your application",
+      "documentsTitle": "Required documents",
+      "email": "Email",
+      "faq": {
+        "duration": {
+          "a": "Reviewing a complete application usually takes 5 to 10 working days. You will be notified of the decision by email.",
+          "q": "How long does the review take?"
+        },
+        "edit": {
+          "a": "Once submitted, you can no longer edit your application directly. Please contact the admissions office for any change.",
+          "q": "Can I edit my application after submitting it?"
+        },
+        "payment": {
+          "a": "We accept payments by bank transfer, cash and cheque. Payment terms will be communicated to you when your application is accepted.",
+          "q": "Which payment methods are accepted?"
+        },
+        "when": {
+          "a": "Applications are accepted throughout the year, subject to availability. We recommend applying as early as possible for the desired academic year.",
+          "q": "When can I submit my application?"
+        }
+      },
+      "faqTitle": "Frequently asked questions",
+      "levelsTitle": "Available levels of study",
+      "notFoundText": "The institution you are looking for does not exist or is no longer active.",
+      "notFoundTitle": "Institution not found",
+      "phone": "Phone",
+      "processDescription": "Follow these steps to complete your enrollment",
+      "processTitle": "Admission process",
+      "readyText": "Start your application now",
+      "readyTitle": "Ready to join us?",
+      "steps": {
+        "decision": {
+          "description": "You will receive an email notification about the acceptance of your application.",
+          "title": "Decision notification"
+        },
+        "documents": {
+          "description": "Upload the required documents (birth certificate, photos, etc.).",
+          "title": "Submit the documents"
+        },
+        "finalize": {
+          "description": "If accepted, pay the fees and finalize the enrollment.",
+          "title": "Finalizing the enrollment"
+        },
+        "form": {
+          "description": "Complete the application form with all the required information.",
+          "title": "Fill in the online form"
+        },
+        "review": {
+          "description": "Our team reviews your application within 5 to 10 working days.",
+          "title": "Application review"
+        }
+      },
+      "submitApplication": "Submit my application",
+      "subtitle": "Enrollment guide - Practical information",
+      "types": {
+        "high_school": "High school",
+        "middle_school": "Middle school",
+        "primary_school": "Primary school",
+        "school": "School",
+        "training_center": "Training center",
+        "university": "University"
+      }
+    },
+    "reenroll": {
+      "back": "Back",
+      "backToPortal": "Back to the portal",
+      "closed": "Enrollment is currently closed. Please come back later.",
+      "contactLine": "Contact: {{email}} · {{phone}}",
+      "genericError": "An error occurred. Please try again.",
+      "intro": "Enter the student's registration number and the parent/guardian's email to verify your identity.",
+      "keepReference": "Keep this reference to track your application.",
+      "level": "Desired level *",
+      "levelPlaceholder": "Select a level",
+      "notFound": "Institution not found.",
+      "notMe": "Not me? Edit",
+      "notes": "Remarks",
+      "notesPlaceholder": "Additional information for the administration…",
+      "optional": "(optional)",
+      "parentEmail": "Parent / guardian email",
+      "reference": "Reference number",
+      "registrationNumber": "Registration number",
+      "registrationPlaceholder": "e.g. 2024-SCH-0042",
+      "schoolYear": "School year",
+      "sending": "Sending…",
+      "studentLine": "No. {{number}} · Current level: {{level}}",
+      "submit": "Submit my re-enrollment request",
+      "submitted": "Request submitted!",
+      "title": "Re-enrollment",
+      "track": "Track my application",
+      "verified": "Identity verified",
+      "verify": "Verify my identity",
+      "verifyError": "Unable to verify the information. Contact the administration.",
+      "verifying": "Verifying…"
+    },
+    "status": {
+      "backToPortal": "Back to the portal",
+      "check": "Check the status",
+      "found_one": "{{count}} application found",
+      "found_other": "{{count}} applications found",
+      "genericError": "An error occurred. Please try again.",
+      "intro": "Enter the email address you used when submitting your application.",
+      "newApplication": "New application",
+      "noResult": "No application found for this email.",
+      "notFound": "Institution not found.",
+      "optional": "(optional)",
+      "parentEmail": "Parent / guardian email",
+      "reenrollment": "Re-enrollment",
+      "ref": "Ref: {{id}}",
+      "reference": "Reference number",
+      "referencePlaceholder": "Leave empty to see all your applications",
+      "searching": "Searching…",
+      "statuses": {
+        "ACCEPTED": "Accepted",
+        "CONVERTED_TO_STUDENT": "Enrolled",
+        "DRAFT": "Draft",
+        "REJECTED": "Rejected",
+        "SUBMITTED": "Submitted",
+        "UNDER_REVIEW": "Under review"
+      },
+      "submittedOn": "Submitted on: {{date}}",
+      "title": "Application tracking"
+    }
   }
 }

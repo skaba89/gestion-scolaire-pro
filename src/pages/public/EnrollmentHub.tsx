@@ -6,6 +6,8 @@
  *  3. Nouvelle candidature (nouvel étudiant)
  */
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { School, LogIn, RefreshCw, FileText, Loader2, AlertCircle, Phone, Mail, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -26,16 +28,9 @@ interface TenantInfo {
   current_academic_year: { id: string; name: string; start_date: string; end_date: string } | null;
 }
 
-const TYPE_LABELS: Record<string, string> = {
-  primary_school: "École Primaire",
-  middle_school: "Collège",
-  high_school: "Lycée",
-  university: "Université",
-  training_center: "Centre de Formation",
-  school: "Établissement Scolaire",
-};
-
 export default function EnrollmentHub() {
+  const { t } = useTranslation();
+
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
   const navigate = useNavigate();
   const [school, setSchool] = useState<TenantInfo | null>(null);
@@ -50,9 +45,9 @@ export default function EnrollmentHub() {
       .then((r) => setSchool(r.data))
       .catch((err) => {
         if (err.response?.status === 404) {
-          setError("Établissement introuvable. Vérifiez l'adresse et réessayez.");
+          setError("publicJourney.hub.notFound"); // clé, traduite à l'affichage
         } else {
-          setError("Impossible de charger les informations de l'établissement.");
+          setError("publicJourney.hub.loadError");
         }
       })
       .finally(() => setLoading(false));
@@ -71,10 +66,10 @@ export default function EnrollmentHub() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-6">
         <div className="bg-white rounded-2xl shadow-lg p-8 max-w-md text-center">
           <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-gray-800 mb-2">Oups !</h2>
-          <p className="text-gray-600">{error}</p>
+          <h2 className="text-xl font-bold text-gray-800 mb-2">{t("publicJourney.hub.oops")}</h2>
+          <p className="text-gray-600">{error ? t(error) : null}</p>
           <Button className="mt-6" onClick={() => navigate("/connexion")}>
-            Retour à l'accueil
+            {t("publicJourney.hub.backHome")}
           </Button>
         </div>
       </div>
@@ -93,10 +88,11 @@ export default function EnrollmentHub() {
           </div>
           <div className="flex-1 min-w-0">
             <h1 className="text-xl font-bold text-gray-900 truncate">{school.name}</h1>
-            <p className="text-sm text-gray-500">{TYPE_LABELS[school.type] ?? school.type}</p>
+            <p className="text-sm text-gray-500">{t(`publicJourney.hub.types.${school.type}`, { defaultValue: school.type })}</p>
           </div>
+          <LanguageSwitcher />
           <Badge variant={school.admissions_open ? "default" : "secondary"} className="shrink-0">
-            {school.admissions_open ? "Inscriptions ouvertes" : "Inscriptions fermées"}
+            {school.admissions_open ? t("publicJourney.hub.open") : t("publicJourney.hub.closed")}
           </Badge>
         </div>
       </div>
@@ -105,12 +101,12 @@ export default function EnrollmentHub() {
         {/* Intro */}
         <div className="text-center mb-10">
           <h2 className="text-3xl font-extrabold text-gray-900 mb-3">
-            Portail d'inscription en ligne
+            {t("publicJourney.hub.title")}
           </h2>
           <p className="text-gray-600 text-lg">
-            Année scolaire : <span className="font-semibold text-indigo-700">{yearName}</span>
+            {t("publicJourney.hub.schoolYear")} <span className="font-semibold text-indigo-700">{yearName}</span>
           </p>
-          <p className="text-gray-500 mt-1 text-sm">Choisissez votre situation ci-dessous</p>
+          <p className="text-gray-500 mt-1 text-sm">{t("publicJourney.hub.chooseSituation")}</p>
         </div>
 
         {/* 3 path cards */}
@@ -120,15 +116,15 @@ export default function EnrollmentHub() {
             <div className="p-3 bg-blue-100 rounded-xl w-fit mb-4">
               <LogIn className="h-7 w-7 text-blue-600" />
             </div>
-            <h3 className="text-lg font-bold text-gray-900 mb-2">Je suis déjà inscrit</h3>
+            <h3 className="text-lg font-bold text-gray-900 mb-2">{t("publicJourney.hub.enrolled.title")}</h3>
             <p className="text-sm text-gray-600 flex-1 mb-6">
-              Vous avez un compte étudiant actif ? Accédez directement à votre espace personnel.
+              {t("publicJourney.hub.enrolled.text")}
             </p>
             <Button
               className="w-full"
               onClick={() => window.location.href = `/${tenantSlug}/auth`}
             >
-              Se connecter
+              {t("publicJourney.hub.enrolled.action")}
             </Button>
           </div>
 
@@ -137,9 +133,9 @@ export default function EnrollmentHub() {
             <div className="p-3 bg-amber-100 rounded-xl w-fit mb-4">
               <RefreshCw className="h-7 w-7 text-amber-600" />
             </div>
-            <h3 className="text-lg font-bold text-gray-900 mb-2">Réinscription</h3>
+            <h3 className="text-lg font-bold text-gray-900 mb-2">{t("publicJourney.hub.reenroll.title")}</h3>
             <p className="text-sm text-gray-600 flex-1 mb-6">
-              Étudiant déjà scolarisé dans cet établissement ? Faites votre demande de réinscription pour la nouvelle année.
+              {t("publicJourney.hub.reenroll.text")}
             </p>
             <Button
               variant="outline"
@@ -147,7 +143,7 @@ export default function EnrollmentHub() {
               disabled={!school.admissions_open}
               onClick={() => navigate(`/inscription/${tenantSlug}/reinscription`)}
             >
-              Réinscription
+              {t("publicJourney.hub.reenroll.title")}
             </Button>
           </div>
 
@@ -156,9 +152,9 @@ export default function EnrollmentHub() {
             <div className="p-3 bg-green-100 rounded-xl w-fit mb-4">
               <FileText className="h-7 w-7 text-green-600" />
             </div>
-            <h3 className="text-lg font-bold text-gray-900 mb-2">Nouvelle candidature</h3>
+            <h3 className="text-lg font-bold text-gray-900 mb-2">{t("publicJourney.hub.apply.title")}</h3>
             <p className="text-sm text-gray-600 flex-1 mb-6">
-              Nouvel étudiant ? Déposez votre dossier de candidature. Notre équipe l'examinera et vous contactera.
+              {t("publicJourney.hub.apply.text")}
             </p>
             <Button
               variant="outline"
@@ -166,7 +162,7 @@ export default function EnrollmentHub() {
               disabled={!school.admissions_open}
               onClick={() => navigate(`/admissions/${tenantSlug}`)}
             >
-              Déposer un dossier
+              {t("publicJourney.hub.apply.action")}
             </Button>
           </div>
         </div>
@@ -174,12 +170,12 @@ export default function EnrollmentHub() {
         {/* Check status link */}
         <div className="mt-8 text-center">
           <p className="text-sm text-gray-500">
-            Vous avez déjà soumis un dossier ?{" "}
+            {t("publicJourney.hub.alreadySubmitted")}{" "}
             <Link
               to={`/inscription/${tenantSlug}/statut`}
               className="text-indigo-600 font-medium hover:underline"
             >
-              Suivre l'état de ma candidature →
+              {t("publicJourney.hub.trackLink")}
             </Link>
           </p>
         </div>
@@ -199,7 +195,7 @@ export default function EnrollmentHub() {
             )}
             {school.website && (
               <a href={school.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:text-indigo-600">
-                <Globe className="h-4 w-4" /> Site web
+                <Globe className="h-4 w-4" /> {t("publicJourney.hub.website")}
               </a>
             )}
           </div>

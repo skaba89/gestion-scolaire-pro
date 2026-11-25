@@ -1579,3 +1579,8 @@ La règle métier de l’auto-pointage reste à valider.
 - **2026-11-25 — site public : lien « Formations et implantations » dans le menu des 7 modèles
   d'accueil (`src/lib/publicOffer.ts`). Non déployé.**
 
+- **2026-11-25 — site public : parcours candidat traduit en 5 langues (sous-lot T1). Non
+  déployé.** Informations d'admission, candidature, portail d'inscription, suivi, réinscription et
+  contact ; sélecteur de langue sur chaque page ; français inchangé. Repéré : la page
+  `/contact/:slug` simule l'envoi du message (CONTACT-FAKE-SEND-01, non corrigé dans ce lot).
+
