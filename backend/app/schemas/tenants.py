@@ -232,6 +232,9 @@ class TenantLandingSettings(BaseModel):
     # e.g. "school-excellence". None = tenant hasn't opted in, frontend falls
     # back to the legacy per-group template.
     site_template_id: Optional[str] = None
+    # Annuaires (2026-11-25, Q-AN1) : adresses et téléphones des campus publiés seulement si
+    # l'établissement l'active (désactivé par défaut).
+    show_campuses: bool = False
 
 
 class TenantPublicCard(BaseModel):
@@ -246,8 +249,25 @@ class TenantPublicCard(BaseModel):
     logo_url: Optional[str] = None
     description: Optional[str] = None
     primary_color: str = "#1e3a5f"
+    # Annuaires (2026-11-25) : localisation administrative publique de l'établissement.
+    city: Optional[str] = None
+    region: Optional[str] = None
+    prefecture: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class TenantPublicFacet(BaseModel):
+    value: str
+    count: int
+
+
+class TenantPublicFacets(BaseModel):
+    """Valeurs présentes dans l'annuaire public (listes de filtres), établissements actifs seulement."""
+    types: List[TenantPublicFacet] = Field(default_factory=list)
+    regions: List[TenantPublicFacet] = Field(default_factory=list)
+    prefectures: List[TenantPublicFacet] = Field(default_factory=list)
+    cities: List[TenantPublicFacet] = Field(default_factory=list)
 
 
 class TenantPublicStats(BaseModel):
@@ -272,5 +292,11 @@ class TenantPublicResponse(BaseModel):
     programs: List[Any] = Field(default_factory=list)
     departments: List[Any] = Field(default_factory=list)
     announcements: List[TenantLandingAnnouncement] = Field(default_factory=list)
+    # Annuaires (2026-11-25) — ajouts, aucun champ existant modifié :
+    # cycles et leurs niveaux, filières, facultés et leurs départements, campus (si publiés).
+    cycles: List[Any] = Field(default_factory=list)
+    programs_detail: List[Any] = Field(default_factory=list)
+    faculties: List[Any] = Field(default_factory=list)
+    campuses: List[Any] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)

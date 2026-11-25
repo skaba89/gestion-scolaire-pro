@@ -22,14 +22,16 @@ Données publiques : `GET /tenants/public/` (annuaire), `GET /tenants/public/{sl
 | Page | Route | Statut | Remarques |
 |---|---|---|---|
 | Accueil plateforme | `/` | Fonctionnelle | `SchoolFlowHomePage`. |
-| Annuaire des établissements | `/annuaire` | Partielle | Données réelles uniquement (plus d'écoles fictives depuis ce lot) ; recherche et filtres par type côté navigateur ; pas de filtre région/ville/cycle/statut côté serveur. |
+| Annuaire des établissements | `/annuaire` | Fonctionnelle | Données réelles uniquement ; filtres région et préfecture côté serveur (`GET /tenants/public/?q&type&region&prefecture&city`, listes via `GET /tenants/public/facets/`) ; recherche par nom et type ; pas encore de filtre par cycle, statut public/privé ni diplôme. |
+| Formations et implantations | `/ecole/:slug/offre` | Fonctionnelle | Cycles et niveaux, filières, facultés et départements, campus si l'établissement les publie (`show_campuses`, désactivé par défaut). Aucun responsable publié. |
 | Site d'un établissement | `/ecole/:slug`, `/:slug` | Fonctionnelle en dev | Cassée en production jusqu'au déploiement de #600 (PUBLIC-DOMAIN-01). |
 | Pages libres | via `PublicPageView` | Fonctionnelle | Publié / non publié ; pas de brouillon versionné ni de relecture. |
 | Admissions, statut, réinscription | `/admissions/:slug`, `/inscription/:slug…` | Fonctionnelles | Réutilisent le module d'admissions. |
 | Programmes, calendrier, contact | `/programmes|calendrier|contact/:slug` | Fonctionnelles | Programmes = niveaux. |
 | Confidentialité, conditions | `/privacy`, `/terms` | Fonctionnelles | Textes non traduits. |
 | Tarifs, inscription d'une école | `/tarifs`, `/inscription` | Fonctionnelles | |
-| Annuaires formations, enseignants, campus, facultés | — | **Absents** | |
+| Annuaire national des formations (tous établissements) | — | **Absent** | Catalogue public transversal à créer (tables isolées par établissement : migration). |
+| Annuaire des enseignants | — | **Absent** | Profils publics à consentement explicite à concevoir. |
 | Actualités, événements (contenus éditoriaux) | — | **Absents** | Seules des « annonces » existent dans `settings.landing`. |
 | Sitemap XML, canoniques, données structurées, hreflang | — | **Absents** | `public/robots.txt` existe. |
 
@@ -65,18 +67,18 @@ certificats TLS côté proxy et une vérification DNS automatisée.
 |---|---:|---:|---|
 | Pages publiques et design premium | 15 | 8 | 3 modèles premium + 4 historiques, sections partagées ; textes non traduits ; site d'établissement cassé en production avant déploiement de #600. |
 | Modularité multi-établissements | 15 | 6 | Modèle par type d'établissement ; pas de modules publics par cycle ni par abonnement. |
-| Annuaires et recherche | 10 | 2 | Annuaire des établissements seulement, filtrage côté navigateur. |
+| Annuaires et recherche | 10 | 5 | Annuaire des établissements filtré côté serveur (région, préfecture, ville, type, nom) ; offre et implantations par établissement ; pas d'annuaire national des formations ni des enseignants. |
 | CMS et constructeur de pages | 15 | 6 | Pages libres, sections, ordre, publication ; ni brouillon versionné, ni relecture, ni historique. |
 | Admissions et parcours visiteurs | 10 | 7 | Candidature, statut, réinscription, contact, protections anti-spam. |
 | Sécurité et isolation multi-tenant | 15 | 11 | Isolation testée sous rôle restreint ; domaines personnalisés à construire. |
 | SEO, accessibilité et performance | 10 | 2 | `robots.txt`, métadonnées partielles ; pas de sitemap ni de mesure Lighthouse. |
 | Tests, qualité et déploiement | 10 | 6 | Tests unitaires et PostgreSQL des routes publiques ; aucun parcours E2E du site public. |
-| **Total** | **100** | **≈ 48** | Objectif 99/100 non atteint. |
+| **Total** | **100** | **≈ 51** | Objectif 99/100 non atteint. |
 
 ## 6. Feuille de route proposée (chaque lot : plan validé, PR, CI verte)
 
 1. Domaines personnalisés : fonction de résolution, vérification DNS, TLS.
-2. Annuaires : formations (niveaux/filières), campus, facultés et départements publiés.
+2. Annuaires, suite : catalogue national des formations, annuaire des enseignants (consentement), filtres par cycle et statut.
 3. CMS éditorial : brouillon, prévisualisation privée, publication, historique.
 4. SEO : sitemap par établissement, canoniques, Open Graph, données structurées.
 5. Traduction des pages publiques (fr, en, es, ar, zh).

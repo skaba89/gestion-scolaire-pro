@@ -42,6 +42,8 @@ export interface TenantLandingSettings {
    * "school-excellence". Undefined/null = tenant hasn't opted in; the
    * legacy per-group template (TenantLanding.tsx's switch) is used. */
   site_template_id?: string | null;
+  /** Annuaires (Q-AN1) : publier les campus (adresse, téléphone) ; désactivé par défaut. */
+  show_campuses?: boolean;
 }
 
 export interface TenantPublicStats {
@@ -60,6 +62,25 @@ export interface TenantPublicCard {
   logo_url?: string | null;
   description?: string | null;
   primary_color?: string;
+  city?: string | null;
+  region?: string | null;
+  prefecture?: string | null;
+}
+
+/** Annuaires : offre publique d'un établissement (GET /tenants/public/{slug}/). */
+export interface PublicLevel { id: string; name: string }
+export interface PublicCycle { id: string; name: string; code?: string | null; levels: PublicLevel[] }
+export interface PublicProgram { id: string; name: string; code?: string | null; description?: string | null }
+export interface PublicFaculty {
+  id: string; name: string; code?: string | null; description?: string | null;
+  departments: { id: string; name: string; description?: string | null }[];
+}
+export interface PublicCampus { id: string; name: string; address?: string | null; phone?: string | null; is_main: boolean }
+
+export interface TenantPublicFacet { value: string; count: number }
+export interface TenantPublicFacets {
+  types: TenantPublicFacet[]; regions: TenantPublicFacet[];
+  prefectures: TenantPublicFacet[]; cities: TenantPublicFacet[];
 }
 
 export interface TenantPublicResponse {
@@ -79,6 +100,10 @@ export interface TenantPublicResponse {
   programs?: any[];
   departments?: any[];
   announcements?: TenantLandingAnnouncement[];
+  cycles?: PublicCycle[];
+  programs_detail?: PublicProgram[];
+  faculties?: PublicFaculty[];
+  campuses?: PublicCampus[];
 }
 
 export type TenantTypeKey =

@@ -1628,7 +1628,9 @@
     "showPrograms": "Show programs",
     "showProgramsDesc": "List of available courses and levels.",
     "showGallery": "Show photo gallery",
-    "showGalleryDesc": "Institution photo section."
+    "showGalleryDesc": "Institution photo section.",
+    "showCampuses": "Publish locations (campuses)",
+    "showCampusesDesc": "Shows the name, address and phone number of your campuses on the “Programs” page of your public site."
   },
   "publicPages": {
     "pageTitle": "Public pages",
@@ -4908,5 +4910,30 @@
     "chartStudents": "Students",
     "chartClassAverage": "Class average",
     "chartBestAverage": "Best average"
+  },
+  "publicOffer": {
+    "link": "Programs",
+    "linkAria": "Programs and locations of {{name}}",
+    "loading": "Loading…",
+    "notFound": "Institution not found",
+    "backToDirectory": "Back to the directory",
+    "backToSchool": "Back to the institution",
+    "eyebrow": "Programs and locations",
+    "subtitle": "Cycles, levels, programs, faculties and campuses published by the institution.",
+    "empty": "The institution has not published its programs yet.",
+    "cycles": "Cycles and levels",
+    "noLevels": "No level published for this cycle.",
+    "programs": "Programs",
+    "programsDetail": "See programs and fees",
+    "faculties": "Faculties and departments",
+    "departmentsOf": "Departments of {{name}}",
+    "campuses": "Campuses and locations",
+    "mainCampus": "Main campus"
+  },
+  "publicDirectory": {
+    "region": "Region",
+    "allRegions": "All regions",
+    "prefecture": "Prefecture",
+    "allPrefectures": "All prefectures"
   }
 }

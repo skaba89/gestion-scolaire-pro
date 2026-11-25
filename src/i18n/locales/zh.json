@@ -1583,7 +1583,9 @@
     "showPrograms": "显示课程",
     "showProgramsDesc": "可用课程和级别列表。",
     "showGallery": "显示图库",
-    "showGalleryDesc": "机构照片部分。"
+    "showGalleryDesc": "机构照片部分。",
+    "showCampuses": "公布校区",
+    "showCampusesDesc": "在公开网站的“培养项目”页面显示校区名称、地址和电话。"
   },
   "publicPages": {
     "pageTitle": "公开页面",
@@ -4987,5 +4989,30 @@
     "chartStudents": "学生",
     "chartClassAverage": "班级平均分",
     "chartBestAverage": "最高平均分"
+  },
+  "publicOffer": {
+    "link": "培养项目",
+    "linkAria": "{{name}} 的培养项目与校区",
+    "loading": "加载中…",
+    "notFound": "未找到该机构",
+    "backToDirectory": "返回名录",
+    "backToSchool": "返回机构主页",
+    "eyebrow": "培养项目与校区",
+    "subtitle": "该机构公布的学段、年级、专业、学院和校区。",
+    "empty": "该机构尚未公布其培养项目。",
+    "cycles": "学段与年级",
+    "noLevels": "该学段尚未公布年级。",
+    "programs": "专业",
+    "programsDetail": "查看课程与学费",
+    "faculties": "学院与系",
+    "departmentsOf": "{{name}} 的系",
+    "campuses": "校区",
+    "mainCampus": "主校区"
+  },
+  "publicDirectory": {
+    "region": "地区",
+    "allRegions": "所有地区",
+    "prefecture": "省",
+    "allPrefectures": "所有省"
   }
 }

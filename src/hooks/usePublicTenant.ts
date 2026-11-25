@@ -1,7 +1,7 @@
 // src/hooks/usePublicTenant.ts
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/api/client';
-import type { TenantPublicResponse, TenantPublicCard } from '@/types/tenant';
+import type { TenantPublicResponse, TenantPublicCard, TenantPublicFacets } from '@/types/tenant';
 
 /**
  * Charge les données publiques complètes d'un établissement par son slug.
@@ -29,11 +29,15 @@ export function usePublicTenant(slug: string | undefined) {
  * Charge la liste légère de tous les établissements actifs.
  * Utilisé par l'annuaire public (/annuaire).
  */
-export function usePublicTenants() {
+/** Annuaires : filtres facultatifs appliqués par le serveur (sans filtre : tout l'annuaire). */
+export interface PublicDirectoryFilters { region?: string; prefecture?: string }
+
+export function usePublicTenants(filters: PublicDirectoryFilters = {}) {
+  const params = Object.fromEntries(Object.entries(filters).filter(([, v]) => !!v));
   return useQuery<TenantPublicCard[], Error>({
-    queryKey: ['public-tenants'],
+    queryKey: ['public-tenants', params],
     queryFn: async () => {
-      const { data } = await apiClient.get<TenantPublicCard[]>('/tenants/public/');
+      const { data } = await apiClient.get<TenantPublicCard[]>('/tenants/public/', { params });
       return data;
     },
     staleTime: 5 * 60 * 1000,
@@ -59,5 +63,14 @@ export function useTenantByDomain(domain: string | undefined) {
     enabled: Boolean(domain) && domain !== 'localhost',
     staleTime: 10 * 60 * 1000,
     retry: 1,
+  });
+}
+
+/** Annuaires : régions, préfectures, villes et types présents dans l'annuaire (listes de filtres). */
+export function usePublicDirectoryFacets() {
+  return useQuery<TenantPublicFacets, Error>({
+    queryKey: ['public-tenants-facets'],
+    queryFn: async () => (await apiClient.get<TenantPublicFacets>('/tenants/public/facets/')).data,
+    staleTime: 5 * 60 * 1000,
   });
 }

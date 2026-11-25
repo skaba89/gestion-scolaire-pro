@@ -13,13 +13,17 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
-const { mockUsePublicTenants, mockRefetch } = vi.hoisted(() => ({
+const { mockUsePublicTenants, mockRefetch, mockFacets } = vi.hoisted(() => ({
   mockUsePublicTenants: vi.fn(),
   mockRefetch: vi.fn(),
+  mockFacets: vi.fn(() => ({ data: undefined })),
 }));
+
+vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 
 vi.mock("@/hooks/usePublicTenant", () => ({
   usePublicTenants: mockUsePublicTenants,
+  usePublicDirectoryFacets: mockFacets,
 }));
 
 import PublicDirectory from "@/pages/public/PublicDirectory";
@@ -150,5 +154,26 @@ describe("PublicDirectory — filtre par type (audit 2026-08-28)", () => {
 
     expect(screen.getByText("Lycée")).toBeInTheDocument();
     expect(screen.queryByText("high")).not.toBeInTheDocument();
+  });
+});
+
+describe("PublicDirectory — filtres par région et préfecture (annuaires)", () => {
+  it("propose les régions de l'annuaire réel et transmet le choix au serveur", () => {
+    mockFacets.mockReturnValue({ data: {
+      types: [], cities: [],
+      regions: [{ value: "Conakry", count: 2 }, { value: "Kindia", count: 1 }],
+      prefectures: [{ value: "Kaloum", count: 1 }],
+    } } as never);
+    mockUsePublicTenants.mockReturnValue({
+      data: [{ id: "t1", name: "Lycée de Kaloum", slug: "lk", type: "high", city: "Conakry", prefecture: "Kaloum", region: "Conakry" }],
+      isLoading: false, isError: false, isFetching: false, refetch: mockRefetch,
+    });
+
+    renderDirectory();
+    expect(mockUsePublicTenants).toHaveBeenLastCalledWith({ region: "", prefecture: "" });
+    fireEvent.change(screen.getByLabelText("publicDirectory.region"), { target: { value: "Kindia" } });
+    expect(mockUsePublicTenants).toHaveBeenLastCalledWith({ region: "Kindia", prefecture: "" });
+    expect(screen.getByText("Conakry, Kaloum")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "publicOffer.linkAria" })).toHaveAttribute("href", "/ecole/lk/offre");
   });
 });
