@@ -69,7 +69,9 @@ test.describe('Lot B3 — menus d\'un compte limité à un cycle', () => {
       };
       const outside = links.filter((href) => scope.pages[pageOf(href)] !== true);
       expect(outside, 'entrées de menu hors périmètre').toEqual([]);
-      expect(links.some((href) => href.endsWith('/admin/admissions')), 'admissions masquées').toBe(false);
+      // Admissions ouvertes aux comptes restreints (lot Admissions) ; gestion des comptes encore réservée.
+      expect(links.some((href) => href.endsWith('/admin/admissions')), 'admissions visibles').toBe(true);
+      expect(links.some((href) => href.endsWith('/admin/users')), 'gestion des comptes masquée').toBe(false);
       expect(links.some((href) => href.endsWith('/admin/students')), 'élèves visibles').toBe(true);
 
       const refused: string[] = [];
@@ -78,7 +80,7 @@ test.describe('Lot B3 — menus d\'un compte limité à un cycle', () => {
       }
       expect(refused, 'refus de l\'API sur un écran du menu').toEqual([]);
 
-      await page.goto(ulsUrl('/admin/admissions'));
+      await page.goto(ulsUrl('/admin/users'));
       await expect(page.getByRole('alert')).toContainText('Écran hors de votre périmètre');
     } finally {
       const current = (await (await admin.get('/education/staff-cycles/?limit=500')).json()).items
