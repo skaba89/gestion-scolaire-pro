@@ -6,40 +6,12 @@ import { usePublicPages } from '@/hooks/usePublicPages';
 import { getLandingSettings } from '@/types/tenant';
 import { resolveUploadUrl } from '@/utils/url';
 import { getTenantTemplateGroup } from '@/lib/tenantTemplateGroup';
+import { customDomainFor } from '@/lib/customDomain';
 import { getSiteTemplate } from '@/public-site/registry/siteTemplateRegistry';
 import { UniversityTemplate } from './landing/UniversityTemplate';
 import { HighSchoolTemplate } from './landing/HighSchoolTemplate';
 import { DefaultLandingTemplate } from './landing/DefaultLandingTemplate';
 import { PrimarySchoolTemplate } from './landing/PrimarySchoolTemplate';
-
-// Detect custom domain: if hostname is not localhost or the app's own domain, treat it as a custom tenant domain
-function detectCustomDomain(): string | undefined {
-  if (typeof window === 'undefined') return undefined;
-  const hostname = window.location.hostname;
-  const knownDomains = [
-    'localhost',
-    '127.0.0.1',
-    'schoolflow.pro',
-    'app.schoolflow.pro',
-    'www.schoolflow.pro',
-  ];
-  if (knownDomains.some((d) => hostname === d || hostname.endsWith(`.${d}`))) {
-    return undefined;
-  }
-  // Platform hosting suffixes (Render/Netlify auto-generated subdomains, e.g.
-  // gestion-scolaire-pro-9on3.onrender.com): a real tenant custom domain never
-  // resolves as a subdomain of the hosting provider's own domain, so any
-  // hostname ending in one of these is always the platform itself, not a
-  // tenant. Without this check, deployments on a *.onrender.com/*.netlify.app
-  // URL (no custom "schoolflow" name) were misidentified as a tenant custom
-  // domain, disabling slug-based lookup and 404ing on every /:tenantSlug page.
-  const platformHostingSuffixes = ['onrender.com', 'netlify.app', 'vercel.app'];
-  if (platformHostingSuffixes.some((d) => hostname === d || hostname.endsWith(`.${d}`))) {
-    return undefined;
-  }
-  if (hostname.includes('schoolflow')) return undefined;
-  return hostname;
-}
 
 const selectTemplate = getTenantTemplateGroup;
 
@@ -167,7 +139,8 @@ function TenantRedirect({ website, name }: { website: string; name: string }) {
 
 const TenantLanding = () => {
   const { tenantSlug } = useParams<{ tenantSlug: string }>();
-  const customDomain = detectCustomDomain();
+  // PUBLIC-DOMAIN-01 : l'identifiant de l'URL fait foi ; le domaine seulement sans identifiant.
+  const customDomain = typeof window === 'undefined' ? undefined : customDomainFor(window.location.hostname, tenantSlug);
   const effectiveSlug = customDomain ? undefined : tenantSlug;
 
   // If on a custom domain, resolve by domain; otherwise resolve by slug from URL

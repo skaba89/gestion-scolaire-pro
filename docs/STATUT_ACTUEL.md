@@ -1559,3 +1559,9 @@ La règle métier de l’auto-pointage reste à valider.
   inscrit dans la même opération. En chemin : la fiche d'un élève converti depuis une candidature
   sans e-mail de parent renvoyait une erreur (ADM-CONVERT-EMAIL-01), corrigé.
 
+- **2026-11-25 — site public : la page de chaque établissement est de nouveau accessible
+  (PUBLIC-DOMAIN-01). Non déployé.** Sur academy-guineenne.org, `/ecole/<slug>` affichait
+  « Établissement introuvable » : le nom d'hôte de la plateforme était pris pour le domaine propre
+  d'une école. L'identifiant de l'URL fait désormais toujours foi. Les domaines personnalisés
+  restent à durcir (vérification, unicité, TLS) dans un lot dédié.
+
