@@ -111,3 +111,12 @@ Volontairement laissé pour des PR dédiées ultérieures (voir `docs/NATIONAL_A
 - Génération de bulletins PDF côté serveur — un vrai fichier PDF existe maintenant (`generate-report-card/pdf/`, WeasyPrint), mais la génération elle-même reste synchrone dans la requête ; la génération en masse (`generate-report-cards/batch/`) l'est aussi.
 - Dashboard de supervision des jobs dans l'interface admin (aujourd'hui, la table `jobs` est consultable en base, ou via `GET /import/jobs/{job_id}/` pour un job précis).
 - Notifications de fin de traitement (email/push quand un job long se termine).
+
+## `send_admission_email` (2026-11-25)
+
+E-mail d'admission au parent ou tuteur : `kind` = `RECEIVED` (candidature ou réinscription reçue),
+`ACCEPTED`, `REJECTED`. Mis en file par `_queue_admission_email` (`admissions.py`) via
+`BackgroundTasks`, après l'enregistrement : une file indisponible est journalisée sans faire échouer
+la requête. Tracé dans `jobs` (`SUCCESS` si l'e-mail est parti, `FAILED` sinon). Aucune note interne
+de l'administration n'est reprise ; tout contenu saisi est échappé. Tests : `test_admission_emails.py`.
+

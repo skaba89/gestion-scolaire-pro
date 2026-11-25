@@ -5062,7 +5062,7 @@
             "submittedToast": "Candidature soumise avec succès!",
             "subtitle": "Formulaire de Candidature ({{student}}s)",
             "successNext": "L'équipe d'admission examinera votre dossier et vous contactera prochainement.",
-            "successText": "Votre candidature pour {{school}} a été enregistrée. Vous pouvez suivre son état en ligne avec l'adresse {{email}}.",
+            "successText": "Votre candidature pour {{school}} a été enregistrée. Un accusé de réception est envoyé à {{email}} ; vous pouvez aussi suivre son état en ligne.",
             "successTitle": "Candidature Soumise!",
             "upload": "Téléverser",
             "uploadError": "Échec de l'envoi du document. Réessayez.",
@@ -5144,7 +5144,7 @@
             "readyTitle": "Prêt à nous rejoindre ?",
             "steps": {
                 "decision": {
-                    "description": "Suivez l'état de votre dossier en ligne avec l'adresse e-mail indiquée lors de la candidature.",
+                    "description": "Vous recevez un accusé de réception par e-mail, puis la décision de l'établissement. Vous pouvez aussi suivre votre dossier en ligne.",
                     "title": "Suivi de votre dossier"
                 },
                 "documents": {

@@ -63,10 +63,12 @@ describe("Informations d'admission — aucune promesse inventée", () => {
     await waitFor(() => expect(screen.getByText(/inscriptions sont actuellement fermées/)).toBeInTheDocument());
   });
 
-  it("l'écran de confirmation de candidature ne promet plus d'e-mail de confirmation", () => {
+  it("l'écran de confirmation annonce l'accusé de réception (réellement envoyé depuis le 2026-11-25)", () => {
     for (const lang of ["fr", "en", "es", "ar", "zh"]) {
       const text = i18n.getResource(lang, "translation", "publicJourney.form.successText") as string;
       expect(text, lang).not.toMatch(/confirmation|confirm|确认|تأكيد/i);
+      expect(text, lang).toContain("{{email}}");
     }
+    expect(i18n.getResource("fr", "translation", "publicJourney.form.successText")).toMatch(/accusé de réception/);
   });
 });

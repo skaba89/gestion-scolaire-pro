@@ -5062,7 +5062,7 @@
       "submittedToast": "Application submitted successfully!",
       "subtitle": "Application form ({{student}}s)",
       "successNext": "The admissions team will review your file and contact you shortly.",
-      "successText": "Your application to {{school}} has been recorded. You can track its status online with the address {{email}}.",
+      "successText": "Your application to {{school}} has been recorded. An acknowledgement is being sent to {{email}}; you can also track its status online.",
       "successTitle": "Application submitted!",
       "upload": "Upload",
       "uploadError": "Document upload failed. Please try again.",
@@ -5144,7 +5144,7 @@
       "readyTitle": "Ready to join us?",
       "steps": {
         "decision": {
-          "description": "Track the status of your application online with the email address used when applying.",
+          "description": "You receive an acknowledgement by email, then the institution's decision. You can also track your application online.",
           "title": "Tracking your application"
         },
         "documents": {

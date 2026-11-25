@@ -4,7 +4,7 @@ Admissions module — workflow complet:
                                     ↘ REJECTED
 """
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File, Form
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from sqlalchemy import text, bindparam
 from pydantic import BaseModel, Field
@@ -252,6 +252,23 @@ def _refresh_document_urls(application: dict) -> dict:
         refreshed.append(doc)
     application["documents"] = refreshed
     return application
+
+
+def _queue_admission_email(background_tasks: BackgroundTasks, tenant_id, application_id, kind: str) -> None:
+    """Met en file l'e-mail d'admission APRÈS la réponse (la candidature est déjà enregistrée) : un
+    file d'attente indisponible ne bloque ni ne ralentit le visiteur, mais elle est journalisée."""
+    async def _enqueue() -> None:
+        from app.core.jobs import enqueue_job
+        try:
+            job = await enqueue_job("send_admission_email", tenant_id=str(tenant_id),
+                                    application_id=str(application_id), kind=kind)
+            if job is None:
+                logger.warning("E-mail d'admission non mis en file (file indisponible) : établissement %s, type %s",
+                               tenant_id, kind)
+        except Exception:
+            logger.error("E-mail d'admission : mise en file impossible (établissement %s, type %s)",
+                         tenant_id, kind, exc_info=True)
+    background_tasks.add_task(_enqueue)
 
 
 def _fetch(db: Session, admission_id: str, tenant_id: str, user: Optional[dict] = None) -> dict:
@@ -521,6 +538,7 @@ def transition_status(
     request: Request,
     admission_id: str,
     payload: StatusUpdate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("admissions:write")),
 ):
@@ -552,6 +570,8 @@ def transition_status(
               action=f"ADMISSION_{new_status}", resource_type="ADMISSION",
               resource_id=admission_id, details={"from": current_status, "to": new_status})
     db.commit()
+    if new_status in ("ACCEPTED", "REJECTED"):
+        _queue_admission_email(background_tasks, tenant_id, admission_id, new_status)
     return _fetch(db, admission_id, tenant_id)
 
 
@@ -930,6 +950,7 @@ def _assert_year_and_level_in_tenant(db: Session, tenant_id, academic_year_id, l
 @router.post("/public/apply/", status_code=201)
 def public_apply(
     payload: dict,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
     """Public endpoint to submit an admission application (starts as SUBMITTED)."""
@@ -1004,6 +1025,7 @@ def public_apply(
               action="ADMISSION_SUBMITTED", resource_type="ADMISSION", resource_id=str(row["id"]),
               details={"from": None, "to": "SUBMITTED"})
     db.commit()
+    _queue_admission_email(background_tasks, tenant_id, row["id"], "RECEIVED")
     return dict(row)
 
 
@@ -1287,7 +1309,7 @@ class ReEnrollPayload(BaseModel):
 
 
 @router.post("/public/reenroll/")
-def public_reenroll(payload: ReEnrollPayload, db: Session = Depends(get_db)):
+def public_reenroll(payload: ReEnrollPayload, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """Submit a re-enrollment request for an existing student."""
     # Verify tenant is active
     from app.models import Tenant
@@ -1323,6 +1345,7 @@ def public_reenroll(payload: ReEnrollPayload, db: Session = Depends(get_db)):
     )
 
     db.commit()
+    _queue_admission_email(background_tasks, payload.tenant_id, row["id"], "RECEIVED")
     return {
         "reference": str(row["id"]),
         "status": row["status"],
@@ -1456,6 +1479,7 @@ def list_my_reenrollments(
 def create_my_reenrollment(
     request: Request,
     body: ParentReenrollmentBody,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: dict = Depends(require_permission("admissions:reenroll")),
 ):
@@ -1530,6 +1554,7 @@ def create_my_reenrollment(
               action="ADMISSION_SUBMITTED", resource_type="ADMISSION", resource_id=str(row["id"]),
               details={"from": None, "to": "SUBMITTED", "type": "REINSCRIPTION", "student_id": student_id})
     db.commit()
+    _queue_admission_email(background_tasks, tenant_id, row["id"], "RECEIVED")
     return {
         "id": str(row["id"]),
         "status": row["status"],
