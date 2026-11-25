@@ -47,6 +47,7 @@ def _payload() -> dict:
 
 
 def _as(user: dict):
+    user = {**user, "_cycle_ids": user.get("_cycle_ids")}  # compte non restreint par défaut
     app.dependency_overrides[get_current_user] = lambda: user
     return client
 

@@ -127,6 +127,8 @@ export interface ConvertAdmissionResult {
     student_name: string;
     registration_number: string;
     reenrollment?: boolean;
+    /** Inscription créée dans la classe choisie (lot Admissions) ; null sans classe. */
+    enrollment_id?: string | null;
     parent_link?: ParentLinkResult;
 }
 
@@ -143,19 +145,22 @@ export const useConvertAdmission = (tenantId: string) => {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async ({ id }: { id: string }) => {
+        mutationFn: async ({ id, classId }: { id: string; classId?: string }) => {
             // BUG RÉEL (reproduit en prod, capture d'écran à l'appui —
             // 422 sur POST .../convert/) : sans second argument, axios
             // n'envoie aucun corps de requête. Le paramètre `payload:
             // ConvertPayload` du backend n'a pas de valeur par défaut —
             // même avec des champs tous optionnels, FastAPI exige un
             // corps présent (au moins {}) pour construire le modèle.
-            const response = await apiClient.post(`/admissions/${id}/convert/`, {});
+            // Lot Admissions (Q-A1) : classe facultative (obligatoire pour un compte limité à des cycles).
+            const response = await apiClient.post(`/admissions/${id}/convert/`, classId ? { class_id: classId } : {});
             return response.data as ConvertAdmissionResult;
         },
         onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: ["admissions", tenantId] });
-            if (data.reenrollment) {
+            if (data.reenrollment && data.enrollment_id) {
+                toast.success(i18n.t("admissions.convertDialog.reenrolledInClass", { name: data.student_name }));
+            } else if (data.reenrollment) {
                 toast.success(
                     `Réinscription validée pour ${data.student_name} (matricule ${data.registration_number}). ` +
                     "Inscrivez maintenant l'élève dans sa classe pour l'année concernée.",

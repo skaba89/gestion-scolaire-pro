@@ -11,6 +11,8 @@ import { AdmissionStats } from "@/components/admin/admissions/AdmissionStats";
 import { AdmissionFilters } from "@/components/admin/admissions/AdmissionFilters";
 import { AdmissionTable } from "@/components/admin/admissions/AdmissionTable";
 import { AdmissionHeader } from "@/components/admin/admissions/AdmissionHeader";
+import { ConvertAdmissionDialog } from "@/components/admin/admissions/ConvertAdmissionDialog";
+import { useEducationModules } from "@/hooks/useEducationModules";
 
 const Admissions = () => {
   const { t } = useTranslation();
@@ -22,6 +24,10 @@ const Admissions = () => {
   const { data: applications, isLoading, error } = useQuery(admissionQueries.all(tenant?.id || ""));
   const updateStatusMutation = useUpdateAdmissionStatus(tenant?.id || "");
   const convertMutation = useConvertAdmission(tenant?.id || "");
+  // Lot Admissions (Q-A1) : « Inscrire » ouvre le choix de la classe ; obligatoire pour un compte
+  // limité à des cycles (présentation seulement, le serveur décide).
+  const { cycleScope } = useEducationModules();
+  const [toConvert, setToConvert] = useState<AdmissionApplication | null>(null);
 
   const filteredApplications = useMemo(() => {
     // Extensive safety check for 'applications'
@@ -76,8 +82,13 @@ const Admissions = () => {
     });
   };
 
-  const handleConvert = (id: string, application: AdmissionApplication) => {
-    convertMutation.mutate({ id });
+  const handleConvert = (_id: string, application: AdmissionApplication) => {
+    setToConvert(application);
+  };
+
+  const confirmConvert = (classId: string | undefined) => {
+    if (!toConvert) return;
+    convertMutation.mutate({ id: toConvert.id, classId }, { onSuccess: () => setToConvert(null) });
   };
 
   return (
@@ -114,6 +125,15 @@ const Admissions = () => {
           />
         </CardContent>
       </Card>
+
+      <ConvertAdmissionDialog
+        tenantId={tenant?.id || ""}
+        application={toConvert}
+        classRequired={!!cycleScope?.restricted}
+        isPending={convertMutation.isPending}
+        onOpenChange={(open) => { if (!open) setToConvert(null); }}
+        onConfirm={confirmConvert}
+      />
     </div>
   );
 };

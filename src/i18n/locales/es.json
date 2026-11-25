@@ -1881,7 +1881,19 @@
       "validateReenrollment": "Validar la reinscripción",
       "enroll": "Matricular"
     },
-    "rechercherParNomOuEmail": "Buscar por nombre o correo..."
+    "rechercherParNomOuEmail": "Buscar por nombre o correo...",
+    "convertDialog": {
+      "title": "Inscribir al alumno",
+      "description": "elija la clase en la que inscribirlo, o inscríbalo más tarde desde la pantalla de inscripciones.",
+      "descriptionRequired": "elija la clase en la que inscribirlo (una clase de sus ciclos).",
+      "classLabel": "Clase",
+      "noClass": "Sin clase (inscribir más tarde)",
+      "choose": "Elegir una clase",
+      "noClassAvailable": "No hay ninguna clase disponible para el nivel solicitado.",
+      "cancel": "Cancelar",
+      "confirm": "Inscribir",
+      "reenrolledInClass": "Reinscripción validada: {{name}} está inscrito/a en su clase."
+    }
   },
   "campuses": {
     "deleteConfirm": "¿Está seguro de que desea eliminar este campus?",
@@ -4766,7 +4778,7 @@
         "TEACHER": "Docente",
         "TENANT_ADMIN": "Administrador"
       },
-      "activeNotice": "Una cuenta limitada a ciclos solo ve los alumnos, clases, notas, asistencias, finanzas e indicadores de sus ciclos. Siguen sin estar disponibles por ahora: publicación de anuncios (la mensajería está disponible, limitada a las familias de sus ciclos), recursos humanos, biblioteca, inventario, e-learning, clubes, encuestas, antiguos alumnos, gestión de cuentas de usuario, admisiones (salvo estadísticas). El horario y los docentes están disponibles para las clases de sus ciclos. Una cuenta que también tiene un rol de docente o de padre pierde esos portales mientras esté limitada. Quitar todos los ciclos de una cuenta le devuelve el acceso completo en su próximo inicio de sesión."
+      "activeNotice": "Una cuenta limitada a ciclos solo ve los alumnos, clases, notas, asistencias, finanzas e indicadores de sus ciclos. Siguen sin estar disponibles por ahora: publicación de anuncios (la mensajería está disponible, limitada a las familias de sus ciclos), recursos humanos, biblioteca, inventario, e-learning, clubes, encuestas, antiguos alumnos, gestión de cuentas de usuario. Las admisiones están disponibles para los niveles de sus ciclos. El horario y los docentes están disponibles para las clases de sus ciclos. Una cuenta que también tiene un rol de docente o de padre pierde esos portales mientras esté limitada. Quitar todos los ciclos de una cuenta le devuelve el acceso completo en su próximo inicio de sesión."
     }
   },
   "teachingAdmin": {

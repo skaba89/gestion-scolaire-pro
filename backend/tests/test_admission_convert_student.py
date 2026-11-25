@@ -68,6 +68,7 @@ def _as(tid: str, roles=("TENANT_ADMIN",)):
         db.add(User(id=uid, tenant_id=tid, email=f"{uid[:12]}@example.com", username=uid, is_active=True))
         db.commit()
     user = {"id": uid, "tenant_id": tid, "roles": list(roles)}
+    user = {**user, "_cycle_ids": user.get("_cycle_ids")}  # compte non restreint par défaut
     app.dependency_overrides[get_current_user] = lambda: user
     return client
 

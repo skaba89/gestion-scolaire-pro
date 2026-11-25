@@ -847,6 +847,15 @@ def get_enrollments(
     return query.all()
 
 def create_enrollment(db: Session, obj_in: EnrollmentCreate, tenant_id: UUID) -> Enrollment:
+    db_obj = add_enrollment(db, obj_in, tenant_id)
+    db.commit()
+    db.refresh(db_obj)
+    return db_obj
+
+
+def add_enrollment(db: Session, obj_in: EnrollmentCreate, tenant_id: UUID) -> Enrollment:
+    """Contrôles et ajout d'une inscription SANS commit (ValueError si refusée) : l'appelant
+    l'inclut dans sa propre transaction (conversion d'une candidature, lot Admissions)."""
     # Every FK must belong to the authenticated school. Globally unique PKs
     # alone do not enforce tenant coherence, particularly for privileged DB
     # connections that bypass RLS (CI, migrations, some operator scripts).
@@ -892,8 +901,7 @@ def create_enrollment(db: Session, obj_in: EnrollmentCreate, tenant_id: UUID) ->
 
     db_obj = Enrollment(**obj_in.model_dump(), tenant_id=tenant_id)
     db.add(db_obj)
-    db.commit()
-    db.refresh(db_obj)
+    db.flush()
     return db_obj
 
 class EnrollmentNotFound(LookupError):
