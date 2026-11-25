@@ -1576,3 +1576,6 @@ La règle métier de l’auto-pointage reste à valider.
   a une page « Formations et implantations » (`/ecole/<slug>/offre` : cycles et niveaux, filières,
   facultés et départements, campus seulement si l'établissement les publie). Aucune migration.
 
+- **2026-11-25 — site public : lien « Formations et implantations » dans le menu des 7 modèles
+  d'accueil (`src/lib/publicOffer.ts`). Non déployé.**
+

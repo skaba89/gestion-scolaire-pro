@@ -1,5 +1,6 @@
 import { Helmet } from "react-helmet-async";
 import { useCustomNavLinks } from "@/hooks/usePublicPages";
+import { publicOfferNavLink } from "@/lib/publicOffer";
 import { sortAnnouncementsPinnedFirst } from "@/lib/landingAnnouncements";
 import { resolveUploadUrl } from "@/utils/url";
 import { resolveTheme } from "../../theme/themeResolver";
@@ -42,6 +43,7 @@ export function PrimaryBloomTemplate({ tenant, settings }: SiteTemplateRenderPro
   const navLinks: NavLink[] = [
     { label: "Accueil", href: `/ecole/${slug}` },
     { label: "Nos classes", href: `/ecole/${slug}#classes` },
+    publicOfferNavLink(slug),
     { label: "Infos parents", href: `/ecole/${slug}#annonces` },
     { label: "Contact", href: `/ecole/${slug}#contact` },
     ...customNavLinks,

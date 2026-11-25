@@ -5007,7 +5007,8 @@
     "faculties": "学院与系",
     "departmentsOf": "{{name}} 的系",
     "campuses": "校区",
-    "mainCampus": "主校区"
+    "mainCampus": "主校区",
+    "navLabel": "培养项目与校区"
   },
   "publicDirectory": {
     "region": "地区",

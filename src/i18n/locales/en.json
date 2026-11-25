@@ -4928,7 +4928,8 @@
     "faculties": "Faculties and departments",
     "departmentsOf": "Departments of {{name}}",
     "campuses": "Campuses and locations",
-    "mainCampus": "Main campus"
+    "mainCampus": "Main campus",
+    "navLabel": "Programs and locations"
   },
   "publicDirectory": {
     "region": "Region",
