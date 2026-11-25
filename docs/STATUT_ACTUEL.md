@@ -1565,3 +1565,9 @@ La règle métier de l’auto-pointage reste à valider.
   d'une école. L'identifiant de l'URL fait désormais toujours foi. Les domaines personnalisés
   restent à durcir (vérification, unicité, TLS) dans un lot dédié.
 
+- **2026-11-25 — site public : durcissement. Non déployé.** La résolution par domaine
+  personnalisé est désactivée (une école pouvait revendiquer le domaine d'une autre :
+  CUSTOM-DOMAIN-CLAIM-01) ; les chiffres masqués par un établissement ne sont plus publiés par
+  l'API (PUBLIC-STATS-01) ; erreurs du profil public journalisées ; annuaire plafonné et sans
+  écoles fictives. Audit, architecture et maturité du site public : `docs/public-site/AUDIT.md`.
+

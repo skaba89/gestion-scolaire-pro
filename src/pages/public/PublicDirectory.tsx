@@ -68,79 +68,6 @@ function getTenantTypeIcon(type: string | undefined) {
 }
 
 // ---------------------------------------------------------------------------
-// Static fallback data (used when API returns nothing)
-// ---------------------------------------------------------------------------
-
-const FALLBACK_TENANTS: PublicTenant[] = [
-  {
-    id: "1",
-    name: "Université La Source",
-    slug: "lasource",
-    type: "university",
-    city: "Lyon",
-    country: "France",
-    description:
-      "Université d'excellence en sciences et technologies, reconnue pour la qualité de ses formations et la recherche appliquée.",
-    created_at: "2024-01-15T00:00:00Z",
-  },
-  {
-    id: "2",
-    name: "Lycée Montesquieu",
-    slug: "lycee-montesquieu",
-    type: "high",
-    city: "Bordeaux",
-    country: "France",
-    description:
-      "Lycée général et technologique offrant un parcours académique complet avec un accompagnement personnalisé de chaque élève.",
-    created_at: "2024-02-10T00:00:00Z",
-  },
-  {
-    id: "3",
-    name: "Centre AFPA Rennes",
-    slug: "afpa-rennes",
-    type: "training",
-    city: "Rennes",
-    country: "France",
-    description:
-      "Centre de formation professionnelle proposant des certifications reconnues dans les secteurs du numérique, du bâtiment et de la santé.",
-    created_at: "2024-01-30T00:00:00Z",
-  },
-  {
-    id: "4",
-    name: "École Primaire Les Oliviers",
-    slug: "ecole-les-oliviers",
-    type: "primary",
-    city: "Marseille",
-    country: "France",
-    description:
-      "École primaire engagée dans une pédagogie innovante favorisant l'épanouissement et la réussite de chaque enfant.",
-    created_at: "2024-03-01T00:00:00Z",
-  },
-  {
-    id: "5",
-    name: "Institut Supérieur du Commerce",
-    slug: "isc-paris",
-    type: "university",
-    city: "Paris",
-    country: "France",
-    description:
-      "Grande école de commerce reconnue, formant les futurs leaders du monde des affaires avec un réseau alumni international.",
-    created_at: "2024-01-05T00:00:00Z",
-  },
-  {
-    id: "6",
-    name: "Lycée Technique Jules Verne",
-    slug: "lycee-jules-verne",
-    type: "high",
-    city: "Nantes",
-    country: "France",
-    description:
-      "Lycée professionnel et technologique spécialisé dans les métiers de l'industrie, de la robotique et du numérique.",
-    created_at: "2024-02-20T00:00:00Z",
-  },
-];
-
-// ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
 
@@ -326,22 +253,10 @@ export default function PublicDirectory() {
   // Load tenants from the sovereign API
   const { data: apiTenants, isLoading, isError, refetch, isFetching } = usePublicTenants();
 
-  // Fallback demo data only covers "the API returned zero real tenants"
-  // (an empty marketing directory looks broken to a prospective customer
-  // browsing before any school has signed up) — never a real API failure.
-  // Silently swapping in fake institutions on isError used to mask a real
-  // production incident: /tenants/public/ 429ing under ordinary traffic
-  // (rate limit, since fixed) surfaced as if the directory legitimately
-  // only contained demo schools with dead-end slugs like "lasource" —
-  // see src/routes/PublicRoutes.tsx's /demo redirect comment for the
-  // matching, previously-fixed half of this exact confusion.
-  const displayTenants = useMemo(() => {
-    if (apiTenants && apiTenants.length > 0) {
-      return apiTenants;
-    }
-    if (isError) return [];
-    return FALLBACK_TENANTS;
-  }, [apiTenants, isError]);
+  // Jamais d'établissements fictifs (lot durcissement du site public, 2026-11-25) : un annuaire
+  // vide affiche l'état vide existant, une erreur affiche l'état d'erreur avec « Réessayer ».
+  // Auparavant, zéro établissement affichait 4 écoles inventées (Lyon, Bordeaux…) aux slugs morts.
+  const displayTenants = useMemo(() => (isError ? [] : apiTenants ?? []), [apiTenants, isError]);
 
   // Filter and sort
   const filtered = useMemo(() => {
