@@ -1603,3 +1603,10 @@ La règle métier de l’auto-pointage reste à valider.
   lieu de promettre des e-mails qui ne sont pas envoyés ; l'écran de confirmation aussi. L'envoi
   réel d'e-mails d'admission reste à planifier.
 
+- **2026-11-25 — e-mails d'admission réellement envoyés. Non déployé.** Accusé de réception au
+  parent ou tuteur (candidature en ligne, réinscription publique ou depuis le portail parent), puis
+  e-mail « dossier accepté » ou « dossier refusé » à la décision ; au nom de l'établissement,
+  réponse vers son e-mail de contact publié ; tâche ARQ `send_admission_email` tracée dans `jobs`
+  (échec = job FAILED) ; une file indisponible n'empêche pas l'enregistrement (journalisée).
+  Nécessite le redémarrage du worker au déploiement (fait par `deploy.sh`).
+

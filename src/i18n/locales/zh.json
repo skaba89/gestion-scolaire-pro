@@ -5141,7 +5141,7 @@
       "submittedToast": "申请提交成功！",
       "subtitle": "申请表（{{student}}）",
       "successNext": "招生团队将审核您的材料并尽快与您联系。",
-      "successText": "您向 {{school}} 提交的申请已登记。您可以使用 {{email}} 在线查询申请进度。",
+      "successText": "您向 {{school}} 提交的申请已登记。回执将发送至 {{email}}；您也可以在线查询申请进度。",
       "successTitle": "申请已提交！",
       "upload": "上传",
       "uploadError": "材料上传失败，请重试。",
@@ -5223,7 +5223,7 @@
       "readyTitle": "准备好加入我们了吗？",
       "steps": {
         "decision": {
-          "description": "使用申请时填写的电子邮箱在线查询申请进度。",
+          "description": "您将通过电子邮件收到回执，随后收到机构的决定。您也可以在线查询申请进度。",
           "title": "申请进度查询"
         },
         "documents": {

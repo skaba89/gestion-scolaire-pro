@@ -636,6 +636,96 @@ async def send_whatsapp_reply_job(ctx: dict, *, tenant_id: str, message_item_id:
         return {"job_id": job_id, "error": str(exc)}
 
 
+ADMISSION_EMAIL_KINDS = ("RECEIVED", "ACCEPTED", "REJECTED")
+
+
+def build_admission_email(kind: str, *, school: str, student: str, reference: str, track_url: str,
+                          is_reenrollment: bool) -> tuple:
+    """Sujet, HTML et texte d'un e-mail d'admission (2026-11-25). Tout contenu saisi (nom de l'élève,
+    de l'établissement) est échappé ; aucune note interne de l'administration n'est reprise."""
+    import html as html_module
+
+    safe_school = html_module.escape(school)
+    what = "demande de réinscription" if is_reenrollment else "candidature"
+    if kind == "RECEIVED":
+        subject = f"{school} — {what} bien reçue"
+        lines = [f"Nous avons bien reçu votre {what} pour {student}.",
+                 "L'établissement va l'examiner. Vous pouvez suivre son état en ligne à tout moment."]
+    elif kind == "ACCEPTED":
+        subject = f"{school} — {what} acceptée"
+        lines = [f"Bonne nouvelle : la {what} de {student} est acceptée.",
+                 "L'établissement vous contactera pour finaliser l'inscription (modalités et pièces éventuelles)."]
+    elif kind == "REJECTED":
+        subject = f"{school} — réponse à votre {what}"
+        lines = [f"Après examen, l'établissement n'a pas pu donner une suite favorable à la {what} de {student}.",
+                 "Pour toute question, vous pouvez contacter l'établissement."]
+    else:
+        raise ValueError(f"type d'e-mail d'admission inconnu : {kind}")
+    safe_lines = [html_module.escape(line) for line in lines]
+    html = f"""
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:32px">
+      <h2 style="color:#1e3a5f">{safe_school}</h2>
+      {''.join(f'<p>{line}</p>' for line in safe_lines)}
+      <p><a href="{html_module.escape(track_url, quote=True)}" style="color:#1e3a5f;font-weight:bold">Suivre mon dossier</a></p>
+      <p style="color:#6b7280;font-size:13px">Référence du dossier : {html_module.escape(reference)} — à saisir avec l'adresse e-mail de la candidature.</p>
+    </div>"""
+    text = "\n\n".join([school, *lines, f"Suivre mon dossier : {track_url}", f"Référence du dossier : {reference}"])
+    return subject, html, text
+
+
+async def send_admission_email(ctx: dict, *, tenant_id: str, application_id: str, kind: str) -> dict:
+    """E-mail d'admission au parent ou tuteur (adresse saisie dans la candidature) : accusé de
+    réception, dossier accepté ou refusé (2026-11-25). Au nom de l'établissement, adresse de réponse
+    = e-mail de contact publié. Tracé dans `jobs` : un échec d'envoi est un job FAILED, jamais muet."""
+    from app.core.config import settings
+    from app.models.admission import AdmissionApplication
+    from app.models.tenant import Tenant
+    from app.services.notifications import EmailSender
+
+    job_id = _job_started("send_admission_email", tenant_id, {"application_id": application_id, "kind": kind})
+    try:
+        if kind not in ADMISSION_EMAIL_KINDS:
+            raise ValueError(f"type d'e-mail d'admission inconnu : {kind}")
+        with worker_db_session(tenant_id) as db:
+            application = db.query(AdmissionApplication).filter(
+                AdmissionApplication.id == application_id,
+                AdmissionApplication.tenant_id == tenant_id,
+            ).first()
+            if not application:
+                _job_finished(job_id, success=True, result={"skipped": "application_not_found"})
+                return {"job_id": job_id, "skipped": "application_not_found"}
+            tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+            school = tenant.name if tenant else "Votre établissement"
+            slug = tenant.slug if tenant else ""
+            landing = (tenant.settings or {}).get("landing") if tenant and isinstance(tenant.settings, dict) else None
+            reply_to = ((landing or {}).get("contact_email") or "").strip() or None
+            to_email = (application.parent_email or "").strip()
+            student = f"{application.student_first_name} {application.student_last_name}".strip()
+            documents = application.documents if isinstance(application.documents, dict) else {}
+            is_reenrollment = documents.get("type") == "REINSCRIPTION"
+            reference = str(application.id)
+        if not to_email or "@" not in to_email:
+            _job_finished(job_id, success=True, result={"skipped": "no_parent_email"})
+            return {"job_id": job_id, "skipped": "no_parent_email"}
+        track_url = f"{settings.FRONTEND_URL.rstrip('/')}/inscription/{slug}/statut"
+        subject, html, text = build_admission_email(
+            kind, school=school, student=student, reference=reference, track_url=track_url,
+            is_reenrollment=is_reenrollment)
+        sender = EmailSender(
+            resend_api_key=settings.RESEND_API_KEY, smtp_host=settings.SMTP_HOST, smtp_port=settings.SMTP_PORT,
+            smtp_user=settings.SMTP_USER, smtp_pass=settings.SMTP_PASS, from_email=settings.FROM_EMAIL,
+            from_name=school,
+        )
+        sent = await asyncio.to_thread(sender.send, to_email, subject, html, text, reply_to)
+        _job_finished(job_id, success=bool(sent), result={"kind": kind, "sent": bool(sent)},
+                      error=None if sent else "email_not_sent")
+        return {"job_id": job_id, "kind": kind, "sent": bool(sent)}
+    except Exception as exc:
+        logger.error("send_admission_email : échec (établissement %s, type %s)", tenant_id, kind, exc_info=True)
+        _job_finished(job_id, success=False, error=type(exc).__name__)
+        return {"job_id": job_id, "error": type(exc).__name__}
+
+
 async def send_public_form_submission_alert(ctx: dict, *, tenant_id: str, submission_id: str) -> dict:
     """Phase 2: notify tenant admins that a visitor submitted the public
     contact form — previously a submission was only ever visible by an
@@ -1218,6 +1308,7 @@ class WorkerSettings:
         import_teachers_job,
         generate_report_cards_batch_job,
         send_public_form_submission_alert,
+        send_admission_email,
         send_whatsapp_notification,
         send_bulk_whatsapp_notifications,
         send_absence_alert_whatsapp_job,

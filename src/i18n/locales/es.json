@@ -5107,7 +5107,7 @@
       "submittedToast": "¡Solicitud enviada con éxito!",
       "subtitle": "Formulario de solicitud ({{student}}s)",
       "successNext": "El equipo de admisiones examinará su expediente y se pondrá en contacto con usted en breve.",
-      "successText": "Su solicitud para {{school}} se ha registrado. Puede seguir su estado en línea con la dirección {{email}}.",
+      "successText": "Su solicitud para {{school}} se ha registrado. Se envía un acuse de recibo a {{email}}; también puede seguir su estado en línea.",
       "successTitle": "¡Solicitud enviada!",
       "upload": "Subir",
       "uploadError": "No se pudo enviar el documento. Inténtelo de nuevo.",
@@ -5189,7 +5189,7 @@
       "readyTitle": "¿Listo para unirse a nosotros?",
       "steps": {
         "decision": {
-          "description": "Siga el estado de su expediente en línea con el correo indicado en la solicitud.",
+          "description": "Recibirá un acuse de recibo por correo y después la decisión del centro. También puede seguir su expediente en línea.",
           "title": "Seguimiento de su expediente"
         },
         "documents": {
