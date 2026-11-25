@@ -5107,10 +5107,11 @@
       "submittedToast": "¡Solicitud enviada con éxito!",
       "subtitle": "Formulario de solicitud ({{student}}s)",
       "successNext": "El equipo de admisiones examinará su expediente y se pondrá en contacto con usted en breve.",
-      "successText": "Su solicitud para {{school}} se ha registrado correctamente. Recibirá un correo de confirmación en {{email}}.",
+      "successText": "Su solicitud para {{school}} se ha registrado. Puede seguir su estado en línea con la dirección {{email}}.",
       "successTitle": "¡Solicitud enviada!",
       "upload": "Subir",
-      "uploadError": "No se pudo enviar el documento. Inténtelo de nuevo."
+      "uploadError": "No se pudo enviar el documento. Inténtelo de nuevo.",
+      "trackLink": "Seguir el estado de mi solicitud"
     },
     "hub": {
       "alreadySubmitted": "¿Ya ha presentado una solicitud?",
@@ -5154,20 +5155,12 @@
       "backHome": "Volver al inicio",
       "contactTitle": "Contacto de admisiones",
       "currentYear": "Curso académico actual:",
-      "docs": {
-        "birth": "Partida de nacimiento o copia del documento de identidad",
-        "photos": "Fotos de identidad recientes (formato pasaporte)",
-        "residence": "Justificante de domicilio",
-        "schoolCertificate": "Certificado de escolaridad del centro de origen",
-        "transcript": "Boletín de notas del año anterior",
-        "vaccination": "Fotocopia de la cartilla de vacunación"
-      },
       "documentsDescription": "Prepare estos documentos antes de presentar su solicitud",
       "documentsTitle": "Documentos requeridos",
       "email": "Correo electrónico",
       "faq": {
         "duration": {
-          "a": "El examen de un expediente completo suele tardar entre 5 y 10 días hábiles. Se le notificará la decisión por correo electrónico.",
+          "a": "El plazo depende del centro. Puede seguir el estado de su expediente en línea en cualquier momento.",
           "q": "¿Cuánto tarda el examen del expediente?"
         },
         "edit": {
@@ -5175,12 +5168,14 @@
           "q": "¿Puedo modificar mi solicitud después de enviarla?"
         },
         "payment": {
-          "a": "Aceptamos pagos por transferencia bancaria, en efectivo y con cheque. Las modalidades de pago se le comunicarán cuando se acepte su expediente.",
+          "a": "El centro le comunicará las modalidades de pago cuando se acepte su expediente.",
           "q": "¿Qué formas de pago se aceptan?"
         },
         "when": {
-          "a": "Las solicitudes se aceptan durante todo el año, según disponibilidad. Le recomendamos presentar la solicitud lo antes posible para el curso deseado.",
-          "q": "¿Cuándo puedo presentar mi solicitud?"
+          "q": "¿Cuándo puedo presentar mi solicitud?",
+          "open": "Las inscripciones están abiertas: puede presentar su solicitud ahora mismo.",
+          "closed": "Las inscripciones están cerradas actualmente. Vuelva más tarde o contacte con el centro.",
+          "unknown": "El estado de las inscripciones se indica en el portal de inscripción del centro."
         }
       },
       "faqTitle": "Preguntas frecuentes",
@@ -5194,15 +5189,15 @@
       "readyTitle": "¿Listo para unirse a nosotros?",
       "steps": {
         "decision": {
-          "description": "Recibirá una notificación por correo electrónico sobre la aceptación de su expediente.",
-          "title": "Notificación de la decisión"
+          "description": "Siga el estado de su expediente en línea con el correo indicado en la solicitud.",
+          "title": "Seguimiento de su expediente"
         },
         "documents": {
           "description": "Suba los documentos requeridos (partida de nacimiento, fotos, etc.).",
           "title": "Enviar los documentos"
         },
         "finalize": {
-          "description": "Si es aceptado, pague las tasas y finalice la inscripción.",
+          "description": "Si es aceptado, el centro le comunicará las modalidades de pago y de finalización de la inscripción.",
           "title": "Finalización de la inscripción"
         },
         "form": {
@@ -5210,7 +5205,7 @@
           "title": "Rellenar el formulario en línea"
         },
         "review": {
-          "description": "Nuestro equipo examina su solicitud en un plazo de 5 a 10 días hábiles.",
+          "description": "El equipo de admisiones examina su solicitud.",
           "title": "Examen del expediente"
         }
       },
@@ -5223,7 +5218,9 @@
         "school": "Centro escolar",
         "training_center": "Centro de formación",
         "university": "Universidad"
-      }
+      },
+      "transferDocsTitle": "Además, para entrar en un nivel distinto del primero:",
+      "trackLink": "Seguir mi expediente"
     },
     "reenroll": {
       "back": "Volver",

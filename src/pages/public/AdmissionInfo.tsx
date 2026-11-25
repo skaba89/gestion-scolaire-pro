@@ -4,6 +4,7 @@ import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/api/client";
 import { usePublicTenant } from "@/hooks/usePublicTenant";
+import { BASE_REQUIRED_DOCUMENTS, TRANSFER_REQUIRED_DOCUMENTS } from "@/lib/admissionDocuments";
 import { resolveUploadUrl } from "@/utils/url";
 import { tenantHeroStyle } from "@/utils/tenantBranding";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ import {
   MapPin,
   Phone,
   Mail,
+  Search,
   FileText,
   CheckCircle2,
   Clock,
@@ -75,20 +77,16 @@ const AdmissionInfo = () => {
     primary_school: t("publicJourney.info.types.primary_school"), middle_school: t("publicJourney.info.types.middle_school"), high_school: t("publicJourney.info.types.high_school"), university: t("publicJourney.info.types.university"), training_center: t("publicJourney.info.types.training_center"), school: t("publicJourney.info.types.school"),
   };
 
-  const requiredDocuments = [
-    t("publicJourney.info.docs.birth"),
-    t("publicJourney.info.docs.schoolCertificate"),
-    t("publicJourney.info.docs.transcript"),
-    t("publicJourney.info.docs.photos"),
-    t("publicJourney.info.docs.vaccination"),
-    t("publicJourney.info.docs.residence"),
-  ];
+  // Mêmes pièces que celles exigées par le formulaire de candidature (source unique).
+  const requiredDocuments = BASE_REQUIRED_DOCUMENTS.map((doc) => t(doc.label));
+  const transferDocuments = TRANSFER_REQUIRED_DOCUMENTS.map((doc) => t(doc.label));
+  const admissionsOpen: boolean | undefined = admissionInfo?.admissions_open;
 
   const admissionSteps = [
     { step: 1, title: t("publicJourney.info.steps.form.title"), description: t("publicJourney.info.steps.form.description"), icon: ClipboardList },
     { step: 2, title: t("publicJourney.info.steps.documents.title"), description: t("publicJourney.info.steps.documents.description"), icon: FileText },
     { step: 3, title: t("publicJourney.info.steps.review.title"), description: t("publicJourney.info.steps.review.description"), icon: Clock },
-    { step: 4, title: t("publicJourney.info.steps.decision.title"), description: t("publicJourney.info.steps.decision.description"), icon: Mail },
+    { step: 4, title: t("publicJourney.info.steps.decision.title"), description: t("publicJourney.info.steps.decision.description"), icon: Search },
     { step: 5, title: t("publicJourney.info.steps.finalize.title"), description: t("publicJourney.info.steps.finalize.description"), icon: CreditCard },
   ];
 
@@ -114,13 +112,13 @@ const AdmissionInfo = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
             <Card><CardHeader><CardTitle className="flex items-center gap-2"><ClipboardList className="w-5 h-5 text-primary" />{t("publicJourney.info.processTitle")}</CardTitle><CardDescription>{t("publicJourney.info.processDescription")}</CardDescription></CardHeader><CardContent><div className="space-y-6">{admissionSteps.map((step, index) => (<div key={step.step} className="flex gap-4"><div className="flex flex-col items-center"><div className="w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold">{step.step}</div>{index < admissionSteps.length - 1 && <div className="w-0.5 h-full bg-primary/20 mt-2" />}</div><div className="flex-1 pb-6"><div className="flex items-center gap-2 mb-1"><step.icon className="w-4 h-4 text-primary" /><h3 className="font-semibold">{step.title}</h3></div><p className="text-muted-foreground text-sm">{step.description}</p></div></div>))}</div></CardContent></Card>
-            <Card><CardHeader><CardTitle className="flex items-center gap-2"><FileText className="w-5 h-5 text-primary" />{t("publicJourney.info.documentsTitle")}</CardTitle><CardDescription>{t("publicJourney.info.documentsDescription")}</CardDescription></CardHeader><CardContent><ul className="space-y-3">{requiredDocuments.map((doc, index) => (<li key={index} className="flex items-start gap-3"><CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" /><span>{doc}</span></li>))}</ul></CardContent></Card>
+            <Card><CardHeader><CardTitle className="flex items-center gap-2"><FileText className="w-5 h-5 text-primary" />{t("publicJourney.info.documentsTitle")}</CardTitle><CardDescription>{t("publicJourney.info.documentsDescription")}</CardDescription></CardHeader><CardContent><ul className="space-y-3">{requiredDocuments.map((doc, index) => (<li key={index} className="flex items-start gap-3"><CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" /><span>{doc}</span></li>))}</ul><p className="text-sm font-medium mt-5 mb-2">{t("publicJourney.info.transferDocsTitle")}</p><ul className="space-y-3">{transferDocuments.map((doc, index) => (<li key={index} className="flex items-start gap-3"><CheckCircle2 className="w-5 h-5 text-muted-foreground flex-shrink-0 mt-0.5" /><span>{doc}</span></li>))}</ul></CardContent></Card>
             {levels && levels.length > 0 && (<Card><CardHeader><CardTitle className="flex items-center gap-2"><BookOpen className="w-5 h-5 text-primary" />{t("publicJourney.info.levelsTitle")}</CardTitle></CardHeader><CardContent><div className="grid grid-cols-2 md:grid-cols-3 gap-3">{levels.map((level: any) => (<div key={level.id} className="p-3 rounded-lg bg-muted/50 border text-center"><GraduationCap className="w-6 h-6 text-primary mx-auto mb-2" /><p className="font-medium">{level.name}</p></div>))}</div></CardContent></Card>)}
-            <Card><CardHeader><CardTitle>{t("publicJourney.info.faqTitle")}</CardTitle></CardHeader><CardContent><Accordion type="single" collapsible className="w-full"><AccordionItem value="item-1"><AccordionTrigger>{t("publicJourney.info.faq.when.q")}</AccordionTrigger><AccordionContent>{t("publicJourney.info.faq.when.a")}</AccordionContent></AccordionItem><AccordionItem value="item-2"><AccordionTrigger>{t("publicJourney.info.faq.duration.q")}</AccordionTrigger><AccordionContent>{t("publicJourney.info.faq.duration.a")}</AccordionContent></AccordionItem><AccordionItem value="item-3"><AccordionTrigger>{t("publicJourney.info.faq.edit.q")}</AccordionTrigger><AccordionContent>{t("publicJourney.info.faq.edit.a")}</AccordionContent></AccordionItem><AccordionItem value="item-4"><AccordionTrigger>{t("publicJourney.info.faq.payment.q")}</AccordionTrigger><AccordionContent>{t("publicJourney.info.faq.payment.a")}</AccordionContent></AccordionItem></Accordion></CardContent></Card>
+            <Card><CardHeader><CardTitle>{t("publicJourney.info.faqTitle")}</CardTitle></CardHeader><CardContent><Accordion type="single" collapsible className="w-full"><AccordionItem value="item-1"><AccordionTrigger>{t("publicJourney.info.faq.when.q")}</AccordionTrigger><AccordionContent>{admissionsOpen === false ? t("publicJourney.info.faq.when.closed") : admissionsOpen ? t("publicJourney.info.faq.when.open") : t("publicJourney.info.faq.when.unknown")}</AccordionContent></AccordionItem><AccordionItem value="item-2"><AccordionTrigger>{t("publicJourney.info.faq.duration.q")}</AccordionTrigger><AccordionContent>{t("publicJourney.info.faq.duration.a")}</AccordionContent></AccordionItem><AccordionItem value="item-3"><AccordionTrigger>{t("publicJourney.info.faq.edit.q")}</AccordionTrigger><AccordionContent>{t("publicJourney.info.faq.edit.a")}</AccordionContent></AccordionItem><AccordionItem value="item-4"><AccordionTrigger>{t("publicJourney.info.faq.payment.q")}</AccordionTrigger><AccordionContent>{t("publicJourney.info.faq.payment.a")}</AccordionContent></AccordionItem></Accordion></CardContent></Card>
           </div>
           <div className="space-y-6">
             <Card><CardHeader><CardTitle className="text-lg">{t("publicJourney.info.contactTitle")}</CardTitle></CardHeader><CardContent className="space-y-4">{tenant.email && (<div className="flex items-start gap-3"><Mail className="w-4 w-4 text-muted-foreground mt-1" /><div><p className="text-sm font-medium">{t("publicJourney.info.email")}</p><a href={`mailto:${tenant.email}`} className="text-sm text-primary hover:underline">{tenant.email}</a></div></div>)}{tenant.phone && (<div className="flex items-start gap-3"><Phone className="w-4 w-4 text-muted-foreground mt-1" /><div><p className="text-sm font-medium">{t("publicJourney.info.phone")}</p><a href={`tel:${tenant.phone}`} className="text-sm text-primary hover:underline">{tenant.phone}</a></div></div>)}{tenant.address && (<div className="flex items-start gap-3"><MapPin className="w-4 w-4 text-muted-foreground mt-1" /><div><p className="text-sm font-medium">{t("publicJourney.info.address")}</p><p className="text-sm text-muted-foreground">{tenant.address}</p></div></div>)}</CardContent></Card>
-            <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20"><CardContent className="pt-6 text-center"><Users className="w-12 h-12 text-primary mx-auto mb-4" /><h3 className="font-semibold text-lg mb-2">{t("publicJourney.info.readyTitle")}</h3><p className="text-sm text-muted-foreground mb-4">{t("publicJourney.info.readyText")}</p><Link to={`/admissions/${tenantSlug}`}><Button className="w-full" size="lg">{t("publicJourney.info.submitApplication")}<ArrowRight className="w-4 h-4 ml-2" /></Button></Link></CardContent></Card>
+            <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20"><CardContent className="pt-6 text-center"><Users className="w-12 h-12 text-primary mx-auto mb-4" /><h3 className="font-semibold text-lg mb-2">{t("publicJourney.info.readyTitle")}</h3><p className="text-sm text-muted-foreground mb-4">{t("publicJourney.info.readyText")}</p><Link to={`/admissions/${tenantSlug}`}><Button className="w-full" size="lg">{t("publicJourney.info.submitApplication")}<ArrowRight className="w-4 h-4 ml-2" /></Button></Link><Link to={`/inscription/${tenantSlug}/statut`} className="block mt-3 text-sm font-medium text-primary hover:underline">{t("publicJourney.info.trackLink")}</Link></CardContent></Card>
           </div>
         </div>
       </div>

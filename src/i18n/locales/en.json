@@ -5062,10 +5062,11 @@
       "submittedToast": "Application submitted successfully!",
       "subtitle": "Application form ({{student}}s)",
       "successNext": "The admissions team will review your file and contact you shortly.",
-      "successText": "Your application to {{school}} has been recorded. You will receive a confirmation email at {{email}}.",
+      "successText": "Your application to {{school}} has been recorded. You can track its status online with the address {{email}}.",
       "successTitle": "Application submitted!",
       "upload": "Upload",
-      "uploadError": "Document upload failed. Please try again."
+      "uploadError": "Document upload failed. Please try again.",
+      "trackLink": "Track the status of my application"
     },
     "hub": {
       "alreadySubmitted": "Already submitted an application?",
@@ -5109,20 +5110,12 @@
       "backHome": "Back to home",
       "contactTitle": "Admissions contact",
       "currentYear": "Current academic year:",
-      "docs": {
-        "birth": "Birth certificate extract or copy of the identity card",
-        "photos": "Recent ID photos (passport format)",
-        "residence": "Proof of address",
-        "schoolCertificate": "School attendance certificate from the previous institution",
-        "transcript": "Previous year's transcript",
-        "vaccination": "Photocopy of the vaccination record"
-      },
       "documentsDescription": "Prepare these documents before submitting your application",
       "documentsTitle": "Required documents",
       "email": "Email",
       "faq": {
         "duration": {
-          "a": "Reviewing a complete application usually takes 5 to 10 working days. You will be notified of the decision by email.",
+          "a": "The time depends on the institution. You can track the status of your application online at any time.",
           "q": "How long does the review take?"
         },
         "edit": {
@@ -5130,12 +5123,14 @@
           "q": "Can I edit my application after submitting it?"
         },
         "payment": {
-          "a": "We accept payments by bank transfer, cash and cheque. Payment terms will be communicated to you when your application is accepted.",
+          "a": "The institution will tell you the payment terms when your application is accepted.",
           "q": "Which payment methods are accepted?"
         },
         "when": {
-          "a": "Applications are accepted throughout the year, subject to availability. We recommend applying as early as possible for the desired academic year.",
-          "q": "When can I submit my application?"
+          "q": "When can I submit my application?",
+          "open": "Enrollment is currently open: you can apply right now.",
+          "closed": "Enrollment is currently closed. Please come back later or contact the institution.",
+          "unknown": "The enrollment status is shown on the institution's enrollment portal."
         }
       },
       "faqTitle": "Frequently asked questions",
@@ -5149,15 +5144,15 @@
       "readyTitle": "Ready to join us?",
       "steps": {
         "decision": {
-          "description": "You will receive an email notification about the acceptance of your application.",
-          "title": "Decision notification"
+          "description": "Track the status of your application online with the email address used when applying.",
+          "title": "Tracking your application"
         },
         "documents": {
           "description": "Upload the required documents (birth certificate, photos, etc.).",
           "title": "Submit the documents"
         },
         "finalize": {
-          "description": "If accepted, pay the fees and finalize the enrollment.",
+          "description": "If accepted, the institution will tell you how to pay and finalize the enrollment.",
           "title": "Finalizing the enrollment"
         },
         "form": {
@@ -5165,7 +5160,7 @@
           "title": "Fill in the online form"
         },
         "review": {
-          "description": "Our team reviews your application within 5 to 10 working days.",
+          "description": "The admissions team reviews your application.",
           "title": "Application review"
         }
       },
@@ -5178,7 +5173,9 @@
         "school": "School",
         "training_center": "Training center",
         "university": "University"
-      }
+      },
+      "transferDocsTitle": "In addition, for entry into a level other than the first:",
+      "trackLink": "Track my application"
     },
     "reenroll": {
       "back": "Back",

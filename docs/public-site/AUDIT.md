@@ -93,9 +93,9 @@ certificats TLS côté proxy et une vérification DNS automatisée.
   premium), T4 (pages légales : texte français faisant foi, avertissement traduit — Q-T1).
 - **Relecture** : les traductions anglaise, espagnole, arabe et chinoise ont été rédigées sans
   relecture par un locuteur natif ; à faire relire avant un lancement national ou international.
-- **Contenus génériques à vérifier** (repérés pendant T1, non modifiés) : la page d'informations
-  d'admission affiche des délais (5 à 10 jours), des pièces et des modes de paiement (virement,
-  espèces, chèque) identiques pour tous les établissements ; la page `/contact/:slug` affiche des
+- **Contenus génériques** : la page d'informations d'admission affichait des délais, des pièces et
+  des modes de paiement inventés et promettait des e-mails jamais envoyés (ADMISSION-EMAIL-PROMISE-01,
+  corrigé le 2026-11-25 : seules les promesses réelles restent) ; la page `/contact/:slug` affiche des
   horaires fixes (8 h – 17 h) et n'envoyait pas le message (CONTACT-FAKE-SEND-01 — corrigé le
   2026-11-25, avec la réponse aux messages depuis « Messages reçus »).
 
