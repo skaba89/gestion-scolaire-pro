@@ -1515,3 +1515,15 @@ publics, `GET /admissions/reenrollments/mine/` et `POST /admissions/reenrollment
 DENY pour un compte restreint, Q-B3-1). Aucune migration ; aucune permission modifiée.
 Tests : `backend/tests/test_cycle_scope_admissions.py` (3 rouges sans le filtrage).
 
+### Réponses aux messages des formulaires de contact (2026-11-25, Q-C1, Q-C2)
+
+`POST /public-pages/submissions/{submission_id}/reply/` : `require_permission("admissions:write")`
+**et** rôle de la boîte de réception (TENANT_ADMIN, DIRECTOR, STAFF — `_require_staff_min`, comme la
+liste et « marquer comme lu »). Message d'un autre établissement : 404 ; enseignant, élève, parent,
+comptable : 403. Limite : 20 réponses par minute. L'e-mail part au visiteur au nom de
+l'établissement ; adresse de réponse = e-mail de contact publié (`landing.contact_email`, désormais
+modifiable dans l'éditeur du site), jamais celle de l'agent. Historique `public_form_replies`
+(RLS FORCE) ; un échec d'envoi est enregistré (FAILED) et signalé (502). Compte limité à des
+cycles : route refusée (DENY par défaut). `GET /public-pages/submissions/` renvoie en plus
+`replies`. Tests : `backend/tests/test_public_form_replies.py`.
+

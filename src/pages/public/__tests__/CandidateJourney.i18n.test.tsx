@@ -77,3 +77,26 @@ describe("Parcours candidat — traduction", () => {
     expect(screen.queryByText(fr)).not.toBeInTheDocument();
   });
 });
+
+describe("Page contact — envoi réel (CONTACT-FAKE-SEND-01)", () => {
+  it("envoie le message à l'établissement et n'affiche plus d'horaires inventés", async () => {
+    const { apiClient } = await import("@/api/client");
+    const post = vi.mocked(apiClient.post);
+    post.mockReset();
+    post.mockResolvedValue({ data: { success: true } });
+    await i18n.changeLanguage("fr");
+    renderAt("/contact/lk", "/contact/:tenantSlug", <Contact />);
+    await waitFor(() => expect(screen.getByText("Envoyez-nous un message")).toBeInTheDocument());
+    expect(screen.queryByText("8h00 - 17h00")).not.toBeInTheDocument();
+    const { fireEvent } = await import("@testing-library/react");
+    fireEvent.change(screen.getByPlaceholderText("Votre nom"), { target: { value: "Mamadou Diallo" } });
+    fireEvent.change(screen.getByLabelText(/^Email/), { target: { value: "parent@example.com" } });
+    fireEvent.change(screen.getByPlaceholderText("Objet de votre message"), { target: { value: "Inscription" } });
+    fireEvent.change(screen.getByPlaceholderText("Écrivez votre message ici..."), { target: { value: "Bonjour, quelles sont les dates ?" } });
+    fireEvent.click(screen.getByRole("button", { name: /Envoyer le message/ }));
+    await waitFor(() => expect(post).toHaveBeenCalledWith("/tenants/public/lk/submit-form/", expect.objectContaining({
+      name: "Mamadou Diallo", email: "parent@example.com", subject: "Inscription", message: "Bonjour, quelles sont les dates ?",
+    })));
+    await waitFor(() => expect(screen.getByText("Message envoyé!")).toBeInTheDocument());
+  });
+});

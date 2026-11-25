@@ -1630,7 +1630,10 @@
         "showGallery": "Afficher la galerie photos",
         "showGalleryDesc": "Section photos de l'établissement.",
         "showCampuses": "Publier les implantations (campus)",
-        "showCampusesDesc": "Affiche le nom, l'adresse et le téléphone de vos campus sur la page « Formations » de votre site public."
+        "showCampusesDesc": "Affiche le nom, l'adresse et le téléphone de vos campus sur la page « Formations » de votre site public.",
+        "fieldContactEmail": "E-mail de contact public",
+        "fieldContactEmailHelp": "Affiché sur votre site et utilisé comme adresse de réponse quand vous répondez à un message reçu.",
+        "fieldContactPhone": "Téléphone de contact public"
     },
     "publicPages": {
         "pageTitle": "Pages publiques",
@@ -4947,7 +4950,6 @@
             "applyNow": "Postuler maintenant",
             "backHome": "Retour à l'accueil",
             "breadcrumb": "Contact",
-            "closed": "Fermé",
             "email": "Email *",
             "emailLabel": "Email",
             "errors": {
@@ -4969,7 +4971,6 @@
             "phone": "Téléphone",
             "readyText": "Déposez votre candidature en quelques clics.",
             "readyTitle": "Prêt à nous rejoindre ?",
-            "saturday": "Samedi",
             "send": "Envoyer le message",
             "sendError": "Erreur lors de l'envoi du message",
             "sending": "Envoi en cours...",
@@ -4978,10 +4979,8 @@
             "sentTitle": "Message envoyé!",
             "subject": "Sujet *",
             "subjectPlaceholder": "Objet de votre message",
-            "sunday": "Dimanche",
             "title": "Contactez-nous",
-            "website": "Site web",
-            "weekdays": "Lundi - Vendredi"
+            "website": "Site web"
         },
         "contactForm": {
             "email": "Email",
@@ -5240,5 +5239,38 @@
             "submittedOn": "Soumis le : {{date}}",
             "title": "Suivi de candidature"
         }
+    },
+    "contactInbox": {
+        "title": "Messages reçus",
+        "description": "Messages envoyés via les formulaires de contact de vos pages publiques.",
+        "filterAll": "Tous",
+        "filterUnread": "Non lus",
+        "filterUnanswered": "Sans réponse",
+        "export": "Exporter (CSV)",
+        "empty": "Aucun message reçu pour le moment.",
+        "emptyUnread": "Aucun message non lu.",
+        "emptyUnanswered": "Tous les messages ont reçu une réponse.",
+        "noSubject": "(sans sujet)",
+        "new": "Nouveau",
+        "answered": "Répondu",
+        "markRead": "Marquer comme lu",
+        "reply": "Répondre",
+        "delete": "Supprimer",
+        "deleteConfirm": "Supprimer ce message définitivement ?",
+        "deleted": "Message supprimé.",
+        "deleteError": "Impossible de supprimer ce message.",
+        "exportError": "Impossible d'exporter les messages.",
+        "history": "Réponses envoyées",
+        "unknownAuthor": "Auteur inconnu",
+        "statusSent": "Envoyée",
+        "statusFailed": "Échec d'envoi",
+        "replyTitle": "Répondre à {{name}}",
+        "replyDescription": "La réponse sera envoyée par e-mail à {{email}}, au nom de votre établissement.",
+        "replyLabel": "Votre réponse",
+        "replyToHint": "Le visiteur pourra vous répondre à l'e-mail de contact public de votre site (Pages publiques → éditeur du site). S'il n'est pas renseigné, il sera invité à repasser par le formulaire de contact.",
+        "cancel": "Annuler",
+        "send": "Envoyer la réponse",
+        "replySent": "Réponse envoyée.",
+        "replyFailed": "L'e-mail n'a pas pu être envoyé. La réponse est enregistrée comme « échec d'envoi »."
     }
 }

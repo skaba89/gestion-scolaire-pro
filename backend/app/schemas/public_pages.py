@@ -326,6 +326,30 @@ class PublicFormSubmissionCreate(BaseModel):
         return v
 
 
+class PublicFormReplyResponse(BaseModel):
+    """Réponse envoyée à un message reçu (historique)."""
+    id: UUID
+    author_id: Optional[UUID] = None
+    author_name: Optional[str] = None
+    body: str
+    status: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PublicFormReplyCreate(BaseModel):
+    message: str = Field(min_length=2, max_length=5000)
+
+    @field_validator("message")
+    @classmethod
+    def reply_not_blank(cls, v: str) -> str:
+        v = v.strip()
+        if len(v) < 2:
+            raise ValueError("La réponse est vide")
+        return v
+
+
 class PublicFormSubmissionResponse(BaseModel):
     """Admin-facing view of a received submission."""
     id: UUID
@@ -337,5 +361,7 @@ class PublicFormSubmissionResponse(BaseModel):
     message: str
     is_read: bool
     created_at: datetime
+    # Réponses envoyées par l'établissement (2026-11-25), de la plus ancienne à la plus récente.
+    replies: List[PublicFormReplyResponse] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)

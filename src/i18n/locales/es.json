@@ -1551,7 +1551,10 @@
     "showGallery": "Mostrar galería de fotos",
     "showGalleryDesc": "Sección de fotos del centro.",
     "showCampuses": "Publicar las sedes (campus)",
-    "showCampusesDesc": "Muestra el nombre, la dirección y el teléfono de sus campus en la página «Formación» de su sitio público."
+    "showCampusesDesc": "Muestra el nombre, la dirección y el teléfono de sus campus en la página «Formación» de su sitio público.",
+    "fieldContactEmail": "Correo de contacto público",
+    "fieldContactEmailHelp": "Se muestra en su sitio y se usa como dirección de respuesta cuando contesta un mensaje recibido.",
+    "fieldContactPhone": "Teléfono de contacto público"
   },
   "publicPages": {
     "pageTitle": "Páginas públicas",
@@ -4992,7 +4995,6 @@
       "applyNow": "Solicitar ahora",
       "backHome": "Volver al inicio",
       "breadcrumb": "Contacto",
-      "closed": "Cerrado",
       "email": "Correo electrónico *",
       "emailLabel": "Correo electrónico",
       "errors": {
@@ -5014,7 +5016,6 @@
       "phone": "Teléfono",
       "readyText": "Presente su solicitud en pocos clics.",
       "readyTitle": "¿Listo para unirse a nosotros?",
-      "saturday": "Sábado",
       "send": "Enviar el mensaje",
       "sendError": "Error al enviar el mensaje",
       "sending": "Enviando...",
@@ -5023,10 +5024,8 @@
       "sentTitle": "¡Mensaje enviado!",
       "subject": "Asunto *",
       "subjectPlaceholder": "Asunto de su mensaje",
-      "sunday": "Domingo",
       "title": "Contáctenos",
-      "website": "Sitio web",
-      "weekdays": "Lunes - Viernes"
+      "website": "Sitio web"
     },
     "contactForm": {
       "email": "Correo electrónico",
@@ -5285,5 +5284,38 @@
       "submittedOn": "Enviado el: {{date}}",
       "title": "Seguimiento de la solicitud"
     }
+  },
+  "contactInbox": {
+    "title": "Mensajes recibidos",
+    "description": "Mensajes enviados mediante los formularios de contacto de sus páginas públicas.",
+    "filterAll": "Todos",
+    "filterUnread": "No leídos",
+    "filterUnanswered": "Sin respuesta",
+    "export": "Exportar (CSV)",
+    "empty": "Aún no se ha recibido ningún mensaje.",
+    "emptyUnread": "Ningún mensaje no leído.",
+    "emptyUnanswered": "Todos los mensajes han recibido respuesta.",
+    "noSubject": "(sin asunto)",
+    "new": "Nuevo",
+    "answered": "Respondido",
+    "markRead": "Marcar como leído",
+    "reply": "Responder",
+    "delete": "Eliminar",
+    "deleteConfirm": "¿Eliminar este mensaje definitivamente?",
+    "deleted": "Mensaje eliminado.",
+    "deleteError": "No se pudo eliminar este mensaje.",
+    "exportError": "No se pudieron exportar los mensajes.",
+    "history": "Respuestas enviadas",
+    "unknownAuthor": "Autor desconocido",
+    "statusSent": "Enviada",
+    "statusFailed": "Error de envío",
+    "replyTitle": "Responder a {{name}}",
+    "replyDescription": "La respuesta se enviará por correo a {{email}} en nombre de su centro.",
+    "replyLabel": "Su respuesta",
+    "replyToHint": "El visitante podrá responderle al correo de contacto público de su sitio (Páginas públicas → editor del sitio). Si no está indicado, se le invitará a usar de nuevo el formulario de contacto.",
+    "cancel": "Cancelar",
+    "send": "Enviar la respuesta",
+    "replySent": "Respuesta enviada.",
+    "replyFailed": "No se pudo enviar el correo. La respuesta queda registrada como «error de envío»."
   }
 }

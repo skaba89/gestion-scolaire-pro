@@ -1585,7 +1585,10 @@
     "showGallery": "显示图库",
     "showGalleryDesc": "机构照片部分。",
     "showCampuses": "公布校区",
-    "showCampusesDesc": "在公开网站的“培养项目”页面显示校区名称、地址和电话。"
+    "showCampusesDesc": "在公开网站的“培养项目”页面显示校区名称、地址和电话。",
+    "fieldContactEmail": "公开联系邮箱",
+    "fieldContactEmailHelp": "显示在您的网站上，回复收到的留言时用作回复地址。",
+    "fieldContactPhone": "公开联系电话"
   },
   "publicPages": {
     "pageTitle": "公开页面",
@@ -5026,7 +5029,6 @@
       "applyNow": "立即申请",
       "backHome": "返回首页",
       "breadcrumb": "联系我们",
-      "closed": "休息",
       "email": "电子邮箱 *",
       "emailLabel": "电子邮箱",
       "errors": {
@@ -5048,7 +5050,6 @@
       "phone": "电话",
       "readyText": "只需几步即可提交申请。",
       "readyTitle": "准备好加入我们了吗？",
-      "saturday": "周六",
       "send": "发送留言",
       "sendError": "发送留言时出错",
       "sending": "正在发送……",
@@ -5057,10 +5058,8 @@
       "sentTitle": "留言已发送！",
       "subject": "主题 *",
       "subjectPlaceholder": "留言主题",
-      "sunday": "周日",
       "title": "联系我们",
-      "website": "网站",
-      "weekdays": "周一至周五"
+      "website": "网站"
     },
     "contactForm": {
       "email": "电子邮箱",
@@ -5318,5 +5317,38 @@
       "submittedOn": "提交日期：{{date}}",
       "title": "申请进度查询"
     }
+  },
+  "contactInbox": {
+    "title": "收到的留言",
+    "description": "通过公开页面联系表单发送的留言。",
+    "filterAll": "全部",
+    "filterUnread": "未读",
+    "filterUnanswered": "未回复",
+    "export": "导出 (CSV)",
+    "empty": "暂未收到留言。",
+    "emptyUnread": "没有未读留言。",
+    "emptyUnanswered": "所有留言均已回复。",
+    "noSubject": "（无主题）",
+    "new": "新",
+    "answered": "已回复",
+    "markRead": "标记为已读",
+    "reply": "回复",
+    "delete": "删除",
+    "deleteConfirm": "确定永久删除此留言？",
+    "deleted": "留言已删除。",
+    "deleteError": "无法删除此留言。",
+    "exportError": "无法导出留言。",
+    "history": "已发送的回复",
+    "unknownAuthor": "未知作者",
+    "statusSent": "已发送",
+    "statusFailed": "发送失败",
+    "replyTitle": "回复 {{name}}",
+    "replyDescription": "回复将以贵机构的名义通过电子邮件发送至 {{email}}。",
+    "replyLabel": "您的回复",
+    "replyToHint": "访客可以回复到您网站的公开联系邮箱（公开页面 → 网站编辑器）。如未填写，访客将被提示重新使用联系表单。",
+    "cancel": "取消",
+    "send": "发送回复",
+    "replySent": "回复已发送。",
+    "replyFailed": "邮件发送失败。该回复已记录为“发送失败”。"
   }
 }

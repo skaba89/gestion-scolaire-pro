@@ -96,5 +96,6 @@ certificats TLS côté proxy et une vérification DNS automatisée.
 - **Contenus génériques à vérifier** (repérés pendant T1, non modifiés) : la page d'informations
   d'admission affiche des délais (5 à 10 jours), des pièces et des modes de paiement (virement,
   espèces, chèque) identiques pour tous les établissements ; la page `/contact/:slug` affiche des
-  horaires fixes (8 h – 17 h) et **n'envoie pas** le message (envoi simulé, CONTACT-FAKE-SEND-01).
+  horaires fixes (8 h – 17 h) et n'envoyait pas le message (CONTACT-FAKE-SEND-01 — corrigé le
+  2026-11-25, avec la réponse aux messages depuis « Messages reçus »).
 

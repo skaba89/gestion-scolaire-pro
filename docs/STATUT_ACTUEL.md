@@ -1584,3 +1584,10 @@ La règle métier de l’auto-pointage reste à valider.
   contact ; sélecteur de langue sur chaque page ; français inchangé. Repéré : la page
   `/contact/:slug` simule l'envoi du message (CONTACT-FAKE-SEND-01, non corrigé dans ce lot).
 
+- **2026-11-25 — site public : la page contact envoie vraiment les messages, et les
+  établissements y répondent depuis « Messages reçus ». Non déployé. Migration
+  `20261125_0001`.** `/contact/<école>` simulait l'envoi (CONTACT-FAKE-SEND-01) : corrigé. Réponse
+  par e-mail au visiteur, historique et statut (envoyée / échec), filtre « Sans réponse » ;
+  e-mail et téléphone de contact publics modifiables dans l'éditeur du site (l'e-mail sert
+  d'adresse de réponse).
+

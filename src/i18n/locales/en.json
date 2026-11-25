@@ -1630,7 +1630,10 @@
     "showGallery": "Show photo gallery",
     "showGalleryDesc": "Institution photo section.",
     "showCampuses": "Publish locations (campuses)",
-    "showCampusesDesc": "Shows the name, address and phone number of your campuses on the “Programs” page of your public site."
+    "showCampusesDesc": "Shows the name, address and phone number of your campuses on the “Programs” page of your public site.",
+    "fieldContactEmail": "Public contact email",
+    "fieldContactEmailHelp": "Shown on your site and used as the reply-to address when you answer a received message.",
+    "fieldContactPhone": "Public contact phone"
   },
   "publicPages": {
     "pageTitle": "Public pages",
@@ -4947,7 +4950,6 @@
       "applyNow": "Apply now",
       "backHome": "Back to home",
       "breadcrumb": "Contact",
-      "closed": "Closed",
       "email": "Email *",
       "emailLabel": "Email",
       "errors": {
@@ -4969,7 +4971,6 @@
       "phone": "Phone",
       "readyText": "Submit your application in a few clicks.",
       "readyTitle": "Ready to join us?",
-      "saturday": "Saturday",
       "send": "Send the message",
       "sendError": "Error while sending the message",
       "sending": "Sending...",
@@ -4978,10 +4979,8 @@
       "sentTitle": "Message sent!",
       "subject": "Subject *",
       "subjectPlaceholder": "Subject of your message",
-      "sunday": "Sunday",
       "title": "Contact us",
-      "website": "Website",
-      "weekdays": "Monday - Friday"
+      "website": "Website"
     },
     "contactForm": {
       "email": "Email",
@@ -5240,5 +5239,38 @@
       "submittedOn": "Submitted on: {{date}}",
       "title": "Application tracking"
     }
+  },
+  "contactInbox": {
+    "title": "Received messages",
+    "description": "Messages sent through the contact forms of your public pages.",
+    "filterAll": "All",
+    "filterUnread": "Unread",
+    "filterUnanswered": "Unanswered",
+    "export": "Export (CSV)",
+    "empty": "No message received yet.",
+    "emptyUnread": "No unread message.",
+    "emptyUnanswered": "Every message has been answered.",
+    "noSubject": "(no subject)",
+    "new": "New",
+    "answered": "Answered",
+    "markRead": "Mark as read",
+    "reply": "Reply",
+    "delete": "Delete",
+    "deleteConfirm": "Permanently delete this message?",
+    "deleted": "Message deleted.",
+    "deleteError": "Unable to delete this message.",
+    "exportError": "Unable to export the messages.",
+    "history": "Replies sent",
+    "unknownAuthor": "Unknown author",
+    "statusSent": "Sent",
+    "statusFailed": "Delivery failed",
+    "replyTitle": "Reply to {{name}}",
+    "replyDescription": "The reply will be emailed to {{email}} on behalf of your institution.",
+    "replyLabel": "Your reply",
+    "replyToHint": "The visitor can answer you at the public contact email of your site (Public pages → site editor). If it is not set, they will be asked to use the contact form again.",
+    "cancel": "Cancel",
+    "send": "Send the reply",
+    "replySent": "Reply sent.",
+    "replyFailed": "The email could not be sent. The reply is recorded as “delivery failed”."
   }
 }

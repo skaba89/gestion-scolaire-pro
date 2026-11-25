@@ -17,7 +17,7 @@ from slowapi import Limiter
 from app.core.client_ip import get_client_ip
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.security import get_current_user
+from app.core.security import get_current_user, require_permission
 from app.core.tenant_resolution import resolve_current_tenant_id
 from app.utils.audit import log_audit
 from app.schemas.public_pages import (
@@ -30,9 +30,12 @@ from app.schemas.public_pages import (
     PageReorderRequest,
     PublicFormSubmissionCreate,
     PublicFormSubmissionResponse,
+    PublicFormReplyCreate,
+    PublicFormReplyResponse,
 )
 from app.models.public_page import PublicPage
 from app.models.public_form_submission import PublicFormSubmission
+from app.models.public_form_reply import REPLY_FAILED, REPLY_SENT, PublicFormReply
 from app.models.tenant import Tenant
 
 
@@ -227,7 +230,121 @@ async def list_form_submissions(
     if is_read is not None:
         query = query.filter(PublicFormSubmission.is_read == is_read)
 
-    return query.order_by(PublicFormSubmission.created_at.desc()).limit(limit).all()
+    submissions = query.order_by(PublicFormSubmission.created_at.desc()).limit(limit).all()
+    replies = _replies_by_submission(db, tenant_id, [s.id for s in submissions])
+    return [
+        PublicFormSubmissionResponse.model_validate(s).model_copy(update={"replies": replies.get(s.id, [])})
+        for s in submissions
+    ]
+
+
+def _replies_by_submission(db: Session, tenant_id, submission_ids) -> dict:
+    """Historique des réponses de plusieurs messages en une requête, avec le nom de l'auteur."""
+    if not submission_ids:
+        return {}
+    from app.models.user import User
+
+    rows = (
+        db.query(PublicFormReply, User.first_name, User.last_name)
+        .outerjoin(User, User.id == PublicFormReply.author_id)
+        .filter(PublicFormReply.tenant_id == tenant_id, PublicFormReply.submission_id.in_(submission_ids))
+        .order_by(PublicFormReply.created_at.asc())
+        .all()
+    )
+    result: dict = {}
+    for reply, first_name, last_name in rows:
+        name = " ".join(part for part in (first_name, last_name) if part) or None
+        result.setdefault(reply.submission_id, []).append(
+            PublicFormReplyResponse.model_validate(reply).model_copy(update={"author_name": name})
+        )
+    return result
+
+
+def _reply_email(tenant_name: str, submission: PublicFormSubmission, body: str, has_reply_to: bool) -> tuple:
+    """Sujet, HTML et texte de la réponse. Tout contenu saisi (réponse, sujet et message du
+    visiteur, nom de l'établissement) est échappé : aucune balise n'atteint la boîte du visiteur."""
+    import html as html_module
+
+    safe_school = html_module.escape(tenant_name)
+    safe_body = html_module.escape(body)
+    safe_original = html_module.escape(submission.message)
+    original_subject = (submission.subject or "").strip()
+    subject = f"Re : {original_subject} — {tenant_name}" if original_subject else f"Réponse de {tenant_name}"
+    footer = ("Vous pouvez répondre directement à cet e-mail." if has_reply_to
+              else "Pour nous répondre, utilisez le formulaire de contact de notre site.")
+    html = f"""
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:32px">
+      <h2 style="color:#1e3a5f">{safe_school}</h2>
+      <p style="white-space:pre-wrap">{safe_body}</p>
+      <p style="color:#6b7280;font-size:13px">{footer}</p>
+      <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0">
+      <p style="color:#6b7280;font-size:13px">Votre message :</p>
+      <p style="white-space:pre-wrap;color:#6b7280;font-size:13px;background:#f9fafb;padding:12px;border-radius:8px">{safe_original}</p>
+    </div>"""
+    text = f"{tenant_name}\n\n{body}\n\n{footer}\n\n---\nVotre message :\n{submission.message}"
+    return subject, html, text
+
+
+@admin_router.post("/submissions/{submission_id}/reply/", response_model=PublicFormReplyResponse,
+                   status_code=status.HTTP_201_CREATED)
+@limiter.limit("20/minute")
+def reply_to_submission(
+    request: Request,
+    submission_id: UUID,
+    payload: PublicFormReplyCreate,
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_permission("admissions:write")),
+):
+    """Répond par e-mail à un message reçu (2026-11-25, Q-C1 : mêmes rôles que la boîte de
+    réception — administration, direction, personnel — et permission admissions:write). Adresse de
+    réponse : l'e-mail de contact publié par l'établissement (Q-C2), jamais celui de l'agent.
+    La réponse est conservée avec son statut ; un échec d'envoi est enregistré ET signalé (502)."""
+    _require_staff_min(current_user)
+    tenant_id = _get_tenant_id(request, current_user, db)
+    submission = db.query(PublicFormSubmission).filter(
+        PublicFormSubmission.id == submission_id,
+        PublicFormSubmission.tenant_id == tenant_id,
+    ).first()
+    if not submission:
+        raise HTTPException(status_code=404, detail="Message introuvable")
+
+    tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+    landing = (tenant.settings or {}).get("landing") if tenant and isinstance(tenant.settings, dict) else None
+    reply_to = ((landing or {}).get("contact_email") or "").strip() or None
+    tenant_name = tenant.name if tenant else ""
+    subject, html, text = _reply_email(tenant_name, submission, payload.message, bool(reply_to))
+
+    from app.services.notifications import EmailSender
+    sender = EmailSender(
+        resend_api_key=settings.RESEND_API_KEY, smtp_host=settings.SMTP_HOST, smtp_port=settings.SMTP_PORT,
+        smtp_user=settings.SMTP_USER, smtp_pass=settings.SMTP_PASS, from_email=settings.FROM_EMAIL,
+        from_name=tenant_name or settings.FROM_NAME,
+    )
+    try:
+        sent = sender.send(to=submission.email, subject=subject, html=html, text=text, reply_to=reply_to) is True
+    except Exception:
+        logger.error("Réponse à un message de contact : envoi impossible (établissement %s)", tenant_id, exc_info=True)
+        sent = False
+
+    reply = PublicFormReply(
+        tenant_id=tenant_id, submission_id=submission.id, author_id=current_user.get("id"),
+        body=payload.message, status=REPLY_SENT if sent else REPLY_FAILED,
+    )
+    submission.is_read = True
+    db.add(reply)
+    log_audit(db, user_id=current_user.get("id"), tenant_id=tenant_id, action="REPLY_PUBLIC_FORM_MESSAGE",
+              resource_type="PUBLIC_FORM_SUBMISSION", resource_id=str(submission.id),
+              details={"status": reply.status})
+    db.commit()
+    db.refresh(reply)
+    if not sent:
+        raise HTTPException(status_code=502, detail=(
+            "L'e-mail n'a pas pu être envoyé. La réponse est enregistrée comme « échec d'envoi » : "
+            "vérifiez la configuration de l'envoi d'e-mails ou réessayez."))
+    from app.models.user import User
+    author = db.query(User.first_name, User.last_name).filter(User.id == reply.author_id).first()
+    name = " ".join(part for part in (author or ()) if part) or None
+    return PublicFormReplyResponse.model_validate(reply).model_copy(update={"author_name": name})
 
 
 @admin_router.patch("/submissions/{submission_id}/mark-read/", response_model=PublicFormSubmissionResponse)
