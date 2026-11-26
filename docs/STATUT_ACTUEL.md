@@ -1610,6 +1610,11 @@ La règle métier de l’auto-pointage reste à valider.
   (échec = job FAILED) ; une file indisponible n'empêche pas l'enregistrement (journalisée).
   Nécessite le redémarrage du worker au déploiement (fait par `deploy.sh`).
 
+- **2026-11-25 — décision : la RH reste réservée aux comptes non limités à des cycles (option A).
+  Non déployé.** Un employé n'est rattaché à aucun cycle et la paie concerne tout
+  l'établissement ; Paramètres → Cycles et l'écran RH le disent explicitement (5 langues). Ouvert au
+  registre : HR-PERMS-01 (secrétariat et personnel lisent les bulletins de paie et l'IBAN).
+
 - **2026-11-26 — site public : annuaire, page de connexion et inscription d'une école traduits en
   5 langues (sous-lot T2). Non déployé.** Français inchangé. Reste : T3 (modèles d'accueil et
   sections premium), T4 (pages légales).

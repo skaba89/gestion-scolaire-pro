@@ -4686,7 +4686,8 @@
       "mixed": "Mixed multi-cycle institution"
     },
     "outOfScopeTitle": "Screen outside your scope",
-    "outOfScopeMessage": "Your account is limited to some cycles: this screen is not available for your scope. Contact the school administration if you need it."
+    "outOfScopeMessage": "Your account is limited to some cycles: this screen is not available for your scope. Contact the school administration if you need it.",
+    "outOfScopeHrReason": "Human resources (staff, contracts, leave, payroll, bank details) concern the whole institution: they are reserved to accounts that are not limited to cycles."
   },
   "educationCycles": {
     "title": "Education cycles",
@@ -4738,7 +4739,7 @@
         "TEACHER": "Teacher",
         "TENANT_ADMIN": "Administrator"
       },
-      "activeNotice": "An account limited to cycles only sees the students, classes, grades, attendance, finances and indicators of its cycles. Still unavailable for now: publishing announcements (messaging is available, limited to the families of its cycles), human resources, library, inventory, e-learning, clubs, surveys, alumni, user account management. Admissions are available for the levels of its cycles. The timetable and teachers are available for the classes of its cycles. An account that also holds a teacher or parent role loses those portals while restricted. Removing all cycles from an account restores full access at its next sign-in."
+      "activeNotice": "An account limited to cycles only sees the students, classes, grades, attendance, finances and indicators of its cycles. Still unavailable for now: publishing announcements (messaging is available, limited to the families of its cycles), library, inventory, e-learning, clubs, surveys, alumni, user account management. Human resources (staff, contracts, leave, payroll) remain reserved to accounts that are not limited: they concern the whole institution. Admissions are available for the levels of its cycles. The timetable and teachers are available for the classes of its cycles. An account that also holds a teacher or parent role loses those portals while restricted. Removing all cycles from an account restores full access at its next sign-in."
     }
   },
   "teachingAdmin": {

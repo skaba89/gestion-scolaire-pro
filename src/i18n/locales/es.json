@@ -4731,7 +4731,8 @@
       "mixed": "Institución mixta de varios ciclos"
     },
     "outOfScopeTitle": "Pantalla fuera de su ámbito",
-    "outOfScopeMessage": "Su cuenta está limitada a algunos ciclos: esta pantalla no está disponible para su ámbito. Contacte con la administración del centro si la necesita."
+    "outOfScopeMessage": "Su cuenta está limitada a algunos ciclos: esta pantalla no está disponible para su ámbito. Contacte con la administración del centro si la necesita.",
+    "outOfScopeHrReason": "Los recursos humanos (personal, contratos, permisos, nóminas, datos bancarios) afectan a todo el centro: están reservados a las cuentas que no están limitadas a ciclos."
   },
   "educationCycles": {
     "title": "Ciclos educativos",
@@ -4783,7 +4784,7 @@
         "TEACHER": "Docente",
         "TENANT_ADMIN": "Administrador"
       },
-      "activeNotice": "Una cuenta limitada a ciclos solo ve los alumnos, clases, notas, asistencias, finanzas e indicadores de sus ciclos. Siguen sin estar disponibles por ahora: publicación de anuncios (la mensajería está disponible, limitada a las familias de sus ciclos), recursos humanos, biblioteca, inventario, e-learning, clubes, encuestas, antiguos alumnos, gestión de cuentas de usuario. Las admisiones están disponibles para los niveles de sus ciclos. El horario y los docentes están disponibles para las clases de sus ciclos. Una cuenta que también tiene un rol de docente o de padre pierde esos portales mientras esté limitada. Quitar todos los ciclos de una cuenta le devuelve el acceso completo en su próximo inicio de sesión."
+      "activeNotice": "Una cuenta limitada a ciclos solo ve los alumnos, clases, notas, asistencias, finanzas e indicadores de sus ciclos. Siguen sin estar disponibles por ahora: publicación de anuncios (la mensajería está disponible, limitada a las familias de sus ciclos), biblioteca, inventario, e-learning, clubes, encuestas, antiguos alumnos, gestión de cuentas de usuario. Los recursos humanos (personal, contratos, permisos, nóminas) siguen reservados a las cuentas no limitadas: afectan a todo el centro. Las admisiones están disponibles para los niveles de sus ciclos. El horario y los docentes están disponibles para las clases de sus ciclos. Una cuenta que también tiene un rol de docente o de padre pierde esos portales mientras esté limitada. Quitar todos los ciclos de una cuenta le devuelve el acceso completo en su próximo inicio de sesión."
     }
   },
   "teachingAdmin": {

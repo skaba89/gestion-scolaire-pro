@@ -1527,3 +1527,16 @@ modifiable dans l'éditeur du site), jamais celle de l'agent. Historique `public
 cycles : route refusée (DENY par défaut). `GET /public-pages/submissions/` renvoie en plus
 `replies`. Tests : `backend/tests/test_public_form_replies.py`.
 
+### Ressources humaines et comptes limités à des cycles (décision 2026-11-25, option A)
+
+Les routes `/hr/*` (employés, contrats, congés, bulletins de paie, numéro d'employé) restent **DENY**
+pour un compte limité à des cycles : un employé n'est rattaché à aucun cycle (le champ « service »
+est un texte libre) et ces données (salaires, IBAN, sécurité sociale) concernent tout
+l'établissement. L'écran RH l'explique (`educationModules.outOfScopeHrReason`). Ouvrir la RH par
+cycle demanderait un lien employé → cycle (migration) : non retenu.
+
+**Point ouvert, HR-PERMS-01 (non traité)** : `hr:read` / `hr:write` sont détenues par SECRETARY et
+STAFF en plus de TENANT_ADMIN, DIRECTOR et ACCOUNTANT ; le secrétariat lit donc les bulletins de paie
+et les coordonnées bancaires. Restriction proposée (paie et banque : administration, direction,
+comptabilité) en attente de décision.
+
