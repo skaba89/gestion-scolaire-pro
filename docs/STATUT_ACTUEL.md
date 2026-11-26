@@ -1619,3 +1619,7 @@ La règle métier de l’auto-pointage reste à valider.
   5 langues (sous-lot T2). Non déployé.** Français inchangé. Reste : T3 (modèles d'accueil et
   sections premium), T4 (pages légales).
 
+- **2026-11-26 — site public : les 3 modèles premium et leurs sections traduits en 5 langues
+  (sous-lot T3a). Non déployé.** Textes de l'interface seulement : le contenu saisi par chaque
+  établissement reste tel quel. Reste : T3b (4 modèles historiques), T4 (pages légales).
+

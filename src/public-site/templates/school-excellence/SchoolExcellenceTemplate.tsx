@@ -1,4 +1,5 @@
 import { Helmet } from "react-helmet-async";
+import { useTranslation } from "react-i18next";
 import { useCustomNavLinks } from "@/hooks/usePublicPages";
 import { publicOfferNavLink } from "@/lib/publicOffer";
 import { resolveUploadUrl } from "@/utils/url";
@@ -31,6 +32,8 @@ import { schoolExcellenceTokens } from "./tokens";
  * fabricated stats/testimonials/results (see project conventions).
  */
 export function SchoolExcellenceTemplate({ tenant, settings }: SiteTemplateRenderProps) {
+  const { t } = useTranslation();
+
   const tokens = resolveTheme(schoolExcellenceTokens, settings);
   const slug = tenant.slug;
   const currentYear = new Date().getFullYear();
@@ -40,20 +43,20 @@ export function SchoolExcellenceTemplate({ tenant, settings }: SiteTemplateRende
   // (see HighSchoolTemplate.tsx for the full incident rationale).
   const customNavLinks: NavLink[] = useCustomNavLinks(slug);
   const navLinks: NavLink[] = [
-    { label: "L'Établissement", href: `/ecole/${slug}#presentation` },
-    { label: "Filières", href: `/ecole/${slug}#filieres` },
-    { label: "Admissions", href: `/admissions/${slug}` },
+    { label: t("siteTemplates.excellence.navSchool"), href: `/ecole/${slug}#presentation` },
+    { label: t("siteTemplates.excellence.navTracks"), href: `/ecole/${slug}#filieres` },
+    { label: t("siteTemplates.common.admissions"), href: `/admissions/${slug}` },
     publicOfferNavLink(slug),
-    { label: "Actualités", href: `/ecole/${slug}#actualites` },
-    { label: "Contact", href: `/ecole/${slug}#contact` },
+    { label: t("siteTemplates.common.news"), href: `/ecole/${slug}#actualites` },
+    { label: t("siteTemplates.common.contact"), href: `/ecole/${slug}#contact` },
     ...customNavLinks,
   ];
 
   const statsItems: StatsItem[] = [];
   if (settings.show_stats && tenant.stats) {
-    if (tenant.stats.student_count) statsItems.push({ value: `${tenant.stats.student_count}+`, label: "Élèves inscrits" });
-    if (tenant.stats.teacher_count) statsItems.push({ value: `${tenant.stats.teacher_count}`, label: "Enseignants qualifiés" });
-    if (tenant.programs && tenant.programs.length > 0) statsItems.push({ value: `${tenant.programs.length}`, label: "Filières proposées" });
+    if (tenant.stats.student_count) statsItems.push({ value: `${tenant.stats.student_count}+`, label: t("siteTemplates.excellence.statStudents") });
+    if (tenant.stats.teacher_count) statsItems.push({ value: `${tenant.stats.teacher_count}`, label: t("siteTemplates.excellence.statTeachers") });
+    if (tenant.programs && tenant.programs.length > 0) statsItems.push({ value: `${tenant.programs.length}`, label: t("siteTemplates.excellence.statTracks") });
   }
 
   const programItems = settings.show_programs && tenant.programs
@@ -74,7 +77,7 @@ export function SchoolExcellenceTemplate({ tenant, settings }: SiteTemplateRende
         <title>{tenant.name} — Excellence académique</title>
         <meta
           name="description"
-          content={settings.description || settings.tagline || `${tenant.name} — Excellence académique et formation complète.`}
+          content={settings.description || settings.tagline || t("siteTemplates.excellence.defaultDescription", { name: tenant.name })}
         />
         <meta property="og:title" content={tenant.name} />
         {settings.description && <meta property="og:description" content={settings.description} />}
@@ -89,11 +92,11 @@ export function SchoolExcellenceTemplate({ tenant, settings }: SiteTemplateRende
           section={{
             type: "hero",
             title: tenant.name,
-            subtitle: settings.tagline || settings.description || "Excellence académique et formation complète pour préparer l'avenir de vos élèves.",
+            subtitle: settings.tagline || settings.description || t("siteTemplates.excellence.heroTitle"),
             settings: {
-              cta_label: `Pré-inscription ${currentYear}/${currentYear + 1}`,
+              cta_label: t("siteTemplates.common.preEnrollment", { years: `${currentYear}/${currentYear + 1}` }),
               cta_url: `/admissions/${slug}`,
-              cta_label_2: "Espace élève",
+              cta_label_2: t("siteTemplates.excellence.studentSpace"),
               cta_url_2: `/${slug}/login`,
             },
           }}
@@ -104,18 +107,18 @@ export function SchoolExcellenceTemplate({ tenant, settings }: SiteTemplateRende
 
         {settings.description && (
           <div id="presentation">
-            <Text section={{ type: "text", title: "Qui sommes-nous", content: `<p>${settings.description}</p>` }} tokens={tokens} />
+            <Text section={{ type: "text", title: t("siteTemplates.common.about"), content: `<p>${settings.description}</p>` }} tokens={tokens} />
           </div>
         )}
 
         {statsItems.length > 0 && (
-          <Stats section={{ type: "stats", title: "Chiffres clés", items: statsItems }} tokens={tokens} />
+          <Stats section={{ type: "stats", title: t("siteTemplates.common.keyFigures"), items: statsItems }} tokens={tokens} />
         )}
 
         {programItems.length > 0 && (
           <div id="filieres">
             <ProgramsSection
-              section={{ type: "programs", title: "Nos filières", subtitle: "Des formations adaptées à chaque projet d'avenir", items: programItems }}
+              section={{ type: "programs", title: t("siteTemplates.excellence.tracksTitle"), subtitle: t("siteTemplates.excellence.tracksSubtitle"), items: programItems }}
               tokens={tokens}
             />
           </div>
@@ -123,26 +126,26 @@ export function SchoolExcellenceTemplate({ tenant, settings }: SiteTemplateRende
 
         {newsItems.length > 0 && (
           <div id="actualites">
-            <NewsSection section={{ type: "news", title: "Actualités", items: newsItems }} tokens={tokens} />
+            <NewsSection section={{ type: "news", title: t("siteTemplates.common.news"), items: newsItems }} tokens={tokens} />
           </div>
         )}
 
         {galleryItems.length > 0 && (
-          <Gallery section={{ type: "gallery", title: "Vie scolaire en images", items: galleryItems }} tokens={tokens} />
+          <Gallery section={{ type: "gallery", title: t("siteTemplates.excellence.lifeTitle"), items: galleryItems }} tokens={tokens} />
         )}
 
         <CTA
           section={{
             type: "cta",
-            title: "Prêt à nous rejoindre ?",
-            subtitle: `Rejoignez notre établissement pour l'année ${currentYear}/${currentYear + 1}.`,
-            settings: { cta_label: "Déposer ma candidature", cta_url: `/admissions/${slug}` },
+            title: t("siteTemplates.common.ready"),
+            subtitle: t("siteTemplates.excellence.ctaSubtitle", { years: `${currentYear}/${currentYear + 1}` }),
+            settings: { cta_label: t("siteTemplates.excellence.apply"), cta_url: `/admissions/${slug}` },
           }}
           tokens={tokens}
         />
 
         <div id="contact">
-          <ContactForm section={{ type: "contact_form", title: "Nous contacter" }} tokens={tokens} tenantSlug={slug} />
+          <ContactForm section={{ type: "contact_form", title: t("siteTemplates.common.contactUs") }} tokens={tokens} tenantSlug={slug} />
         </div>
 
         <PremiumFooter

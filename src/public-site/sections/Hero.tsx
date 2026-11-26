@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import useEmblaCarousel from "embla-carousel-react";
@@ -51,6 +52,8 @@ function CTALink({ href, className, style, children }: {
  * on top of it, so it's simpler and clearer as its own small
  * implementation over the same embla-carousel-react primitive). */
 function HeroSlideshow({ images }: { images: string[] }) {
+  const { t } = useTranslation();
+
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true }, [
     Autoplay({ delay: 5500, stopOnInteraction: false, stopOnMouseEnter: true }),
   ]);
@@ -82,7 +85,7 @@ function HeroSlideshow({ images }: { images: string[] }) {
             type="button"
             onClick={() => emblaApi?.scrollPrev()}
             className="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-black/30 hover:bg-black/50 text-white flex items-center justify-center transition-colors"
-            aria-label="Photo précédente"
+            aria-label={t("siteSections.previousPhoto")}
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
@@ -90,7 +93,7 @@ function HeroSlideshow({ images }: { images: string[] }) {
             type="button"
             onClick={() => emblaApi?.scrollNext()}
             className="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-9 h-9 rounded-full bg-black/30 hover:bg-black/50 text-white flex items-center justify-center transition-colors"
-            aria-label="Photo suivante"
+            aria-label={t("siteSections.nextPhoto")}
           >
             <ChevronRight className="w-5 h-5" />
           </button>
@@ -116,6 +119,8 @@ function HeroSlideshow({ images }: { images: string[] }) {
 }
 
 export function Hero({ section, tokens, fallbackBackgroundImage, images }: HeroProps) {
+  const { t } = useTranslation();
+
   const realImages = (images || []).filter(Boolean);
   const singleBg = section.settings?.background_image || fallbackBackgroundImage || undefined;
   const ctaHref = safeHref(section.settings?.cta_url);
@@ -175,7 +180,7 @@ export function Hero({ section, tokens, fallbackBackgroundImage, images }: HeroP
                   className="inline-flex items-center gap-2 px-8 py-3.5 font-semibold text-white shadow-lg hover:opacity-90 transition-opacity"
                   style={{ backgroundColor: tokens.accentColor, borderRadius: tokens.buttonRadius }}
                 >
-                  {section.settings?.cta_label || "En savoir plus"}
+                  {section.settings?.cta_label || t("siteSections.learnMore")}
                   <ArrowRight className="w-5 h-5" />
                 </CTALink>
               )}
@@ -185,7 +190,7 @@ export function Hero({ section, tokens, fallbackBackgroundImage, images }: HeroP
                   className="inline-flex items-center gap-2 px-8 py-3.5 font-semibold text-white border-2 border-white/30 hover:bg-white/10 transition-colors"
                   style={{ borderRadius: tokens.buttonRadius }}
                 >
-                  {section.settings?.cta_label_2 || "Contact"}
+                  {section.settings?.cta_label_2 || t("siteSections.contact")}
                 </CTALink>
               )}
             </div>

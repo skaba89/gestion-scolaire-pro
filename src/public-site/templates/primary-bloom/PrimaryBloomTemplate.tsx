@@ -1,4 +1,5 @@
 import { Helmet } from "react-helmet-async";
+import { useTranslation } from "react-i18next";
 import { useCustomNavLinks } from "@/hooks/usePublicPages";
 import { publicOfferNavLink } from "@/lib/publicOffer";
 import { sortAnnouncementsPinnedFirst } from "@/lib/landingAnnouncements";
@@ -35,26 +36,28 @@ import { primaryBloomTokens } from "./tokens";
  * this template is built correctly from the start).
  */
 export function PrimaryBloomTemplate({ tenant, settings }: SiteTemplateRenderProps) {
+  const { t } = useTranslation();
+
   const tokens = resolveTheme(primaryBloomTokens, settings);
   const slug = tenant.slug;
   const currentYear = new Date().getFullYear();
 
   const customNavLinks: NavLink[] = useCustomNavLinks(slug);
   const navLinks: NavLink[] = [
-    { label: "Accueil", href: `/ecole/${slug}` },
-    { label: "Nos classes", href: `/ecole/${slug}#classes` },
+    { label: t("siteTemplates.bloom.navHome"), href: `/ecole/${slug}` },
+    { label: t("siteTemplates.bloom.navClasses"), href: `/ecole/${slug}#classes` },
     publicOfferNavLink(slug),
-    { label: "Infos parents", href: `/ecole/${slug}#annonces` },
-    { label: "Contact", href: `/ecole/${slug}#contact` },
+    { label: t("siteTemplates.bloom.navParents"), href: `/ecole/${slug}#annonces` },
+    { label: t("siteTemplates.common.contact"), href: `/ecole/${slug}#contact` },
     ...customNavLinks,
   ];
 
   const statsItems: StatsItem[] = [];
   if (settings.show_stats && tenant.stats) {
-    if (tenant.stats.student_count) statsItems.push({ value: `${tenant.stats.student_count}`, label: "élèves" });
-    if (tenant.stats.teacher_count) statsItems.push({ value: `${tenant.stats.teacher_count}`, label: "enseignants" });
-    if (tenant.programs && tenant.programs.length > 0) statsItems.push({ value: `${tenant.programs.length}`, label: "niveaux" });
-    if (settings.founded_year) statsItems.push({ value: `${currentYear - settings.founded_year}`, label: "ans d'expérience" });
+    if (tenant.stats.student_count) statsItems.push({ value: `${tenant.stats.student_count}`, label: t("siteTemplates.bloom.statStudents") });
+    if (tenant.stats.teacher_count) statsItems.push({ value: `${tenant.stats.teacher_count}`, label: t("siteTemplates.bloom.statTeachers") });
+    if (tenant.programs && tenant.programs.length > 0) statsItems.push({ value: `${tenant.programs.length}`, label: t("siteTemplates.bloom.statLevels") });
+    if (settings.founded_year) statsItems.push({ value: `${currentYear - settings.founded_year}`, label: t("siteTemplates.bloom.statYears") });
   }
 
   // Classes réelles du tenant uniquement — jamais de repli CP/CE1/CE2/
@@ -64,7 +67,7 @@ export function PrimaryBloomTemplate({ tenant, settings }: SiteTemplateRenderPro
     ? tenant.programs.map((p: unknown) => (typeof p === "string" ? { name: p } : (p as ProgramItem)))
     : [];
 
-  // "La vie à l'école" — uniquement les activités réellement renseignées
+  // t("siteTemplates.bloom.lifeTitle") — uniquement les activités réellement renseignées
   // (settings.features), jamais les 4 cartes fixes (Sport & EPS, Art &
   // Créativité...) que la version legacy affichait avant PR #141.
   const schoolLifeItems: SchoolLifeItem[] = (settings.features || []).map((feat) => ({ title: feat }));
@@ -83,7 +86,7 @@ export function PrimaryBloomTemplate({ tenant, settings }: SiteTemplateRenderPro
         <title>{tenant.name} — École primaire</title>
         <meta
           name="description"
-          content={settings.description || settings.tagline || `${tenant.name} — Un environnement bienveillant pour l'épanouissement de votre enfant.`}
+          content={settings.description || settings.tagline || t("siteTemplates.bloom.defaultDescription", { name: tenant.name })}
         />
         <meta property="og:title" content={tenant.name} />
         {settings.description && <meta property="og:description" content={settings.description} />}
@@ -98,11 +101,11 @@ export function PrimaryBloomTemplate({ tenant, settings }: SiteTemplateRenderPro
           section={{
             type: "hero",
             title: tenant.name,
-            subtitle: settings.tagline || settings.description || "Un environnement bienveillant pour l'épanouissement de chaque enfant.",
+            subtitle: settings.tagline || settings.description || t("siteTemplates.bloom.heroTitle"),
             settings: {
-              cta_label: `Pré-inscription ${currentYear}/${currentYear + 1}`,
+              cta_label: t("siteTemplates.common.preEnrollment", { years: `${currentYear}/${currentYear + 1}` }),
               cta_url: `/admissions/${slug}`,
-              cta_label_2: "Espace parents",
+              cta_label_2: t("siteTemplates.bloom.parentSpace"),
               cta_url_2: `/${slug}/login`,
             },
           }}
@@ -112,17 +115,17 @@ export function PrimaryBloomTemplate({ tenant, settings }: SiteTemplateRenderPro
         />
 
         {settings.description && (
-          <Text section={{ type: "text", title: "Qui sommes-nous", content: `<p>${settings.description}</p>` }} tokens={tokens} />
+          <Text section={{ type: "text", title: t("siteTemplates.common.about"), content: `<p>${settings.description}</p>` }} tokens={tokens} />
         )}
 
         {statsItems.length > 0 && (
-          <Stats section={{ type: "stats", title: "Notre école en chiffres", items: statsItems }} tokens={tokens} />
+          <Stats section={{ type: "stats", title: t("siteTemplates.bloom.figuresTitle"), items: statsItems }} tokens={tokens} />
         )}
 
         {classItems.length > 0 && (
           <div id="classes">
             <ProgramsSection
-              section={{ type: "programs", title: "Nos classes", subtitle: "Une progression adaptée à chaque étape de la scolarité", items: classItems }}
+              section={{ type: "programs", title: t("siteTemplates.bloom.navClasses"), subtitle: t("siteTemplates.bloom.classesSubtitle"), items: classItems }}
               tokens={tokens}
             />
           </div>
@@ -130,33 +133,33 @@ export function PrimaryBloomTemplate({ tenant, settings }: SiteTemplateRenderPro
 
         {schoolLifeItems.length > 0 && (
           <SchoolLifeSection
-            section={{ type: "school_life", title: "La vie à l'école", subtitle: "Des activités variées pour l'épanouissement de votre enfant", items: schoolLifeItems }}
+            section={{ type: "school_life", title: t("siteTemplates.bloom.lifeTitle"), subtitle: t("siteTemplates.bloom.lifeSubtitle"), items: schoolLifeItems }}
             tokens={tokens}
           />
         )}
 
         {galleryItems.length > 0 && (
-          <Gallery section={{ type: "gallery", title: "En images", items: galleryItems }} tokens={tokens} />
+          <Gallery section={{ type: "gallery", title: t("siteTemplates.bloom.gallery"), items: galleryItems }} tokens={tokens} />
         )}
 
         {newsItems.length > 0 && (
           <div id="annonces">
-            <NewsSection section={{ type: "news", title: "Infos pour les parents", items: newsItems }} tokens={tokens} />
+            <NewsSection section={{ type: "news", title: t("siteTemplates.bloom.parentsInfo"), items: newsItems }} tokens={tokens} />
           </div>
         )}
 
         <CTA
           section={{
             type: "cta",
-            title: "Prêt à nous rejoindre ?",
-            subtitle: `Rejoignez notre école pour l'année ${currentYear}/${currentYear + 1}.`,
-            settings: { cta_label: "Faire une pré-inscription", cta_url: `/admissions/${slug}` },
+            title: t("siteTemplates.common.ready"),
+            subtitle: t("siteTemplates.bloom.ctaSubtitle", { years: `${currentYear}/${currentYear + 1}` }),
+            settings: { cta_label: t("siteTemplates.bloom.apply"), cta_url: `/admissions/${slug}` },
           }}
           tokens={tokens}
         />
 
         <div id="contact">
-          <ContactForm section={{ type: "contact_form", title: "Nous contacter" }} tokens={tokens} tenantSlug={slug} />
+          <ContactForm section={{ type: "contact_form", title: t("siteTemplates.common.contactUs") }} tokens={tokens} tenantSlug={slug} />
         </div>
 
         <PremiumFooter

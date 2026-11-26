@@ -15,6 +15,9 @@ import { describe, expect, it, beforeEach } from "vitest";
 import { Hero } from "../Hero";
 import { DEFAULT_TOKENS } from "../../theme/tokens";
 import type { HeroSectionData } from "../../types/sections";
+// Textes de l'interface traduits (2026-11-26) : le français de référence est celui de i18n.
+import i18n from "@/i18n/config";
+void i18n.changeLanguage("fr");
 
 function renderHero(props: Partial<Parameters<typeof Hero>[0]> = {}) {
   const section: HeroSectionData = { type: "hero", title: "Bienvenue", ...(props.section as object) };

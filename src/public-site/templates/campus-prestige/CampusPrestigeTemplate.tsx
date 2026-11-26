@@ -1,4 +1,5 @@
 import { Helmet } from "react-helmet-async";
+import { useTranslation } from "react-i18next";
 import { useCustomNavLinks } from "@/hooks/usePublicPages";
 import { publicOfferNavLink } from "@/lib/publicOffer";
 import { resolveUploadUrl } from "@/utils/url";
@@ -40,18 +41,20 @@ interface DepartmentLike {
  * template starts from that same discipline rather than repeating it.
  */
 export function CampusPrestigeTemplate({ tenant, settings }: SiteTemplateRenderProps) {
+  const { t } = useTranslation();
+
   const tokens = resolveTheme(campusPrestigeTokens, settings);
   const slug = tenant.slug;
   const currentYear = new Date().getFullYear();
 
   const customNavLinks: NavLink[] = useCustomNavLinks(slug);
   const navLinks: NavLink[] = [
-    { label: "L'Université", href: `/ecole/${slug}#presentation` },
-    { label: "Formations", href: `/ecole/${slug}#formations` },
-    { label: "Admissions", href: `/admissions/${slug}` },
+    { label: t("siteTemplates.campus.navUniversity"), href: `/ecole/${slug}#presentation` },
+    { label: t("siteTemplates.campus.navPrograms"), href: `/ecole/${slug}#formations` },
+    { label: t("siteTemplates.common.admissions"), href: `/admissions/${slug}` },
     publicOfferNavLink(slug),
-    { label: "Actualités", href: `/ecole/${slug}#actualites` },
-    { label: "Contact", href: `/ecole/${slug}#contact` },
+    { label: t("siteTemplates.common.news"), href: `/ecole/${slug}#actualites` },
+    { label: t("siteTemplates.common.contact"), href: `/ecole/${slug}#contact` },
     ...customNavLinks,
   ];
 
@@ -59,10 +62,10 @@ export function CampusPrestigeTemplate({ tenant, settings }: SiteTemplateRenderP
 
   const statsItems: StatsItem[] = [];
   if (settings.show_stats && tenant.stats) {
-    if (tenant.stats.student_count) statsItems.push({ value: `${tenant.stats.student_count}+`, label: "Étudiants" });
-    if (tenant.stats.teacher_count) statsItems.push({ value: `${tenant.stats.teacher_count}`, label: "Enseignants-chercheurs" });
-    if (tenant.programs && tenant.programs.length > 0) statsItems.push({ value: `${tenant.programs.length}`, label: "Formations proposées" });
-    if (departments.length > 0) statsItems.push({ value: `${departments.length}`, label: "Facultés & départements" });
+    if (tenant.stats.student_count) statsItems.push({ value: `${tenant.stats.student_count}+`, label: t("siteTemplates.campus.statStudents") });
+    if (tenant.stats.teacher_count) statsItems.push({ value: `${tenant.stats.teacher_count}`, label: t("siteTemplates.campus.statResearchers") });
+    if (tenant.programs && tenant.programs.length > 0) statsItems.push({ value: `${tenant.programs.length}`, label: t("siteTemplates.campus.statPrograms") });
+    if (departments.length > 0) statsItems.push({ value: `${departments.length}`, label: t("siteTemplates.campus.statFaculties") });
   }
 
   const programItems: ProgramItem[] = settings.show_programs && tenant.programs
@@ -85,7 +88,7 @@ export function CampusPrestigeTemplate({ tenant, settings }: SiteTemplateRenderP
         <title>{tenant.name} — Enseignement supérieur</title>
         <meta
           name="description"
-          content={settings.description || settings.tagline || `${tenant.name} — Une formation d'excellence, une ouverture sur le monde.`}
+          content={settings.description || settings.tagline || t("siteTemplates.campus.defaultDescription", { name: tenant.name })}
         />
         <meta property="og:title" content={tenant.name} />
         {settings.description && <meta property="og:description" content={settings.description} />}
@@ -100,11 +103,11 @@ export function CampusPrestigeTemplate({ tenant, settings }: SiteTemplateRenderP
           section={{
             type: "hero",
             title: tenant.name,
-            subtitle: settings.tagline || settings.description || "Une formation d'excellence, une ouverture sur le monde.",
+            subtitle: settings.tagline || settings.description || t("siteTemplates.campus.heroTitle"),
             settings: {
-              cta_label: `Candidature ${currentYear}/${currentYear + 1}`,
+              cta_label: t("siteTemplates.campus.heroCta", { years: `${currentYear}/${currentYear + 1}` }),
               cta_url: `/admissions/${slug}`,
-              cta_label_2: "Espace étudiant",
+              cta_label_2: t("siteTemplates.campus.studentSpace"),
               cta_url_2: `/${slug}/login`,
             },
           }}
@@ -115,18 +118,18 @@ export function CampusPrestigeTemplate({ tenant, settings }: SiteTemplateRenderP
 
         {settings.description && (
           <div id="presentation">
-            <Text section={{ type: "text", title: "Qui sommes-nous", content: `<p>${settings.description}</p>` }} tokens={tokens} />
+            <Text section={{ type: "text", title: t("siteTemplates.common.about"), content: `<p>${settings.description}</p>` }} tokens={tokens} />
           </div>
         )}
 
         {statsItems.length > 0 && (
-          <Stats section={{ type: "stats", title: "Chiffres clés", items: statsItems }} tokens={tokens} />
+          <Stats section={{ type: "stats", title: t("siteTemplates.common.keyFigures"), items: statsItems }} tokens={tokens} />
         )}
 
         {programItems.length > 0 && (
           <div id="formations">
             <ProgramsSection
-              section={{ type: "programs", title: "Nos formations", subtitle: "Des parcours reconnus pour construire votre avenir", items: programItems }}
+              section={{ type: "programs", title: t("siteTemplates.campus.programsTitle"), subtitle: t("siteTemplates.campus.programsSubtitle"), items: programItems }}
               tokens={tokens}
             />
           </div>
@@ -134,33 +137,33 @@ export function CampusPrestigeTemplate({ tenant, settings }: SiteTemplateRenderP
 
         {departmentItems.length > 0 && (
           <ProgramsSection
-            section={{ type: "programs", title: "Facultés & Départements", items: departmentItems }}
+            section={{ type: "programs", title: t("siteTemplates.campus.facultiesTitle"), items: departmentItems }}
             tokens={tokens}
           />
         )}
 
         {galleryItems.length > 0 && (
-          <Gallery section={{ type: "gallery", title: "Le campus", items: galleryItems }} tokens={tokens} />
+          <Gallery section={{ type: "gallery", title: t("siteTemplates.campus.campus"), items: galleryItems }} tokens={tokens} />
         )}
 
         {newsItems.length > 0 && (
           <div id="actualites">
-            <NewsSection section={{ type: "news", title: "Actualités", items: newsItems }} tokens={tokens} />
+            <NewsSection section={{ type: "news", title: t("siteTemplates.common.news"), items: newsItems }} tokens={tokens} />
           </div>
         )}
 
         <CTA
           section={{
             type: "cta",
-            title: "Prêt à nous rejoindre ?",
-            subtitle: `Déposez votre candidature pour la rentrée ${currentYear}/${currentYear + 1}.`,
-            settings: { cta_label: "Déposer ma candidature", cta_url: `/admissions/${slug}` },
+            title: t("siteTemplates.common.ready"),
+            subtitle: t("siteTemplates.campus.ctaSubtitle", { years: `${currentYear}/${currentYear + 1}` }),
+            settings: { cta_label: t("siteTemplates.campus.apply"), cta_url: `/admissions/${slug}` },
           }}
           tokens={tokens}
         />
 
         <div id="contact">
-          <ContactForm section={{ type: "contact_form", title: "Nous contacter" }} tokens={tokens} tenantSlug={slug} />
+          <ContactForm section={{ type: "contact_form", title: t("siteTemplates.common.contactUs") }} tokens={tokens} tenantSlug={slug} />
         </div>
 
         <PremiumFooter
