@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { resolveUploadUrl } from "@/utils/url";
@@ -11,6 +12,8 @@ interface GalleryProps {
 }
 
 export function Gallery({ section, tokens }: GalleryProps) {
+  const { t } = useTranslation();
+
   const items = section.items || [];
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
@@ -66,7 +69,7 @@ export function Gallery({ section, tokens }: GalleryProps) {
             onOpenAutoFocus={(e) => e.preventDefault()}
           >
             <DialogPrimitive.Title className="sr-only">
-              {openIndex !== null ? items[openIndex]?.caption || "Photo agrandie" : "Photo agrandie"}
+              {openIndex !== null ? items[openIndex]?.caption || t("siteSections.enlargedPhoto") : t("siteSections.enlargedPhoto")}
             </DialogPrimitive.Title>
             {openIndex !== null && (
               <>
@@ -84,7 +87,7 @@ export function Gallery({ section, tokens }: GalleryProps) {
             )}
             <DialogPrimitive.Close
               className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
-              aria-label="Fermer"
+              aria-label={t("siteSections.close")}
             >
               <X className="w-5 h-5" />
             </DialogPrimitive.Close>
@@ -94,7 +97,7 @@ export function Gallery({ section, tokens }: GalleryProps) {
                   type="button"
                   onClick={(e) => { e.stopPropagation(); showPrev(); }}
                   className="absolute left-2 md:left-6 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
-                  aria-label="Photo précédente"
+                  aria-label={t("siteSections.previousPhoto")}
                 >
                   <ChevronLeft className="w-5 h-5" />
                 </button>
@@ -102,7 +105,7 @@ export function Gallery({ section, tokens }: GalleryProps) {
                   type="button"
                   onClick={(e) => { e.stopPropagation(); showNext(); }}
                   className="absolute right-2 md:right-6 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
-                  aria-label="Photo suivante"
+                  aria-label={t("siteSections.nextPhoto")}
                 >
                   <ChevronRight className="w-5 h-5" />
                 </button>

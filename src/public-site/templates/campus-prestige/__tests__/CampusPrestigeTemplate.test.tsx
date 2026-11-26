@@ -14,6 +14,9 @@ import { describe, expect, it, vi } from "vitest";
 
 import { CampusPrestigeTemplate } from "../CampusPrestigeTemplate";
 import type { TenantPublicResponse, TenantLandingSettings } from "@/types/tenant";
+// Textes de l'interface traduits (2026-11-26) : le français de référence est celui de i18n.
+import i18n from "@/i18n/config";
+void i18n.changeLanguage("fr");
 
 vi.mock("@/api/client", () => ({
   apiClient: { get: vi.fn().mockResolvedValue({ data: [] }), post: vi.fn() },

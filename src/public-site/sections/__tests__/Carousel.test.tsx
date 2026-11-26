@@ -3,6 +3,9 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { Carousel } from "../Carousel";
 import { DEFAULT_TOKENS } from "../../theme/tokens";
 import type { CarouselSectionData } from "../../types/sections";
+// Textes de l'interface traduits (2026-11-26) : le français de référence est celui de i18n.
+import i18n from "@/i18n/config";
+void i18n.changeLanguage("fr");
 
 beforeEach(() => {
   (window as any).__SCHOOLFLOW_CONFIG__ = { API_URL: "https://api.example.test" };

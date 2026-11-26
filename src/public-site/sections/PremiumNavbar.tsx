@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { LogIn, Menu, UserPlus, X } from "lucide-react";
 import { resolveUploadUrl } from "@/utils/url";
@@ -23,6 +24,8 @@ interface PremiumNavbarProps {
  * in every legacy landing template, generalized over design tokens
  * rather than hardcoded per-template colors. */
 export function PremiumNavbar({ tenantName, slug, logoUrl, navLinks, tokens }: PremiumNavbarProps) {
+  const { t } = useTranslation();
+
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
@@ -70,7 +73,7 @@ export function PremiumNavbar({ tenantName, slug, logoUrl, navLinks, tokens }: P
               style={{ backgroundColor: tokens.accentColor, borderRadius: tokens.buttonRadius }}
             >
               <UserPlus className="w-4 h-4" />
-              Admissions
+              {t("siteSections.admissions")}
             </Link>
             <Link
               to={`/${slug}/login`}
@@ -78,14 +81,14 @@ export function PremiumNavbar({ tenantName, slug, logoUrl, navLinks, tokens }: P
               style={{ color: tokens.primaryColor, borderColor: tokens.primaryColor, borderRadius: tokens.buttonRadius }}
             >
               <LogIn className="w-4 h-4" />
-              Connexion
+              {t("siteSections.signInShort")}
             </Link>
           </div>
 
           <button
             className="lg:hidden p-2 rounded hover:bg-gray-100 transition-colors"
             onClick={() => setMobileOpen((v) => !v)}
-            aria-label={mobileOpen ? "Fermer le menu" : "Ouvrir le menu"}
+            aria-label={mobileOpen ? t("siteSections.closeMenu") : t("siteSections.openMenu")}
             aria-expanded={mobileOpen}
           >
             {mobileOpen ? <X className="w-5 h-5" style={{ color: tokens.primaryColor }} /> : <Menu className="w-5 h-5" style={{ color: tokens.primaryColor }} />}
@@ -113,7 +116,7 @@ export function PremiumNavbar({ tenantName, slug, logoUrl, navLinks, tokens }: P
                 style={{ backgroundColor: tokens.accentColor, borderRadius: tokens.buttonRadius }}
                 onClick={() => setMobileOpen(false)}
               >
-                Admissions
+                {t("siteSections.admissions")}
               </Link>
               <Link
                 to={`/${slug}/login`}
@@ -121,7 +124,7 @@ export function PremiumNavbar({ tenantName, slug, logoUrl, navLinks, tokens }: P
                 style={{ color: tokens.primaryColor, borderColor: tokens.primaryColor, borderRadius: tokens.buttonRadius }}
                 onClick={() => setMobileOpen(false)}
               >
-                Se connecter
+                {t("siteSections.signIn")}
               </Link>
             </div>
           </div>

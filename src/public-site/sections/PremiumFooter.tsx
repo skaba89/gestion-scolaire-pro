@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Facebook, Linkedin, Twitter } from "lucide-react";
 import { resolveUploadUrl } from "@/utils/url";
 import { sanitizeUrl } from "@/lib/sanitize";
@@ -16,6 +17,8 @@ interface PremiumFooterProps {
 }
 
 export function PremiumFooter({ tenantName, logoUrl, navLinks, facebookUrl, twitterUrl, linkedinUrl, tokens }: PremiumFooterProps) {
+  const { t } = useTranslation();
+
   const hasSocial = facebookUrl || twitterUrl || linkedinUrl;
 
   return (
@@ -60,7 +63,7 @@ export function PremiumFooter({ tenantName, logoUrl, navLinks, facebookUrl, twit
 
           <div>
             <h4 className="font-semibold mb-4 text-sm uppercase tracking-wider" style={{ color: tokens.accentColor }}>
-              Navigation
+              {t("siteSections.navigation")}
             </h4>
             <ul className="space-y-2">
               {/* <a href> uniformément, comme PremiumNavbar.tsx (audit
@@ -86,11 +89,11 @@ export function PremiumFooter({ tenantName, logoUrl, navLinks, facebookUrl, twit
 
           <div>
             <h4 className="font-semibold mb-4 text-sm uppercase tracking-wider" style={{ color: tokens.accentColor }}>
-              Légal
+              {t("siteSections.legal")}
             </h4>
             <ul className="space-y-2">
-              <li><Link to="/terms" className="text-white/60 hover:text-white text-sm transition-colors">CGU</Link></li>
-              <li><Link to="/privacy" className="text-white/60 hover:text-white text-sm transition-colors">Politique de confidentialité</Link></li>
+              <li><Link to="/terms" className="text-white/60 hover:text-white text-sm transition-colors">{t("siteSections.terms")}</Link></li>
+              <li><Link to="/privacy" className="text-white/60 hover:text-white text-sm transition-colors">{t("siteSections.privacy")}</Link></li>
             </ul>
           </div>
         </div>

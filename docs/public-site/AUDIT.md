@@ -92,8 +92,12 @@ certificats TLS côté proxy et une vérification DNS automatisée.
 - **T2 (découverte, 2026-11-26)** : annuaire des établissements, page de connexion (administration de
   la plateforme), inscription d'une école — espaces de noms `publicDirectory`, `connectionHub`,
   `register`, 5 langues.
-- À faire : T3 (modèles d'accueil et sections premium), T4 (pages légales : texte français faisant
-  foi, avertissement traduit — Q-T1).
+- **T3a (modèles premium, 2026-11-26)** : School Excellence, Campus Prestige, Primary Bloom et leurs
+  sections partagées (barre de navigation, pied de page, bannière, galerie, carrousel, appel à
+  l'action) — espaces de noms `siteTemplates`, `siteSections` ; le contenu saisi par l'établissement
+  n'est jamais traduit.
+- À faire : T3b (4 modèles d'accueil historiques), T4 (pages légales : texte français faisant foi,
+  avertissement traduit — Q-T1).
 - **Relecture** : les traductions anglaise, espagnole, arabe et chinoise ont été rédigées sans
   relecture par un locuteur natif ; à faire relire avant un lancement national ou international.
 - **Contenus génériques** : la page d'informations d'admission affichait des délais, des pièces et

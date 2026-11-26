@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { ArrowRight } from "lucide-react";
 import { sanitizeUrl } from "@/lib/sanitize";
 import type { DesignTokens } from "../theme/tokens";
@@ -16,6 +17,8 @@ function safeHref(url: string | undefined): string | null {
 }
 
 export function CTA({ section, tokens }: CTAProps) {
+  const { t } = useTranslation();
+
   const href = safeHref(section.settings?.cta_url);
   const external = href ? /^https?:\/\//i.test(href) : false;
 
@@ -48,7 +51,7 @@ export function CTA({ section, tokens }: CTAProps) {
               className="inline-flex items-center gap-2 px-8 py-3.5 font-semibold text-white shadow-lg hover:opacity-90 transition-opacity"
               style={{ backgroundColor: tokens.accentColor, borderRadius: tokens.buttonRadius }}
             >
-              {section.settings?.cta_label || "En savoir plus"}
+              {section.settings?.cta_label || t("siteSections.learnMore")}
               <ArrowRight className="w-5 h-5" />
             </a>
           ) : (
@@ -57,7 +60,7 @@ export function CTA({ section, tokens }: CTAProps) {
               className="inline-flex items-center gap-2 px-8 py-3.5 font-semibold text-white shadow-lg hover:opacity-90 transition-opacity"
               style={{ backgroundColor: tokens.accentColor, borderRadius: tokens.buttonRadius }}
             >
-              {section.settings?.cta_label || "En savoir plus"}
+              {section.settings?.cta_label || t("siteSections.learnMore")}
               <ArrowRight className="w-5 h-5" />
             </Link>
           )

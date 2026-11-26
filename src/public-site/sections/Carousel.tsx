@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import useEmblaCarousel from "embla-carousel-react";
 import Autoplay from "embla-carousel-autoplay";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -18,6 +19,8 @@ interface CarouselProps {
  * background images behind text; this is a standalone content block a
  * page composes like any other section — Stats, Gallery, CTA...). */
 export function Carousel({ section, tokens }: CarouselProps) {
+  const { t } = useTranslation();
+
   const items = section.items || [];
   const autoplay = section.settings?.autoplay !== false;
   const intervalMs = section.settings?.interval_ms || 5000;
@@ -82,7 +85,7 @@ export function Carousel({ section, tokens }: CarouselProps) {
                 type="button"
                 onClick={() => emblaApi?.scrollPrev()}
                 className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/30 hover:bg-black/50 text-white flex items-center justify-center transition-colors"
-                aria-label="Photo précédente"
+                aria-label={t("siteSections.previousPhoto")}
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
@@ -90,7 +93,7 @@ export function Carousel({ section, tokens }: CarouselProps) {
                 type="button"
                 onClick={() => emblaApi?.scrollNext()}
                 className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/30 hover:bg-black/50 text-white flex items-center justify-center transition-colors"
-                aria-label="Photo suivante"
+                aria-label={t("siteSections.nextPhoto")}
               >
                 <ChevronRight className="w-5 h-5" />
               </button>
