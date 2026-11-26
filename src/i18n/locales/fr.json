@@ -4686,7 +4686,8 @@
             "mixed": "Établissement mixte multi-cycles"
         },
         "outOfScopeTitle": "Écran hors de votre périmètre",
-        "outOfScopeMessage": "Votre compte est limité à certains cycles : cet écran n'est pas disponible pour votre périmètre. Contactez l'administration de l'établissement si vous en avez besoin."
+        "outOfScopeMessage": "Votre compte est limité à certains cycles : cet écran n'est pas disponible pour votre périmètre. Contactez l'administration de l'établissement si vous en avez besoin.",
+        "outOfScopeHrReason": "Les ressources humaines (personnel, contrats, congés, paie, coordonnées bancaires) concernent tout l'établissement : elles sont réservées aux comptes qui ne sont pas limités à des cycles."
     },
     "educationCycles": {
         "title": "Cycles pédagogiques",
@@ -4738,7 +4739,7 @@
                 "TEACHER": "Enseignant",
                 "TENANT_ADMIN": "Administrateur"
             },
-            "activeNotice": "Un compte limité à des cycles ne voit que les élèves, classes, notes, présences, finances et indicateurs de ses cycles. Restent indisponibles pour lui pour l'instant : publication d'annonces (la messagerie est disponible, limitée aux familles de ses cycles), ressources humaines, bibliothèque, inventaire, e-learning, clubs, enquêtes, anciens élèves, gestion des comptes utilisateurs. Les admissions sont disponibles pour les niveaux de ses cycles. L'emploi du temps et les enseignants sont disponibles pour les classes de ses cycles. Un compte qui cumule un rôle enseignant ou parent perd ces portails tant qu'il est limité. Retirer tous les cycles d'un compte lui rend l'accès complet à sa prochaine connexion."
+            "activeNotice": "Un compte limité à des cycles ne voit que les élèves, classes, notes, présences, finances et indicateurs de ses cycles. Restent indisponibles pour lui pour l'instant : publication d'annonces (la messagerie est disponible, limitée aux familles de ses cycles), bibliothèque, inventaire, e-learning, clubs, enquêtes, anciens élèves, gestion des comptes utilisateurs. Les ressources humaines (personnel, contrats, congés, paie) restent réservées aux comptes non limités : elles concernent tout l'établissement. Les admissions sont disponibles pour les niveaux de ses cycles. L'emploi du temps et les enseignants sont disponibles pour les classes de ses cycles. Un compte qui cumule un rôle enseignant ou parent perd ces portails tant qu'il est limité. Retirer tous les cycles d'un compte lui rend l'accès complet à sa prochaine connexion."
         }
     },
     "teachingAdmin": {
