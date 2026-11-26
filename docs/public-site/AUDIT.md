@@ -89,8 +89,11 @@ certificats TLS côté proxy et une vérification DNS automatisée.
 - **T1 (parcours candidat, 2026-11-25)** : informations d'admission, formulaire de candidature,
   portail d'inscription, statut du dossier, réinscription, contact et formulaire de contact des
   modèles premium — espace de noms `publicJourney`, 5 langues, sélecteur de langue sur chaque page.
-- À faire : T2 (annuaire, connexion, inscription d'une école), T3 (modèles d'accueil et sections
-  premium), T4 (pages légales : texte français faisant foi, avertissement traduit — Q-T1).
+- **T2 (découverte, 2026-11-26)** : annuaire des établissements, page de connexion (administration de
+  la plateforme), inscription d'une école — espaces de noms `publicDirectory`, `connectionHub`,
+  `register`, 5 langues.
+- À faire : T3 (modèles d'accueil et sections premium), T4 (pages légales : texte français faisant
+  foi, avertissement traduit — Q-T1).
 - **Relecture** : les traductions anglaise, espagnole, arabe et chinoise ont été rédigées sans
   relecture par un locuteur natif ; à faire relire avant un lancement national ou international.
 - **Contenus génériques** : la page d'informations d'admission affichait des délais, des pièces et

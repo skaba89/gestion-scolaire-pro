@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import {
   Search,
@@ -117,22 +118,24 @@ function SkeletonCard() {
 }
 
 function EmptyState({ query }: { query: string }) {
+  const { t } = useTranslation();
   return (
     <div className="col-span-full flex flex-col items-center justify-center py-20 text-center">
       <div className="w-20 h-20 bg-blue-50 rounded-2xl flex items-center justify-center mb-6">
         <School className="w-9 h-9 text-blue-300" />
       </div>
-      <h3 className="text-lg font-semibold text-gray-700 mb-2">Aucun établissement trouvé</h3>
+      <h3 className="text-lg font-semibold text-gray-700 mb-2">{t("connectionHub.emptyTitle")}</h3>
       <p className="text-gray-400 text-sm max-w-sm">
         {query
-          ? `Aucun résultat pour "${query}". Essayez un autre terme de recherche.`
-          : "Aucun établissement disponible pour le moment."}
+          ? t("connectionHub.emptyForQuery", { query })
+          : t("connectionHub.emptyNone")}
       </p>
     </div>
   );
 }
 
 function InstitutionCard({ tenant }: { tenant: PublicTenant }) {
+  const { t } = useTranslation();
   const TypeIcon = getTenantTypeIcon(tenant.type);
   const badgeColor = getTenantTypeBadgeColor(tenant.type);
 
@@ -176,7 +179,7 @@ function InstitutionCard({ tenant }: { tenant: PublicTenant }) {
             className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${badgeColor}`}
           >
             <TypeIcon className="w-3 h-3" />
-            {getTenantTypeLabel(tenant.type)}
+            {t(`publicDirectory.types.${tenant.type ?? "school"}`, { defaultValue: getTenantTypeLabel(tenant.type) })}
           </span>
         </div>
       </div>
@@ -195,14 +198,14 @@ function InstitutionCard({ tenant }: { tenant: PublicTenant }) {
           className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-[#1e3a5f] text-white text-sm font-semibold rounded-xl hover:bg-[#162d4a] transition-all shadow-sm hover:shadow-md"
         >
           <LogIn className="w-4 h-4" />
-          Se connecter
+          {t("connectionHub.signIn")}
         </button>
         <button
           onClick={handleViewPage}
           className="flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 text-sm font-medium rounded-xl hover:bg-gray-200 transition-all"
         >
           <ExternalLink className="w-4 h-4" />
-          <span className="hidden sm:inline">Page publique</span>
+          <span className="hidden sm:inline">{t("connectionHub.publicPage")}</span>
         </button>
       </div>
     </div>
@@ -214,6 +217,7 @@ function InstitutionCard({ tenant }: { tenant: PublicTenant }) {
 // ---------------------------------------------------------------------------
 
 function AccessDenied() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   return (
@@ -222,10 +226,9 @@ function AccessDenied() {
         <div className="w-20 h-20 bg-red-50 rounded-2xl flex items-center justify-center mx-auto">
           <Lock className="w-9 h-9 text-red-400" />
         </div>
-        <h1 className="text-2xl font-bold text-gray-900">Accès restreint</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{t("connectionHub.deniedTitle")}</h1>
         <p className="text-gray-500 text-sm leading-relaxed">
-          Cette page est réservée aux administrateurs de la plateforme.
-          Seul le Super Administrateur peut accéder à la liste de tous les établissements.
+          {t("connectionHub.deniedText")}
         </p>
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
           <button
@@ -233,14 +236,14 @@ function AccessDenied() {
             className="flex items-center gap-2 px-5 py-2.5 bg-[#1e3a5f] text-white text-sm font-semibold rounded-xl hover:bg-[#162d4a] transition-all shadow-sm"
           >
             <LogIn className="w-4 h-4" />
-            Se connecter
+            {t("connectionHub.signIn")}
           </button>
           <button
             onClick={() => navigate("/")}
             className="flex items-center gap-2 px-5 py-2.5 bg-gray-100 text-gray-700 text-sm font-medium rounded-xl hover:bg-gray-200 transition-all"
           >
             <ArrowRight className="w-4 h-4 rotate-180" />
-            Retour à l'accueil
+            {t("connectionHub.backHome")}
           </button>
         </div>
       </div>
@@ -253,11 +256,11 @@ function AccessDenied() {
 // ---------------------------------------------------------------------------
 
 const FILTER_TABS: { key: FilterTab; label: string; icon: React.FC<{ className?: string }> }[] = [
-  { key: "all", label: "Tous", icon: Building2 },
-  { key: "university", label: "Universités", icon: GraduationCap },
-  { key: "high", label: "Lycées", icon: School },
-  { key: "primary", label: "Écoles primaires", icon: BookOpen },
-  { key: "training", label: "Centres de formation", icon: Users },
+  { key: "all", label: "connectionHub.tabs.all", icon: Building2 },
+  { key: "university", label: "connectionHub.tabs.university", icon: GraduationCap },
+  { key: "high", label: "connectionHub.tabs.high", icon: School },
+  { key: "primary", label: "connectionHub.tabs.primary", icon: BookOpen },
+  { key: "training", label: "connectionHub.tabs.training", icon: Users },
 ];
 
 // ---------------------------------------------------------------------------
@@ -265,6 +268,7 @@ const FILTER_TABS: { key: FilterTab; label: string; icon: React.FC<{ className?:
 // ---------------------------------------------------------------------------
 
 export default function ConnectionHub() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [activeTab, setActiveTab] = useState<FilterTab>("all");
@@ -331,17 +335,16 @@ export default function ConnectionHub() {
           </div>
 
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white mb-4 leading-tight">
-            Administration des établissements
+            {t("connectionHub.title")}
           </h1>
           <p className="text-blue-200 text-lg max-w-2xl mx-auto leading-relaxed">
-            Panneau de gestion de tous les établissements de la plateforme.
-            Accès réservé au Super Administrateur.
+            {t("connectionHub.intro")}
           </p>
 
           {/* Super admin badge */}
           <div className="mt-6 inline-flex items-center gap-2 px-4 py-2 bg-amber-500/20 backdrop-blur-sm text-amber-200 text-sm font-medium rounded-full border border-amber-400/30">
             <ShieldCheck className="w-4 h-4" />
-            Super Administrateur
+            {t("connectionHub.superAdmin")}
           </div>
 
           {/* Quick action: generic login */}
@@ -350,7 +353,7 @@ export default function ConnectionHub() {
             className="mt-6 inline-flex items-center gap-2 px-5 py-2.5 bg-white/10 backdrop-blur-sm text-white text-sm font-medium rounded-xl border border-white/20 hover:bg-white/20 transition-all"
           >
             <LogIn className="w-4 h-4" />
-            Connexion en tant qu'admin
+            {t("connectionHub.adminSignIn")}
             <ChevronRight className="w-4 h-4 opacity-60" />
           </button>
         </div>
@@ -368,7 +371,7 @@ export default function ConnectionHub() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Rechercher un établissement par nom, ville..."
+              placeholder={t("connectionHub.searchPlaceholder")}
               className="w-full pl-11 pr-10 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
               autoFocus
             />
@@ -376,7 +379,7 @@ export default function ConnectionHub() {
               <button
                 onClick={() => setSearch("")}
                 className="absolute right-4 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-200 rounded-full transition-colors"
-                aria-label="Effacer la recherche"
+                aria-label={t("connectionHub.clearSearch")}
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -398,7 +401,7 @@ export default function ConnectionHub() {
                   }`}
                 >
                   <Icon className="w-3.5 h-3.5" />
-                  {tab.label}
+                  {t(tab.label)}
                 </button>
               );
             })}
@@ -413,10 +416,10 @@ export default function ConnectionHub() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-8 mb-4">
           <p className="text-gray-500 text-sm">
             <span className="font-semibold text-gray-800">{filtered.length}</span>{" "}
-            {filtered.length === 1 ? "établissement trouvé" : "établissements trouvés"}
+            {t("connectionHub.found", { count: filtered.length })}
             {search && (
               <>
-                {" "}pour{" "}
+                {" "}{t("connectionHub.forQuery")}{" "}
                 <span className="font-medium text-[#1e3a5f]">&ldquo;{search}&rdquo;</span>
               </>
             )}
@@ -451,18 +454,17 @@ export default function ConnectionHub() {
               <ShieldCheck className="w-7 h-7 text-blue-600" />
             </div>
             <h2 className="text-xl font-bold text-[#1e3a5f]">
-              Administration plateforme
+              {t("connectionHub.platformAdmin")}
             </h2>
             <p className="text-gray-500 text-sm max-w-md">
-              Vous êtes connecté en tant que Super Administrateur. Vous pouvez gérer tous les établissements
-              depuis cette interface.
+              {t("connectionHub.superAdminText")}
             </p>
             <button
               onClick={() => navigate("/super-admin")}
               className="flex items-center gap-2 px-5 py-2.5 bg-[#1e3a5f] text-white text-sm font-semibold rounded-xl hover:bg-[#162d4a] transition-all shadow-sm"
             >
               <ShieldCheck className="w-4 h-4" />
-              Accéder au tableau de bord
+              {t("connectionHub.dashboard")}
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
@@ -477,17 +479,17 @@ export default function ConnectionHub() {
               <Building2 className="w-8 h-8 text-gray-400" />
             </div>
             <h2 className="text-xl font-bold text-gray-700">
-              Aucun établissement enregistré
+              {t("connectionHub.noneRegistered")}
             </h2>
             <p className="text-gray-500 text-sm max-w-md">
               Aucun établissement n&apos;a encore été configuré sur cette plateforme.
-              Revenez plus tard ou contactez-nous pour en savoir plus.
+              {t("connectionHub.comeBack")}
             </p>
             <button
               onClick={() => navigate("/super-admin/create-tenant")}
               className="flex items-center gap-2 text-blue-700 font-semibold text-sm hover:gap-3 transition-all duration-200"
             >
-              Créer un établissement
+              {t("connectionHub.create")}
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>

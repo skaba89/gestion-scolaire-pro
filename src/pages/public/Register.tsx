@@ -1,4 +1,5 @@
 import { INSTITUTION_TYPES } from "@/lib/education-modules";
+import { useTranslation } from "react-i18next";
 /**
  * Self-service school registration — 3-step wizard
  *
@@ -27,35 +28,36 @@ import {
 const SCHOOL_TYPES = INSTITUTION_TYPES;
 
 const COUNTRIES = [
-  { value: "GN", label: "🇬🇳 Guinée" },
-  { value: "SN", label: "🇸🇳 Sénégal" },
-  { value: "CI", label: "🇨🇮 Côte d'Ivoire" },
-  { value: "ML", label: "🇲🇱 Mali" },
-  { value: "BF", label: "🇧🇫 Burkina Faso" },
-  { value: "CM", label: "🇨🇲 Cameroun" },
-  { value: "TG", label: "🇹🇬 Togo" },
-  { value: "BJ", label: "🇧🇯 Bénin" },
-  { value: "NE", label: "🇳🇪 Niger" },
-  { value: "CD", label: "🇨🇩 RD Congo" },
-  { value: "MA", label: "🇲🇦 Maroc" },
-  { value: "DZ", label: "🇩🇿 Algérie" },
-  { value: "TN", label: "🇹🇳 Tunisie" },
-  { value: "FR", label: "🇫🇷 France" },
-  { value: "OTHER", label: "Autre pays" },
+  { value: "GN", flag: "🇬🇳", label: "Guinée" },
+  { value: "SN", flag: "🇸🇳", label: "Sénégal" },
+  { value: "CI", flag: "🇨🇮", label: "Côte d'Ivoire" },
+  { value: "ML", flag: "🇲🇱", label: "Mali" },
+  { value: "BF", flag: "🇧🇫", label: "Burkina Faso" },
+  { value: "CM", flag: "🇨🇲", label: "Cameroun" },
+  { value: "TG", flag: "🇹🇬", label: "Togo" },
+  { value: "BJ", flag: "🇧🇯", label: "Bénin" },
+  { value: "NE", flag: "🇳🇪", label: "Niger" },
+  { value: "CD", flag: "🇨🇩", label: "RD Congo" },
+  { value: "MA", flag: "🇲🇦", label: "Maroc" },
+  { value: "DZ", flag: "🇩🇿", label: "Algérie" },
+  { value: "TN", flag: "🇹🇳", label: "Tunisie" },
+  { value: "FR", flag: "🇫🇷", label: "France" },
+  { value: "OTHER", flag: "", label: "Autre pays" },
 ];
 
 // Password strength (same logic as ResetPassword page)
 function getStrengthRules(pw: string) {
   return [
-    { label: "8 caractères minimum", ok: pw.length >= 8 },
-    { label: "Une majuscule", ok: /[A-Z]/.test(pw) },
-    { label: "Une minuscule", ok: /[a-z]/.test(pw) },
-    { label: "Un chiffre", ok: /[0-9]/.test(pw) },
-    { label: "Un caractère spécial", ok: /[^A-Za-z0-9]/.test(pw) },
+    { label: "register.rules.length", ok: pw.length >= 8 },
+    { label: "register.rules.upper", ok: /[A-Z]/.test(pw) },
+    { label: "register.rules.lower", ok: /[a-z]/.test(pw) },
+    { label: "register.rules.digit", ok: /[0-9]/.test(pw) },
+    { label: "register.rules.special", ok: /[^A-Za-z0-9]/.test(pw) },
   ];
 }
 
 function PasswordStrength({ pw }: { pw: string }) {
+  const { t } = useTranslation();
   if (!pw) return null;
   const rules = getStrengthRules(pw);
   const score = rules.filter((r) => r.ok).length;
@@ -71,7 +73,7 @@ function PasswordStrength({ pw }: { pw: string }) {
         {rules.map((r) => (
           <li key={r.label} className={`flex items-center gap-1.5 text-xs ${r.ok ? "text-green-600 dark:text-green-400" : "text-gray-400"}`}>
             <CheckCircle className={`w-3 h-3 ${r.ok ? "text-green-500" : "text-gray-300"}`} />
-            {r.label}
+            {t(r.label)}
           </li>
         ))}
       </ul>
@@ -82,12 +84,13 @@ function PasswordStrength({ pw }: { pw: string }) {
 // ─── Step indicators ──────────────────────────────────────────────────────────
 
 const STEPS = [
-  { id: 1, label: "Votre établissement", icon: School },
-  { id: 2, label: "Votre compte",        icon: User },
-  { id: 3, label: "Confirmation",         icon: CheckCircle },
+  { id: 1, label: "register.steps.school", icon: School },
+  { id: 2, label: "register.steps.account",        icon: User },
+  { id: 3, label: "register.steps.confirm",         icon: CheckCircle },
 ];
 
 function StepIndicator({ current }: { current: number }) {
+  const { t } = useTranslation();
   return (
     <div className="flex items-center justify-center gap-2 mb-8">
       {STEPS.map((s, i) => {
@@ -101,7 +104,7 @@ function StepIndicator({ current }: { current: number }) {
                        "bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500"
             }`}>
               {done ? <CheckCircle className="w-3.5 h-3.5" /> : <s.icon className="w-3.5 h-3.5" />}
-              <span className="hidden sm:inline">{s.label}</span>
+              <span className="hidden sm:inline">{t(s.label)}</span>
               <span className="sm:hidden">{s.id}</span>
             </div>
             {i < STEPS.length - 1 && (
@@ -137,6 +140,10 @@ const INITIAL: FormData = {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function Register() {
+  const { t } = useTranslation();
+  const tr = t;
+  const countryLabel = (country: { flag: string; label: string; value: string }) =>
+    `${country.flag ? country.flag + " " : ""}${t(`register.countries.${country.value}`, { defaultValue: country.label })}`;
   const navigate = useNavigate();
   const { refreshProfile } = useAuth();
   const { toast } = useToast();
@@ -184,8 +191,8 @@ export default function Register() {
       }
 
       toast({
-        title: "🎉 Établissement créé !",
-        description: "Votre essai de 30 jours est activé. Configurons votre école.",
+        title: t("register.createdTitle"),
+        description: t("register.createdText"),
       });
 
       // Hydrate the Auth context BEFORE navigating — otherwise the user
@@ -195,8 +202,8 @@ export default function Register() {
     } catch (err: any) {
       const detail = err?.response?.data?.detail;
       toast({
-        title: "Erreur lors de la création",
-        description: detail ?? "Une erreur est survenue. Réessayez dans quelques instants.",
+        title: t("register.errorTitle"),
+        description: detail ?? t("register.errorText"),
         variant: "destructive",
       });
     } finally {
@@ -224,15 +231,15 @@ export default function Register() {
           </div>
           <h1 className="text-3xl font-bold text-white mb-3">Academy Guinéenne</h1>
           <p className="text-indigo-200 text-sm leading-relaxed mb-8">
-            Créez votre espace scolaire en moins de 2 minutes et commencez votre essai de 30 jours, toutes fonctionnalités incluses.
+            {t("register.tagline")}
           </p>
           {/* Benefits */}
           <div className="space-y-3 text-left">
             {[
-              "30 jours d'essai, toutes fonctionnalités",
-              "Sans carte bancaire",
-              "Données sécurisées & isolées",
-              "Support inclus",
+              t("register.benefits.trial"),
+              t("register.benefits.noCard"),
+              t("register.benefits.secure"),
+              t("register.benefits.support"),
             ].map((b) => (
               <div key={b} className="flex items-center gap-2.5 text-sm text-white/80">
                 <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0" />
@@ -241,8 +248,8 @@ export default function Register() {
             ))}
           </div>
           <p className="mt-10 text-indigo-300 text-xs">
-            Déjà un compte ?{" "}
-            <Link to="/auth" className="text-white underline underline-offset-2">Se connecter</Link>
+            {t("register.alreadyAccount")}{" "}
+            <Link to="/auth" className="text-white underline underline-offset-2">{t("register.signIn")}</Link>
           </p>
         </div>
       </div>
@@ -252,13 +259,13 @@ export default function Register() {
         <div className="w-full max-w-lg">
           {/* Mobile back link */}
           <Link to="/" className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 mb-6 lg:hidden">
-            <ArrowLeft className="w-4 h-4" /> Retour à l'accueil
+            <ArrowLeft className="w-4 h-4" /> {t("register.backHome")}
           </Link>
 
           <div className="mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Créer votre établissement</h2>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">{t("register.title")}</h2>
             <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
-              Essai 30 jours · Sans carte bancaire
+              {t("register.subtitle")}
             </p>
           </div>
 
@@ -268,10 +275,10 @@ export default function Register() {
           {step === 1 && (
             <div className="space-y-5">
               <div className="space-y-2">
-                <Label htmlFor="school_name">Nom de l'établissement *</Label>
+                <Label htmlFor="school_name">{t("register.schoolName")}</Label>
                 <Input
                   id="school_name"
-                  placeholder="Ex : Lycée Excellence de Conakry"
+                  placeholder={t("register.schoolNamePlaceholder")}
                   value={form.school_name}
                   onChange={(e) => set("school_name", e.target.value)}
                   autoFocus
@@ -280,28 +287,28 @@ export default function Register() {
               </div>
 
               <div className="space-y-2">
-                <Label>Type d'établissement *</Label>
+                <Label>{t("register.schoolType")}</Label>
                 <Select value={form.school_type} onValueChange={(v) => set("school_type", v)}>
                   <SelectTrigger className="h-11">
-                    <SelectValue placeholder="Choisissez un type…" />
+                    <SelectValue placeholder={t("register.schoolTypePlaceholder")} />
                   </SelectTrigger>
                   <SelectContent>
                     {SCHOOL_TYPES.map((t) => (
-                      <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                      <SelectItem key={t.value} value={t.value}>{tr(`register.types.${t.value}`, { defaultValue: t.label })}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
-                <Label>Pays *</Label>
+                <Label>{t("register.country")}</Label>
                 <Select value={form.country} onValueChange={(v) => set("country", v)}>
                   <SelectTrigger className="h-11">
-                    <SelectValue placeholder="Votre pays" />
+                    <SelectValue placeholder={t("register.countryPlaceholder")} />
                   </SelectTrigger>
                   <SelectContent>
                     {COUNTRIES.map((c) => (
-                      <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                      <SelectItem key={c.value} value={c.value}>{countryLabel(c)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -322,7 +329,7 @@ export default function Register() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="first_name">Prénom *</Label>
+                  <Label htmlFor="first_name">{t("register.firstName")}</Label>
                   <Input
                     id="first_name"
                     placeholder="Mamadou"
@@ -333,7 +340,7 @@ export default function Register() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="last_name">Nom *</Label>
+                  <Label htmlFor="last_name">{t("register.lastName")}</Label>
                   <Input
                     id="last_name"
                     placeholder="Diallo"
@@ -345,7 +352,7 @@ export default function Register() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="email">Adresse email *</Label>
+                <Label htmlFor="email">{t("register.email")}</Label>
                 <Input
                   id="email"
                   type="email"
@@ -358,7 +365,7 @@ export default function Register() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password">Mot de passe *</Label>
+                <Label htmlFor="password">{t("register.password")}</Label>
                 <div className="relative">
                   <Input
                     id="password"
@@ -381,7 +388,7 @@ export default function Register() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="confirm_password">Confirmer le mot de passe *</Label>
+                <Label htmlFor="confirm_password">{t("register.confirmPassword")}</Label>
                 <Input
                   id="confirm_password"
                   type="password"
@@ -391,13 +398,13 @@ export default function Register() {
                   className="h-11"
                 />
                 {form.confirm_password && form.password !== form.confirm_password && (
-                  <p className="text-xs text-red-500">Les mots de passe ne correspondent pas</p>
+                  <p className="text-xs text-red-500">{t("register.passwordMismatch")}</p>
                 )}
               </div>
 
               <div className="flex gap-3 pt-2">
                 <Button variant="outline" className="flex-1 h-11" onClick={() => setStep(1)}>
-                  <ArrowLeft className="w-4 h-4 mr-2" /> Retour
+                  <ArrowLeft className="w-4 h-4 mr-2" /> {t("register.back")}
                 </Button>
                 <Button
                   className="flex-1 h-11 bg-indigo-600 hover:bg-indigo-700"
@@ -417,15 +424,15 @@ export default function Register() {
               <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl p-5 space-y-3">
                 <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-indigo-500" />
-                  Résumé de votre inscription
+                  {t("register.summaryTitle")}
                 </h3>
                 <dl className="space-y-2 text-sm">
                   {[
-                    { label: "Établissement", value: form.school_name },
-                    { label: "Type", value: SCHOOL_TYPES.find((t) => t.value === form.school_type)?.label },
-                    { label: "Pays", value: COUNTRIES.find((c) => c.value === form.country)?.label },
-                    { label: "Administrateur", value: `${form.first_name} ${form.last_name}` },
-                    { label: "Email", value: form.email },
+                    { label: t("register.summarySchool"), value: form.school_name },
+                    { label: tr("register.summaryType"), value: (() => { const type = SCHOOL_TYPES.find((x) => x.value === form.school_type); return type ? tr(`register.types.${type.value}`, { defaultValue: type.label }) : undefined; })() },
+                    { label: t("register.summaryCountry"), value: (() => { const country = COUNTRIES.find((c) => c.value === form.country); return country ? countryLabel(country) : undefined; })() },
+                    { label: t("register.summaryAdmin"), value: `${form.first_name} ${form.last_name}` },
+                    { label: t("register.summaryEmail"), value: form.email },
                   ].map(({ label, value }) => (
                     <div key={label} className="flex justify-between gap-4">
                       <dt className="text-gray-500 dark:text-gray-400 flex-shrink-0">{label}</dt>
@@ -439,10 +446,9 @@ export default function Register() {
               <div className="flex items-start gap-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-xl p-4">
                 <Shield className="w-5 h-5 text-indigo-600 dark:text-indigo-400 flex-shrink-0 mt-0.5" />
                 <div className="text-sm">
-                  <p className="font-medium text-indigo-800 dark:text-indigo-300">Essai de 30 jours — toutes les fonctionnalités</p>
+                  <p className="font-medium text-indigo-800 dark:text-indigo-300">{t("register.trialTitle")}</p>
                   <p className="text-indigo-600 dark:text-indigo-400 text-xs mt-0.5">
-                    Accès complet à toutes les fonctionnalités (jusqu'à 500 élèves). Aucune carte bancaire requise.
-                    Votre essai expire dans 30 jours.
+                    {t("register.trialText")}
                   </p>
                 </div>
               </div>
@@ -456,20 +462,20 @@ export default function Register() {
                   className="mt-0.5 w-4 h-4 rounded accent-indigo-600"
                 />
                 <span className="text-sm text-gray-600 dark:text-gray-400">
-                  J'accepte les{" "}
+                  {t("register.acceptPrefix")}{" "}
                   <Link to="/terms" target="_blank" className="text-indigo-600 hover:underline">
-                    Conditions Générales d'Utilisation
+                    {t("register.terms")}
                   </Link>{" "}
-                  et la{" "}
+                  {t("register.acceptAnd")}{" "}
                   <Link to="/privacy" target="_blank" className="text-indigo-600 hover:underline">
-                    Politique de confidentialité
+                    {t("register.privacy")}
                   </Link>.
                 </span>
               </label>
 
               <div className="flex gap-3">
                 <Button variant="outline" className="flex-1 h-11" onClick={() => setStep(2)}>
-                  <ArrowLeft className="w-4 h-4 mr-2" /> Retour
+                  <ArrowLeft className="w-4 h-4 mr-2" /> {t("register.back")}
                 </Button>
                 <Button
                   className="flex-1 h-11 bg-indigo-600 hover:bg-indigo-700"
@@ -477,9 +483,9 @@ export default function Register() {
                   onClick={handleSubmit}
                 >
                   {submitting ? (
-                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Création…</>
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> {t("register.creating")}</>
                   ) : (
-                    <><CheckCircle className="w-4 h-4 mr-2" /> Créer mon établissement</>
+                    <><CheckCircle className="w-4 h-4 mr-2" /> {t("register.create")}</>
                   )}
                 </Button>
               </div>
@@ -488,9 +494,9 @@ export default function Register() {
 
           {/* Already have an account */}
           <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-8">
-            Déjà un compte ?{" "}
+            {t("register.alreadyAccount")}{" "}
             <Link to="/auth" className="text-indigo-600 hover:underline font-medium">
-              Se connecter
+              {t("register.signIn")}
             </Link>
           </p>
         </div>

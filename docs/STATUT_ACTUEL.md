@@ -1610,3 +1610,7 @@ La règle métier de l’auto-pointage reste à valider.
   (échec = job FAILED) ; une file indisponible n'empêche pas l'enregistrement (journalisée).
   Nécessite le redémarrage du worker au déploiement (fait par `deploy.sh`).
 
+- **2026-11-26 — site public : annuaire, page de connexion et inscription d'une école traduits en
+  5 langues (sous-lot T2). Non déployé.** Français inchangé. Reste : T3 (modèles d'accueil et
+  sections premium), T4 (pages légales).
+

@@ -125,40 +125,41 @@ function SkeletonCard() {
 }
 
 function ErrorState({ onRetry, retrying }: { onRetry: () => void; retrying: boolean }) {
+  const { t } = useTranslation();
   return (
     <div className="col-span-full flex flex-col items-center justify-center py-24 text-center">
       <div className="w-20 h-20 bg-red-50 rounded-2xl flex items-center justify-center mb-6">
         <School className="w-9 h-9 text-red-300" />
       </div>
       <h3 className="text-lg font-semibold text-gray-700 mb-2">
-        Impossible de charger l&apos;annuaire pour le moment
+        {t("publicDirectory.loadErrorTitle")}
       </h3>
       <p className="text-gray-400 text-sm max-w-sm mb-5">
-        Un problème temporaire nous empêche d&apos;afficher les établissements. Réessayez dans
-        quelques instants.
+        {t("publicDirectory.loadErrorText")}
       </p>
       <button
         onClick={onRetry}
         disabled={retrying}
         className="px-5 py-2.5 bg-[#1e3a5f] text-white text-sm font-semibold rounded-xl hover:bg-[#162d4a] transition-all disabled:opacity-60"
       >
-        {retrying ? "Nouvel essai..." : "Réessayer"}
+        {retrying ? t("publicDirectory.retrying") : t("publicDirectory.retry")}
       </button>
     </div>
   );
 }
 
 function EmptyState({ query, tab }: { query: string; tab: FilterTab }) {
+  const { t } = useTranslation();
   return (
     <div className="col-span-full flex flex-col items-center justify-center py-24 text-center">
       <div className="w-20 h-20 bg-blue-50 rounded-2xl flex items-center justify-center mb-6">
         <School className="w-9 h-9 text-blue-300" />
       </div>
-      <h3 className="text-lg font-semibold text-gray-700 mb-2">Aucun établissement trouvé</h3>
+      <h3 className="text-lg font-semibold text-gray-700 mb-2">{t("publicDirectory.emptyTitle")}</h3>
       <p className="text-gray-400 text-sm max-w-sm">
         {query
-          ? `Aucun résultat pour "${query}". Essayez un autre terme ou élargissez vos filtres.`
-          : "Aucun établissement dans cette catégorie pour le moment."}
+          ? t("publicDirectory.emptyForQuery", { query })
+          : t("publicDirectory.emptyCategory")}
       </p>
     </div>
   );
@@ -199,7 +200,7 @@ function InstitutionCard({ tenant }: { tenant: PublicTenant }) {
             className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${badgeColor}`}
           >
             <TypeIcon className="w-3 h-3" />
-            {getTenantTypeLabel(tenant.type)}
+            {t(`publicDirectory.types.${tenant.type ?? "school"}`, { defaultValue: getTenantTypeLabel(tenant.type) })}
           </span>
         </div>
       </div>
@@ -221,7 +222,7 @@ function InstitutionCard({ tenant }: { tenant: PublicTenant }) {
           className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-[#1e3a5f] text-white text-sm font-semibold rounded-xl hover:bg-[#162d4a] transition-all shadow-sm hover:shadow-md"
         >
           <LogIn className="w-4 h-4" />
-          Se connecter
+          {t("publicDirectory.signIn")}
         </button>
         <button
           onClick={(e) => {
@@ -231,7 +232,7 @@ function InstitutionCard({ tenant }: { tenant: PublicTenant }) {
           className="flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 text-sm font-medium rounded-xl hover:bg-gray-200 transition-all"
         >
           <ExternalLink className="w-4 h-4" />
-          <span className="hidden sm:inline">Page publique</span>
+          <span className="hidden sm:inline">{t("publicDirectory.publicPage")}</span>
         </button>
         {/* Annuaires : offre de formation et implantations de l'établissement. */}
         <Link
@@ -252,11 +253,11 @@ function InstitutionCard({ tenant }: { tenant: PublicTenant }) {
 // ---------------------------------------------------------------------------
 
 const FILTER_TABS: { key: FilterTab; label: string; icon: React.FC<{ className?: string }> }[] = [
-  { key: "all", label: "Tous", icon: Building2 },
-  { key: "university", label: "Universités", icon: GraduationCap },
-  { key: "high", label: "Lycées", icon: School },
-  { key: "primary", label: "Écoles primaires", icon: BookOpen },
-  { key: "training", label: "Centres de formation", icon: Users },
+  { key: "all", label: "publicDirectory.tabs.all", icon: Building2 },
+  { key: "university", label: "publicDirectory.tabs.university", icon: GraduationCap },
+  { key: "high", label: "publicDirectory.tabs.high", icon: School },
+  { key: "primary", label: "publicDirectory.tabs.primary", icon: BookOpen },
+  { key: "training", label: "publicDirectory.tabs.training", icon: Users },
 ];
 
 export default function PublicDirectory() {
@@ -324,14 +325,13 @@ export default function PublicDirectory() {
 
         <div className="max-w-4xl mx-auto text-center relative z-10">
           <span className="inline-block bg-blue-400/20 text-blue-200 text-xs font-semibold px-3 py-1.5 rounded-full mb-4 uppercase tracking-widest">
-            Annuaire
+            {t("publicDirectory.eyebrow")}
           </span>
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-white mb-4 leading-tight">
-            Annuaire des établissements
+            {t("publicDirectory.title")}
           </h1>
           <p className="text-blue-200 text-lg max-w-2xl mx-auto">
-            Découvrez les établissements scolaires et universitaires de notre plateforme.
-            Consultez leur page publique, programmes et informations.
+            {t("publicDirectory.intro")}
           </p>
         </div>
       </div>
@@ -348,14 +348,14 @@ export default function PublicDirectory() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Rechercher un établissement par nom, ville..."
+              placeholder={t("publicDirectory.searchPlaceholder")}
               className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
             />
             {search && (
               <button
                 onClick={() => setSearch("")}
                 className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors text-lg leading-none"
-                aria-label="Effacer la recherche"
+                aria-label={t("publicDirectory.clearSearch")}
               >
                 &times;
               </button>
@@ -411,7 +411,7 @@ export default function PublicDirectory() {
                     }`}
                   >
                     <Icon className="w-3.5 h-3.5" />
-                    {tab.label}
+                    {t(tab.label)}
                   </button>
                 );
               })}
@@ -426,7 +426,7 @@ export default function PublicDirectory() {
                 className="text-sm text-gray-700 bg-gray-100 border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
               >
                 <option value="az">A - Z</option>
-                <option value="recent">Plus récents</option>
+                <option value="recent">{t("publicDirectory.sortRecent")}</option>
               </select>
             </div>
           </div>
@@ -440,14 +440,14 @@ export default function PublicDirectory() {
         {!isLoading && !isError && (
           <p className="text-gray-500 text-sm">
             {filtered.length === 0 ? (
-              "Aucun résultat"
+              t("publicDirectory.noResult")
             ) : (
               <>
                 <span className="font-semibold text-gray-800">{filtered.length}</span>{" "}
-                {filtered.length === 1 ? "établissement trouvé" : "établissements trouvés"}
+                {t("publicDirectory.found", { count: filtered.length })}
                 {search && (
                   <>
-                    {" "}pour{" "}
+                    {" "}{t("publicDirectory.forQuery")}{" "}
                     <span className="font-medium text-[#1e3a5f]">&ldquo;{search}&rdquo;</span>
                   </>
                 )}
@@ -483,16 +483,16 @@ export default function PublicDirectory() {
             <School className="w-7 h-7 text-blue-600" />
           </div>
           <h2 className="text-xl font-bold text-[#1e3a5f]">
-            Votre établissement n&apos;est pas dans l&apos;annuaire&nbsp;?
+            {t("publicDirectory.ctaTitle")}
           </h2>
           <p className="text-gray-500 text-sm">
-            Inscrivez votre établissement gratuitement et rejoignez notre plateforme de gestion scolaire.
+            {t("publicDirectory.ctaText")}
           </p>
           <a
             href="/admin/create-tenant"
             className="px-6 py-3 bg-[#1e3a5f] text-white font-semibold rounded-xl hover:bg-[#162d4a] transition-all shadow-md text-sm"
           >
-            Inscrire mon établissement
+            {t("publicDirectory.ctaAction")}
           </a>
         </div>
       </div>
