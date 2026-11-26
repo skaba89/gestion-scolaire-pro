@@ -11,7 +11,7 @@
  */
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 const { mockUsePublicTenants, mockRefetch, mockFacets } = vi.hoisted(() => ({
   mockUsePublicTenants: vi.fn(),
@@ -19,14 +19,15 @@ const { mockUsePublicTenants, mockRefetch, mockFacets } = vi.hoisted(() => ({
   mockFacets: vi.fn(() => ({ data: undefined })),
 }));
 
-vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
-
 vi.mock("@/hooks/usePublicTenant", () => ({
   usePublicTenants: mockUsePublicTenants,
   usePublicDirectoryFacets: mockFacets,
 }));
 
+import i18n from "@/i18n/config";
 import PublicDirectory from "@/pages/public/PublicDirectory";
+
+beforeAll(async () => { await i18n.changeLanguage("fr"); });
 
 function renderDirectory() {
   return render(
@@ -171,9 +172,9 @@ describe("PublicDirectory — filtres par région et préfecture (annuaires)", (
 
     renderDirectory();
     expect(mockUsePublicTenants).toHaveBeenLastCalledWith({ region: "", prefecture: "" });
-    fireEvent.change(screen.getByLabelText("publicDirectory.region"), { target: { value: "Kindia" } });
+    fireEvent.change(screen.getByLabelText("Région"), { target: { value: "Kindia" } });
     expect(mockUsePublicTenants).toHaveBeenLastCalledWith({ region: "Kindia", prefecture: "" });
     expect(screen.getByText("Conakry, Kaloum")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "publicOffer.linkAria" })).toHaveAttribute("href", "/ecole/lk/offre");
+    expect(screen.getByRole("link", { name: "Formations et implantations de Lycée de Kaloum" })).toHaveAttribute("href", "/ecole/lk/offre");
   });
 });

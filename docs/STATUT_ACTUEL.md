@@ -1615,3 +1615,7 @@ La règle métier de l’auto-pointage reste à valider.
   l'établissement ; Paramètres → Cycles et l'écran RH le disent explicitement (5 langues). Ouvert au
   registre : HR-PERMS-01 (secrétariat et personnel lisent les bulletins de paie et l'IBAN).
 
+- **2026-11-26 — site public : annuaire, page de connexion et inscription d'une école traduits en
+  5 langues (sous-lot T2). Non déployé.** Français inchangé. Reste : T3 (modèles d'accueil et
+  sections premium), T4 (pages légales).
+
